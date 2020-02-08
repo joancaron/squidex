@@ -193,29 +193,6 @@ namespace Squidex.Domain.Apps.Entities.Contents
         }
 
         [Fact]
-        public async Task Update_should_create_proposal_events_and_update_state()
-        {
-            var command = new UpdateContent { Data = otherData, AsDraft = true };
-
-            await ExecuteCreateAsync();
-            await ExecutePublishAsync();
-
-            var result = await PublishAsync(CreateContentCommand(command));
-
-            result.ShouldBeEquivalent(sut.Snapshot);
-
-            Assert.True(sut.Snapshot.IsPending);
-
-            LastEvents
-                .ShouldHaveSameEvents(
-                    CreateContentEvent(new ContentUpdateProposed { Data = otherData })
-                );
-
-            A.CallTo(() => scriptEngine.ExecuteAndTransform(ScriptContext(otherData, data, Status.Published), "<update-script>"))
-                .MustHaveHappened();
-        }
-
-        [Fact]
         public async Task Update_should_not_create_event_for_same_data()
         {
             var command = new UpdateContent { Data = data };
@@ -259,29 +236,6 @@ namespace Squidex.Domain.Apps.Entities.Contents
                 );
 
             A.CallTo(() => scriptEngine.ExecuteAndTransform(ScriptContext(patched, data, Status.Draft), "<update-script>"))
-                .MustHaveHappened();
-        }
-
-        [Fact]
-        public async Task Patch_should_create_proposal_events_and_update_state()
-        {
-            var command = new PatchContent { Data = patch, AsDraft = true };
-
-            await ExecuteCreateAsync();
-            await ExecutePublishAsync();
-
-            var result = await PublishAsync(CreateContentCommand(command));
-
-            result.ShouldBeEquivalent(sut.Snapshot);
-
-            Assert.True(sut.Snapshot.IsPending);
-
-            LastEvents
-                .ShouldHaveSameEvents(
-                    CreateContentEvent(new ContentUpdateProposed { Data = patched })
-                );
-
-            A.CallTo(() => scriptEngine.ExecuteAndTransform(ScriptContext(patched, data, Status.Published), "<update-script>"))
                 .MustHaveHappened();
         }
 
@@ -399,17 +353,17 @@ namespace Squidex.Domain.Apps.Entities.Contents
 
             await ExecuteCreateAsync();
             await ExecutePublishAsync();
-            await ExecuteProposeUpdateAsync();
+            await ExecuteCreateDraftAsync();
 
             var result = await PublishAsync(CreateContentCommand(command));
 
             result.ShouldBeEquivalent(sut.Snapshot);
 
-            Assert.False(sut.Snapshot.IsPending);
+            Assert.Null(sut.Snapshot.NewStatus);
 
             LastEvents
                 .ShouldHaveSameEvents(
-                    CreateContentEvent(new ContentChangesPublished())
+                    CreateContentEvent(new ContentStatusChanged { Status = Status.Published, Change = StatusChange.Published })
                 );
 
             A.CallTo(() => scriptEngine.Execute(A<ScriptContext>.Ignored, "<update-script>"))
@@ -450,7 +404,7 @@ namespace Squidex.Domain.Apps.Entities.Contents
 
             var command = new ChangeContentStatus { Status = Status.Published, JobId = sut.Snapshot.ScheduleJob!.Id };
 
-            A.CallTo(() => contentWorkflow.CanMoveToAsync(A<IContentEntity>.Ignored, Status.Published, User))
+            A.CallTo(() => contentWorkflow.CanMoveToAsync(A<IContentInfo>.Ignored, Status.Draft, Status.Published, User))
                 .Returns(false);
 
             var result = await PublishAsync(CreateContentCommand(command));
@@ -491,23 +445,43 @@ namespace Squidex.Domain.Apps.Entities.Contents
         }
 
         [Fact]
-        public async Task DiscardChanges_should_update_properties_and_create_events()
+        public async Task CreateDraft_should_create_events_and_update_state()
         {
-            var command = new DiscardChanges();
+            var command = new CreateContentDraft();
 
             await ExecuteCreateAsync();
             await ExecutePublishAsync();
-            await ExecuteProposeUpdateAsync();
+
+            var result = await PublishAsync(CreateContentCommand(command));
+
+            result.ShouldBeEquivalent(sut.Snapshot);
+
+            Assert.Equal(Status.Draft, sut.Snapshot.NewStatus);
+
+            LastEvents
+                .ShouldHaveSameEvents(
+                    CreateContentEvent(new ContentDraftCreated { Status = Status.Draft })
+                );
+        }
+
+        [Fact]
+        public async Task DeleteDraft_should_update_properties_and_create_events()
+        {
+            var command = new DeleteContentDraft();
+
+            await ExecuteCreateAsync();
+            await ExecutePublishAsync();
+            await ExecuteCreateDraftAsync();
 
             var result = await PublishAsync(CreateContentCommand(command));
 
             result.ShouldBeEquivalent(new EntitySavedResult(3));
 
-            Assert.False(sut.Snapshot.IsPending);
+            Assert.Null(sut.Snapshot.NewStatus);
 
             LastEvents
                 .ShouldHaveSameEvents(
-                    CreateContentEvent(new ContentChangesDiscarded())
+                    CreateContentEvent(new ContentDraftDeleted())
                 );
         }
 
@@ -521,9 +495,9 @@ namespace Squidex.Domain.Apps.Entities.Contents
             return PublishAsync(CreateContentCommand(new UpdateContent { Data = otherData }));
         }
 
-        private Task ExecuteProposeUpdateAsync()
+        private Task ExecuteCreateDraftAsync()
         {
-            return PublishAsync(CreateContentCommand(new UpdateContent { Data = otherData, AsDraft = true }));
+            return PublishAsync(CreateContentCommand(new CreateContentDraft()));
         }
 
         private Task ExecuteChangeStatusAsync(Status status, Instant? dueTime = null)

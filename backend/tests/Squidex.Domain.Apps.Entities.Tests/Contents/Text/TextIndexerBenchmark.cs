@@ -9,6 +9,9 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using FakeItEasy;
+using Orleans.Concurrency;
+using Squidex.Domain.Apps.Entities.Contents.Text.Lucene;
+using Squidex.Domain.Apps.Entities.Contents.Text.Lucene.Storage;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Log;
 using Xunit;
@@ -49,7 +52,19 @@ namespace Squidex.Domain.Apps.Entities.Contents.Text
 
             foreach (var id in ids)
             {
-                await sut.IndexAsync(new Update { Text = text, Id = id });
+                var commands = new IIndexCommand[]
+                {
+                    new UpsertIndexEntry
+                    {
+                         ContentId = id,
+                         DocId = id.ToString(),
+                         ServeAll = true,
+                         ServePublished = true,
+                         Texts = text
+                    }
+                };
+
+                await sut.IndexAsync(commands.AsImmutable());
             }
 
             sut.OnDeactivateAsync().Wait();

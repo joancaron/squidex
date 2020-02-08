@@ -5,11 +5,18 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-namespace Squidex.Domain.Apps.Entities.Contents.Text
+using System;
+using Squidex.Domain.Apps.Core.Contents;
+using Squidex.Infrastructure;
+
+namespace Squidex.Domain.Apps.Entities.Contents
 {
-    public enum Scope
+    public interface IContentInfo
     {
-        Draft,
-        Published
+        NamedId<Guid> AppId { get; }
+
+        NamedId<Guid> SchemaId { get; }
+
+        NamedContentData EditingData { get; }
     }
 }

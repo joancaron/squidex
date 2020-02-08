@@ -5,24 +5,10 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using Lucene.Net.Analysis;
-using Lucene.Net.Index;
-using Lucene.Net.Search;
-
 namespace Squidex.Domain.Apps.Entities.Contents.Text
 {
-    public interface IIndex
+    public sealed class DeleteIndexEntry : IIndexCommand
     {
-        Analyzer? Analyzer { get; }
-
-        IndexReader? Reader { get; }
-
-        IndexSearcher? Searcher { get; }
-
-        IndexWriter Writer { get; }
-
-        void EnsureReader();
-
-        void MarkStale();
+        public string DocId { get; set; }
     }
 }

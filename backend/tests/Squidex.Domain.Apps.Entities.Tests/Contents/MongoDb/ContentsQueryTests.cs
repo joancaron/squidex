@@ -36,7 +36,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.MongoDb
         {
             var ids = Enumerable.Repeat(0, 50).Select(_ => Guid.NewGuid()).ToHashSet();
 
-            var contents = await _.ContentRepository.QueryIdsAsync(_.RandomAppId(), ids);
+            var contents = await _.ContentRepository.QueryIdsAsync(_.RandomAppId(), ids, SearchScope.Published);
 
             Assert.NotNull(contents);
         }
@@ -46,7 +46,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.MongoDb
         {
             var ids = Enumerable.Repeat(0, 50).Select(_ => Guid.NewGuid()).ToHashSet();
 
-            var contents = await _.ContentRepository.QueryAsync(_.RandomApp(), new[] { Status.Published }, ids, true);
+            var contents = await _.ContentRepository.QueryAsync(_.RandomApp(), new[] { Status.Published }, ids, SearchScope.All);
 
             Assert.NotNull(contents);
         }
@@ -56,7 +56,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.MongoDb
         {
             var ids = Enumerable.Repeat(0, 50).Select(_ => Guid.NewGuid()).ToHashSet();
 
-            var contents = await _.ContentRepository.QueryAsync(_.RandomApp(), _.RandomSchema(), new[] { Status.Published }, ids, true);
+            var contents = await _.ContentRepository.QueryAsync(_.RandomApp(), _.RandomSchema(), new[] { Status.Published }, ids, SearchScope.All);
 
             Assert.NotNull(contents);
         }
@@ -124,18 +124,13 @@ namespace Squidex.Domain.Apps.Entities.Contents.MongoDb
             yield return new object?[] { new[] { Status.Published } };
         }
 
-        private async Task<IResultList<IContentEntity>> QueryAsync(Status[]? status, ClrQuery query)
+        private async Task<IResultList<IContentEntity>> QueryAsync(Status[]? status, ClrQuery clrQuery)
         {
-            query.Top = 1000;
+            clrQuery.Top = 1000;
+            clrQuery.Skip = 100;
+            clrQuery.Sort = new List<SortNode> { new SortNode("LastModified", SortOrder.Descending) };
 
-            query.Skip = 100;
-
-            query.Sort = new List<SortNode>
-            {
-                new SortNode("LastModified", SortOrder.Descending)
-            };
-
-            var contents = await _.ContentRepository.QueryAsync(_.RandomApp(), _.RandomSchema(), status, true, query, true);
+            var contents = await _.ContentRepository.QueryAsync(_.RandomApp(), _.RandomSchema(), status, clrQuery, SearchScope.All);
 
             return contents;
         }

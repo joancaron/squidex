@@ -50,11 +50,22 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
         private readonly ContentQueryParser queryParser = A.Fake<ContentQueryParser>();
         private readonly ContentQueryService sut;
 
-        public static IEnumerable<object?[]> ApiStatusTests = new[]
+        public static IEnumerable<object?[]> ApiStatusTests()
         {
-            new object?[] { 0, new[] { Status.Published } },
-            new object?[] { 1, null }
-        };
+            yield return new object?[]
+            {
+                0,
+                new[] { Status.Published },
+                SearchScope.Published
+            };
+
+            yield return new object?[]
+            {
+                1,
+                null,
+                SearchScope.All
+            };
+        }
 
         public ContentQueryServiceTests()
         {
@@ -89,7 +100,9 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
         {
             SetupSchemaFound();
 
-            var result = await sut.GetSchemaOrThrowAsync(requestContext, schemaId.Id.ToString());
+            var ctx = requestContext;
+
+            var result = await sut.GetSchemaOrThrowAsync(ctx, schemaId.Id.ToString());
 
             Assert.Equal(schema, result);
         }
@@ -99,7 +112,9 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
         {
             SetupSchemaFound();
 
-            var result = await sut.GetSchemaOrThrowAsync(requestContext, schemaId.Name);
+            var ctx = requestContext;
+
+            var result = await sut.GetSchemaOrThrowAsync(ctx, schemaId.Name);
 
             Assert.Equal(schema, result);
         }
@@ -142,7 +157,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
 
             SetupUser(isFrontend: false);
             SetupSchemaFound();
-            SetupContent(status, null, includeDraft: false);
+            SetupContent(status, null, SearchScope.All);
 
             var ctx = requestContext;
 
@@ -157,7 +172,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
             SetupUser(isFrontend: true);
             SetupSchemaFound();
             SetupSchemaScripting(contentId);
-            SetupContent(null, content, includeDraft: true);
+            SetupContent(null, content, SearchScope.All);
 
             var ctx = requestContext;
 
@@ -172,14 +187,14 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
 
         [Theory]
         [MemberData(nameof(ApiStatusTests))]
-        public async Task Should_return_single_content_for_api_with_transform(int unpublished, Status[] status)
+        public async Task Should_return_single_content_for_api_with_transform(int unpublished, Status[] status, SearchScope scope)
         {
             var content = CreateContent(contentId);
 
             SetupUser(isFrontend: false);
             SetupSchemaFound();
             SetupSchemaScripting(contentId);
-            SetupContent(status, content, unpublished == 1);
+            SetupContent(status, content, scope);
 
             var ctx = requestContext.WithUnpublished(unpublished == 1);
 
@@ -224,7 +239,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
         }
 
         [Fact]
-        public async Task Should_query_contents_by_query_for_frontend_without_transform()
+        public async Task Should_query_contents_by_query_for_frontend_without_scripting()
         {
             const int count = 5, total = 200;
 
@@ -233,7 +248,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
             SetupUser(isFrontend: true);
             SetupSchemaFound();
             SetupSchemaScripting(contentId);
-            SetupContents(null, count, total, content, inDraft: true, includeDraft: true);
+            SetupContents(null, count, total, content, SearchScope.All);
 
             var ctx = requestContext;
 
@@ -250,7 +265,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
 
         [Theory]
         [MemberData(nameof(ApiStatusTests))]
-        public async Task Should_query_contents_by_query_for_api_and_transform(int unpublished, Status[] status)
+        public async Task Should_query_contents_by_query_for_api_with_scripting(int unpublished, Status[] status, SearchScope scope)
         {
             const int count = 5, total = 200;
 
@@ -259,7 +274,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
             SetupUser(isFrontend: false);
             SetupSchemaFound();
             SetupSchemaScripting(contentId);
-            SetupContents(status, count, total, content, inDraft: false, unpublished == 1);
+            SetupContents(status, count, total, content, scope);
 
             var ctx = requestContext.WithUnpublished(unpublished == 1);
 
@@ -275,7 +290,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
         }
 
         [Fact]
-        public async Task Should_query_contents_by_id_for_frontend_and_transform()
+        public async Task Should_query_contents_by_id_for_frontend_and_without_scripting()
         {
             const int count = 5, total = 200;
 
@@ -284,7 +299,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
             SetupUser(isFrontend: true);
             SetupSchemaFound();
             SetupSchemaScripting(ids.ToArray());
-            SetupContents(null, total, ids, includeDraft: true);
+            SetupContents(null, total, ids, SearchScope.All);
 
             var ctx = requestContext;
 
@@ -299,7 +314,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
 
         [Theory]
         [MemberData(nameof(ApiStatusTests))]
-        public async Task Should_query_contents_by_id_for_api_and_transform(int unpublished, Status[] status)
+        public async Task Should_query_contents_by_id_for_api_and_with_scripting(int unpublished, Status[] status, SearchScope scope)
         {
             const int count = 5, total = 200;
 
@@ -308,7 +323,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
             SetupUser(isFrontend: false);
             SetupSchemaFound();
             SetupSchemaScripting(ids.ToArray());
-            SetupContents(status, total, ids, unpublished == 1);
+            SetupContents(status, total, ids, scope);
 
             var ctx = requestContext.WithUnpublished(unpublished == 1);
 
@@ -322,7 +337,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
         }
 
         [Fact]
-        public async Task Should_query_all_contents_by_id_for_frontend_and_transform()
+        public async Task Should_query_all_contents_by_id_for_frontend_and_without_scripting()
         {
             const int count = 5;
 
@@ -331,7 +346,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
             SetupUser(isFrontend: true);
             SetupSchemaFound();
             SetupSchemaScripting(ids.ToArray());
-            SetupContents(null, ids, includeDraft: true);
+            SetupContents(null, ids, SearchScope.All);
 
             var ctx = requestContext;
 
@@ -345,7 +360,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
 
         [Theory]
         [MemberData(nameof(ApiStatusTests))]
-        public async Task Should_query_all_contents_by_id_for_api_and_transform(int unpublished, Status[] status)
+        public async Task Should_query_all_contents_by_id_for_api_and_with_scripting(int unpublished, Status[] status, SearchScope scope)
         {
             const int count = 5;
 
@@ -354,7 +369,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
             SetupUser(isFrontend: false);
             SetupSchemaFound();
             SetupSchemaScripting(ids.ToArray());
-            SetupContents(status, ids, unpublished == 1);
+            SetupContents(status, ids, scope);
 
             var ctx = requestContext.WithUnpublished(unpublished == 1);
 
@@ -374,7 +389,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
             SetupUser(isFrontend: false, allowSchema: false);
             SetupSchemaFound();
             SetupSchemaScripting(ids.ToArray());
-            SetupContents(new Status[0], ids, includeDraft: false);
+            SetupContents(new Status[0], ids, SearchScope.All);
 
             var ctx = requestContext;
 
@@ -397,7 +412,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
 
             Assert.Empty(result);
 
-            A.CallTo(() => contentRepository.QueryAsync(app, A<Status[]>.Ignored, A<HashSet<Guid>>.Ignored, A<bool>.Ignored))
+            A.CallTo(() => contentRepository.QueryAsync(app, A<Status[]>.Ignored, A<HashSet<Guid>>.Ignored, A<SearchScope>.Ignored))
                 .MustNotHaveHappened();
         }
 
@@ -425,27 +440,27 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
             }
         }
 
-        private void SetupContents(Status[]? status, int count, int total, IContentEntity content, bool inDraft, bool includeDraft)
+        private void SetupContents(Status[]? status, int count, int total, IContentEntity content, SearchScope scope)
         {
-            A.CallTo(() => contentRepository.QueryAsync(app, schema, A<Status[]>.That.Is(status), inDraft, A<ClrQuery>.Ignored, includeDraft))
+            A.CallTo(() => contentRepository.QueryAsync(app, schema, A<Status[]>.That.Is(status), A<ClrQuery>.Ignored, scope))
                 .Returns(ResultList.Create(total, Enumerable.Repeat(content, count)));
         }
 
-        private void SetupContents(Status[]? status, int total, List<Guid> ids, bool includeDraft)
+        private void SetupContents(Status[]? status, int total, List<Guid> ids, SearchScope scope)
         {
-            A.CallTo(() => contentRepository.QueryAsync(app, schema, A<Status[]>.That.Is(status), A<HashSet<Guid>>.Ignored, includeDraft))
+            A.CallTo(() => contentRepository.QueryAsync(app, schema, A<Status[]>.That.Is(status), A<HashSet<Guid>>.Ignored, scope))
                 .Returns(ResultList.Create(total, ids.Select(CreateContent).Shuffle()));
         }
 
-        private void SetupContents(Status[]? status, List<Guid> ids, bool includeDraft)
+        private void SetupContents(Status[]? status, List<Guid> ids, SearchScope scope)
         {
-            A.CallTo(() => contentRepository.QueryAsync(app, A<Status[]>.That.Is(status), A<HashSet<Guid>>.Ignored, includeDraft))
+            A.CallTo(() => contentRepository.QueryAsync(app, A<Status[]>.That.Is(status), A<HashSet<Guid>>.Ignored, scope))
                 .Returns(ids.Select(x => (CreateContent(x), schema)).ToList());
         }
 
-        private void SetupContent(Status[]? status, IContentEntity? content, bool includeDraft)
+        private void SetupContent(Status[]? status, IContentEntity? content, SearchScope scope)
         {
-            A.CallTo(() => contentRepository.FindContentAsync(app, schema, A<Status[]>.That.Is(status), contentId, includeDraft))
+            A.CallTo(() => contentRepository.FindContentAsync(app, schema, A<Status[]>.That.Is(status), contentId, scope))
                 .Returns(content);
         }
 
@@ -489,7 +504,6 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
             {
                 Id = id,
                 Data = contentData,
-                DataDraft = contentData,
                 SchemaId = schemaId,
                 Status = status
             };

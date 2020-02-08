@@ -6,18 +6,17 @@
 // ==========================================================================
 
 using System;
-using System.Collections.Generic;
-using Orleans.Concurrency;
+using System.Threading.Tasks;
+using Squidex.Domain.Apps.Entities.Contents.Text.State;
 
 namespace Squidex.Domain.Apps.Entities.Contents.Text
 {
-    [Immutable]
-    public sealed class Update
+    public interface ITextIndexerState
     {
-        public Guid Id { get; set; }
+        Task<ContentState?> GetAsync(Guid contentId);
 
-        public Dictionary<string, string> Text { get; set; }
+        Task SetAsync(ContentState state);
 
-        public bool OnlyDraft { get; set; }
+        Task RemoveAsync(Guid contentId);
     }
 }

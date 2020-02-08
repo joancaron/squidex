@@ -5,17 +5,15 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
+using System;
+using System.Threading.Tasks;
+
 namespace Squidex.Domain.Apps.Entities.Contents.Text
 {
-    public class TextIndexerGrainTests_FS : TextIndexerGrainTestsBase
+    public interface IIndexerFactory
     {
-        public override IIndexStorage Storage => CreateStorage();
+        Task<ITextIndexer> CreateAsync(Guid schemaId);
 
-        private static IIndexStorage CreateStorage()
-        {
-            var storage = new FileIndexStorage();
-
-            return storage;
-        }
+        Task CleanupAsync();
     }
 }

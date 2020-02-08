@@ -5,19 +5,21 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using Squidex.Infrastructure.Assets;
+using System;
+using System.Collections.Generic;
 
 namespace Squidex.Domain.Apps.Entities.Contents.Text
 {
-    public class TextIndexerGrainTests_Assets : TextIndexerGrainTestsBase
+    public sealed class UpsertIndexEntry : IIndexCommand
     {
-        public override IIndexStorage Storage { get; } = CreateStorage();
+        public string DocId { get; set; }
 
-        private static IIndexStorage CreateStorage()
-        {
-            var storage = new AssetIndexStorage(new MemoryAssetStore());
+        public Dictionary<string, string> Texts { get; set; }
 
-            return storage;
-        }
+        public bool ServeAll { get; set; }
+
+        public bool ServePublished { get; set; }
+
+        public Guid ContentId { get; set; }
     }
 }
