@@ -6,6 +6,7 @@
 // ==========================================================================
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Squidex.Domain.Apps.Core;
 using Squidex.Domain.Apps.Entities.Search;
@@ -21,24 +22,21 @@ namespace Squidex.Domain.Apps.Entities.Apps
 
         public AppSettingsSearchSource(IUrlGenerator urlGenerator)
         {
-            Guard.NotNull(urlGenerator, nameof(urlGenerator));
-
             this.urlGenerator = urlGenerator;
         }
 
-        public Task<SearchResults> SearchAsync(string query, Context context)
+        public Task<SearchResults> SearchAsync(string query, Context context,
+            CancellationToken ct)
         {
             var result = new SearchResults();
 
             var appId = context.App.NamedId();
 
-            void Search(string term, string permissionId, Func<NamedId<Guid>, string> generate, SearchResultType type)
+            void Search(string term, string permissionId, Func<NamedId<DomainId>, string> generate, SearchResultType type)
             {
                 if (result.Count < MaxItems && term.Contains(query, StringComparison.OrdinalIgnoreCase))
                 {
-                    var permission = Permissions.ForApp(permissionId, appId.Name);
-
-                    if (context.Permissions.Allows(permission))
+                    if (context.Allows(permissionId))
                     {
                         var url = generate(appId);
 
@@ -48,7 +46,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
             }
 
             Search("Assets", Permissions.AppAssetsRead,
-                urlGenerator.AssetsUI, SearchResultType.Asset);
+                a => urlGenerator.AssetsUI(a), SearchResultType.Asset);
 
             Search("Backups", Permissions.AppBackupsRead,
                 urlGenerator.BackupsUI, SearchResultType.Setting);
@@ -56,20 +54,14 @@ namespace Squidex.Domain.Apps.Entities.Apps
             Search("Clients", Permissions.AppClientsRead,
                 urlGenerator.ClientsUI, SearchResultType.Setting);
 
-            Search("Contents", Permissions.AppCommon,
-                urlGenerator.ContentsUI, SearchResultType.Content);
-
             Search("Contributors", Permissions.AppContributorsRead,
                 urlGenerator.ContributorsUI, SearchResultType.Setting);
 
-            Search("Dashboard", Permissions.AppCommon,
+            Search("Dashboard", Permissions.AppUsage,
                 urlGenerator.DashboardUI, SearchResultType.Dashboard);
 
-            Search("Languages", Permissions.AppCommon,
+            Search("Languages", Permissions.AppLanguagesRead,
                 urlGenerator.LanguagesUI, SearchResultType.Setting);
-
-            Search("Patterns", Permissions.AppCommon,
-                urlGenerator.PatternsUI, SearchResultType.Setting);
 
             Search("Roles", Permissions.AppRolesRead,
                 urlGenerator.RolesUI, SearchResultType.Setting);
@@ -77,7 +69,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
             Search("Rules", Permissions.AppRulesRead,
                 urlGenerator.RulesUI, SearchResultType.Rule);
 
-            Search("Schemas", Permissions.AppCommon,
+            Search("Schemas", Permissions.AppSchemasRead,
                 urlGenerator.SchemasUI, SearchResultType.Schema);
 
             Search("Subscription", Permissions.AppPlansRead,

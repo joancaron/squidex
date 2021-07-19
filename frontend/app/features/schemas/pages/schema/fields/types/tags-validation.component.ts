@@ -5,18 +5,18 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { Component, Input, OnInit } from '@angular/core';
-import { FormControl, FormGroup } from '@angular/forms';
-import { FieldDto, TagsFieldPropertiesDto } from '@app/shared';
+import { Component, Input } from '@angular/core';
+import { FormGroup } from '@angular/forms';
+import { FieldDto, LanguageDto, TagsFieldPropertiesDto } from '@app/shared';
 
 @Component({
     selector: 'sqx-tags-validation',
     styleUrls: ['tags-validation.component.scss'],
-    templateUrl: 'tags-validation.component.html'
+    templateUrl: 'tags-validation.component.html',
 })
-export class TagsValidationComponent implements OnInit {
+export class TagsValidationComponent {
     @Input()
-    public editForm: FormGroup;
+    public fieldForm: FormGroup;
 
     @Input()
     public field: FieldDto;
@@ -24,11 +24,9 @@ export class TagsValidationComponent implements OnInit {
     @Input()
     public properties: TagsFieldPropertiesDto;
 
-    public ngOnInit() {
-        this.editForm.setControl('maxItems',
-            new FormControl(this.properties.maxItems));
+    @Input()
+    public languages: ReadonlyArray<LanguageDto>;
 
-        this.editForm.setControl('minItems',
-            new FormControl(this.properties.minItems));
-    }
+    @Input()
+    public isLocalizable?: boolean | null;
 }

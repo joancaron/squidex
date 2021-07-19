@@ -18,8 +18,13 @@ namespace Squidex.Infrastructure.Net
         {
         }
 
-        public int Compare(IPAddress x, IPAddress y)
+        public int Compare(IPAddress? x, IPAddress? y)
         {
+            if (x == null || y == null)
+            {
+                return 0;
+            }
+
             var lbytes = x.GetAddressBytes();
             var rbytes = y.GetAddressBytes();
 

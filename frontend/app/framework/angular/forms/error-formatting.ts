@@ -5,35 +5,16 @@
  * Copyright (c) Sebastian Stehle. All rights r vbeserved
  */
 
-import { Types } from '@app/framework/internal';
+import { LocalizerService, StringHelper, Types } from '@app/framework/internal';
 
-const DEFAULT_ERRORS: { [key: string]: string } = {
-    between: '{field} must be between \'{min}\' and \'{max}\'.',
-    betweenlength: '{field} must have between {minlength} and {maxlength} item(s).',
-    betweenlengthstring: '{field} must have between {minlength} and {maxlength} character(s).',
-    email: '{field} must be an email address.',
-    exactly: '{field} must be exactly \'{expected}\'.',
-    exactlylength: '{field} must have exactly {expected} item(s).',
-    exactlylengthstring: '{field} must have exactly {expected} character(s).',
-    match: '{message}',
-    max: '{field} must be less or equal to \'{max}\'.',
-    maxlength: '{field} must not have more than {requiredlength} item(s).',
-    maxlengthstring: '{field} must not have more than {requiredlength} character(s).',
-    min: '{field} must be greater or equal to \'{min}\'.',
-    minlength: '{field} must have at least {requiredlength} item(s).',
-    minlengthstring: '{field} must have at least {requiredlength} character(s).',
-    pattern: '{field} does not match to the pattern.',
-    patternmessage: '{message}',
-    required: '{field} is required.',
-    requiredTrue: '{field} is required.',
-    uniquestrings: '{field} must not contain duplicate values.',
-    validdatetime: '{field} is not a valid date time.',
-    validvalues: '{field} is not a valid value.',
-    validarrayvalues: '{field} contains an invalid value: {invalidvalue}.'
-};
-
-export function formatError(field: string, type: string, properties: any, value: any, errors?: any)  {
+export function formatError(localizer: LocalizerService, field: string, type: string, properties: any, value: any, errors?: any): string | readonly string[] {
     type = type.toLowerCase();
+
+    if (type === 'custom' && Types.isArrayOfString(properties.errors)) {
+        const backendError = localizer.get('common.backendError');
+
+        return properties.errors.map((error: string) => StringHelper.appendLast(`${backendError}: ${error}`, '.'));
+    }
 
     if (Types.isString(value)) {
         if (type === 'minlength') {
@@ -53,19 +34,19 @@ export function formatError(field: string, type: string, properties: any, value:
         }
     }
 
-    let message = errors?.[type] || DEFAULT_ERRORS[type];
+    let message: string | null = properties['message'];
 
-    if (!message) {
-        return null;
+    if (!Types.isString(message) && errors) {
+        message = errors[type];
     }
 
-    for (const property in properties) {
-        if (properties.hasOwnProperty(property)) {
-            message = message.replace(`{${property.toLowerCase()}}`, properties[property]);
-        }
+    if (!Types.isString(message)) {
+        message = `validation.${type}`;
     }
 
-    message = message.replace('{field}', field);
+    const args = { ...properties, field };
+
+    message = localizer.getOrKey(message, args);
 
     return message;
 }

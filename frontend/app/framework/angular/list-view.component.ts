@@ -6,20 +6,24 @@
  */
 
 import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, HostBinding, Input, Renderer2, ViewChild } from '@angular/core';
-import { fadeAnimation } from '@app/framework/internal';
+import { fadeAnimation, StatefulComponent } from '@app/framework/internal';
+
+interface State {
+    // True when loading.
+    isLoading: boolean;
+}
 
 @Component({
     selector: 'sqx-list-view',
     styleUrls: ['./list-view.component.scss'],
     templateUrl: './list-view.component.html',
     animations: [
-        fadeAnimation
+        fadeAnimation,
     ],
-    changeDetection: ChangeDetectionStrategy.Default
+    changeDetection: ChangeDetectionStrategy.Default,
 })
-export class ListViewComponent implements AfterViewInit {
+export class ListViewComponent extends StatefulComponent<State> implements AfterViewInit {
     private timer: any;
-    private isLoadingValue = false;
 
     @ViewChild('headerElement', { static: false })
     public headerElement: ElementRef<ParentNode>;
@@ -31,42 +35,40 @@ export class ListViewComponent implements AfterViewInit {
     public contentElement: ElementRef<ParentNode>;
 
     @Input() @HostBinding('class.overflow')
-    public overflow = false;
+    public overflow?: boolean | null;
 
     @Input()
-    public syncedHeader = false;
+    public syncedHeader?: boolean | null;
 
     @Input()
-    public table = false;
+    public table?: boolean | null;
 
     @Input()
-    public isLoaded = true;
+    public isLoaded: boolean | undefined | null = true;
 
     @Input()
-    public set isLoading(value: boolean) {
+    public set isLoading(value: boolean | undefined | null) {
         clearTimeout(this.timer);
 
         if (value) {
-            this.isLoadingValue = value;
-
-            this.changeDetector.markForCheck();
+            this.next({ isLoading: value });
         } else {
             this.timer = setTimeout(() => {
-                this.isLoadingValue = value;
-
-                this.changeDetector.markForCheck();
+                this.next({ isLoading: !!value });
             }, 250);
         }
     }
 
     public get isLoading() {
-        return this.isLoadingValue;
+        return this.snapshot.isLoading;
     }
 
-    constructor(
-        private readonly changeDetector: ChangeDetectorRef,
-        private readonly renderer: Renderer2
+    constructor(changeDetector: ChangeDetectorRef,
+        private readonly renderer: Renderer2,
     ) {
+        super(changeDetector, {
+            isLoading: false,
+        });
     }
 
     public ngAfterViewInit() {

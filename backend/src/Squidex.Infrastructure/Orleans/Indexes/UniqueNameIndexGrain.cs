@@ -19,8 +19,6 @@ namespace Squidex.Infrastructure.Orleans.Indexes
 
         public UniqueNameIndexGrain(IGrainState<TState> state)
         {
-            Guard.NotNull(state, nameof(state));
-
             this.state = state;
         }
 
@@ -116,7 +114,7 @@ namespace Squidex.Infrastructure.Orleans.Indexes
         {
             state.Value.Names.TryGetValue(name, out var id);
 
-            return Task.FromResult(id);
+            return Task.FromResult(id!);
         }
 
         public Task<List<T>> GetIdsAsync()

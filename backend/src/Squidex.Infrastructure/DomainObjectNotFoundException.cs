@@ -1,25 +1,23 @@
-﻿// ==========================================================================
+// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
 using System.Runtime.Serialization;
+using Squidex.Infrastructure.Translations;
 
 namespace Squidex.Infrastructure
 {
     [Serializable]
     public class DomainObjectNotFoundException : DomainObjectException
     {
-        public DomainObjectNotFoundException(string id, Type type)
-            : base(FormatMessage(id, type), id, type)
-        {
-        }
+        private const string ValidationError = "OBJECT_NOTFOUND";
 
-        public DomainObjectNotFoundException(string id, string collection, Type type)
-            : base(FormatMessage(id, collection, type), id, type)
+        public DomainObjectNotFoundException(string id, Exception? inner = null)
+            : base(FormatMessage(id), id, ValidationError, inner)
         {
         }
 
@@ -28,14 +26,9 @@ namespace Squidex.Infrastructure
         {
         }
 
-        private static string FormatMessage(string id, Type type)
+        private static string FormatMessage(string id)
         {
-            return $"Domain object \'{id}\' (type {type}) is not found.";
-        }
-
-        private static string FormatMessage(string id, string collection, Type type)
-        {
-            return $"Domain object \'{id}\' not found on {type}.{collection}";
+            return T.Get("exceptions.domainObjectNotFound", new { id });
         }
     }
 }

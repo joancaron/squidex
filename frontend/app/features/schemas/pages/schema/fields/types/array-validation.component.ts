@@ -5,18 +5,18 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { Component, Input, OnInit } from '@angular/core';
-import { FormControl, FormGroup } from '@angular/forms';
+import { Component, Input } from '@angular/core';
+import { FormGroup } from '@angular/forms';
 import { ArrayFieldPropertiesDto, FieldDto, SchemaTagSource } from '@app/shared';
 
 @Component({
     selector: 'sqx-array-validation',
     styleUrls: ['array-validation.component.scss'],
-    templateUrl: 'array-validation.component.html'
+    templateUrl: 'array-validation.component.html',
 })
-export class ArrayValidationComponent implements OnInit {
+export class ArrayValidationComponent {
     @Input()
-    public editForm: FormGroup;
+    public fieldForm: FormGroup;
 
     @Input()
     public field: FieldDto;
@@ -25,15 +25,7 @@ export class ArrayValidationComponent implements OnInit {
     public properties: ArrayFieldPropertiesDto;
 
     constructor(
-        public readonly schemasSource: SchemaTagSource
+        public readonly schemasSource: SchemaTagSource,
     ) {
-    }
-
-    public ngOnInit() {
-        this.editForm.setControl('maxItems',
-            new FormControl(this.properties.maxItems));
-
-        this.editForm.setControl('minItems',
-            new FormControl(this.properties.minItems));
     }
 }

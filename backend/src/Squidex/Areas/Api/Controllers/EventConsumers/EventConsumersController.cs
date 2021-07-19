@@ -1,11 +1,12 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Orleans;
 using Squidex.Areas.Api.Controllers.EventConsumers.Models;
@@ -29,7 +30,7 @@ namespace Squidex.Areas.Api.Controllers.EventConsumers
 
         [HttpGet]
         [Route("event-consumers/")]
-        [ProducesResponseType(typeof(EventConsumersDto), 200)]
+        [ProducesResponseType(typeof(EventConsumersDto), StatusCodes.Status200OK)]
         [ApiPermission(Permissions.AdminEventsRead)]
         public async Task<IActionResult> GetEventConsumers()
         {
@@ -42,39 +43,39 @@ namespace Squidex.Areas.Api.Controllers.EventConsumers
 
         [HttpPut]
         [Route("event-consumers/{consumerName}/start/")]
-        [ProducesResponseType(typeof(EventConsumerDto), 200)]
+        [ProducesResponseType(typeof(EventConsumerDto), StatusCodes.Status200OK)]
         [ApiPermission(Permissions.AdminEventsManage)]
         public async Task<IActionResult> StartEventConsumer(string consumerName)
         {
             var eventConsumer = await GetGrain().StartAsync(consumerName);
 
-            var response = EventConsumerDto.FromEventConsumerInfo(eventConsumer.Value, Resources);
+            var response = EventConsumerDto.FromEventConsumerInfo(eventConsumer, Resources);
 
             return Ok(response);
         }
 
         [HttpPut]
         [Route("event-consumers/{consumerName}/stop/")]
-        [ProducesResponseType(typeof(EventConsumerDto), 200)]
+        [ProducesResponseType(typeof(EventConsumerDto), StatusCodes.Status200OK)]
         [ApiPermission(Permissions.AdminEventsManage)]
         public async Task<IActionResult> StopEventConsumer(string consumerName)
         {
             var eventConsumer = await GetGrain().StopAsync(consumerName);
 
-            var response = EventConsumerDto.FromEventConsumerInfo(eventConsumer.Value, Resources);
+            var response = EventConsumerDto.FromEventConsumerInfo(eventConsumer, Resources);
 
             return Ok(response);
         }
 
         [HttpPut]
         [Route("event-consumers/{consumerName}/reset/")]
-        [ProducesResponseType(typeof(EventConsumerDto), 200)]
+        [ProducesResponseType(typeof(EventConsumerDto), StatusCodes.Status200OK)]
         [ApiPermission(Permissions.AdminEventsManage)]
         public async Task<IActionResult> ResetEventConsumer(string consumerName)
         {
             var eventConsumer = await GetGrain().ResetAsync(consumerName);
 
-            var response = EventConsumerDto.FromEventConsumerInfo(eventConsumer.Value, Resources);
+            var response = EventConsumerDto.FromEventConsumerInfo(eventConsumer, Resources);
 
             return Ok(response);
         }

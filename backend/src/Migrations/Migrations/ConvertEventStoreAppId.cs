@@ -7,11 +7,10 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using MongoDB.Bson;
 using MongoDB.Driver;
-using Newtonsoft.Json.Linq;
-using Squidex.Domain.Apps.Events;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.EventSourcing;
 using Squidex.Infrastructure.Migrations;
@@ -27,7 +26,7 @@ namespace Migrations.Migrations
             this.eventStore = eventStore;
         }
 
-        public async Task UpdateAsync()
+        public async Task UpdateAsync(CancellationToken ct)
         {
             if (eventStore is MongoEventStore mongoEventStore)
             {
@@ -47,7 +46,7 @@ namespace Migrations.Migrations
 
                     if (writesBatches.Count == 1000 || (force && writesBatches.Count > 0))
                     {
-                        await collection.BulkWriteAsync(writesBatches);
+                        await collection.BulkWriteAsync(writesBatches, cancellationToken: ct);
 
                         writesBatches.Clear();
                     }
@@ -61,13 +60,13 @@ namespace Migrations.Migrations
 
                     foreach (BsonDocument @event in commit["Events"].AsBsonArray)
                     {
-                        var data = JObject.Parse(@event["Payload"].AsString);
+                        var data = BsonDocument.Parse(@event["Payload"].AsString);
 
                         if (data.TryGetValue("appId", out var appIdValue))
                         {
-                            var appId = NamedId<Guid>.Parse(appIdValue.ToString(), Guid.TryParse).Id.ToString();
+                            var appId = NamedId<Guid>.Parse(appIdValue.AsString, Guid.TryParse).Id.ToString();
 
-                            var eventUpdate = updater.Set($"Events.{index}.Metadata.{SquidexHeaders.AppId}", appId);
+                            var eventUpdate = updater.Set($"Events.{index}.Metadata.AppId", appId);
 
                             if (update != null)
                             {
@@ -88,7 +87,7 @@ namespace Migrations.Migrations
 
                         await WriteAsync(write, false);
                     }
-                });
+                }, ct);
 
                 await WriteAsync(null, true);
             }

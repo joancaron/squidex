@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -53,7 +53,7 @@ namespace Squidex.Web.Json
 
                     if (method != null && method.IsStatic)
                     {
-                        var types = (IEnumerable<Type>)method.Invoke(null, new object[0])!;
+                        var types = (IEnumerable<Type>)method.Invoke(null, Array.Empty<object>())!;
 
                         foreach (var type in types)
                         {

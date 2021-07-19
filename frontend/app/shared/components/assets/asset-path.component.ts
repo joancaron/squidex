@@ -12,12 +12,15 @@ import { AssetPathItem } from '@app/shared/internal';
     selector: 'sqx-asset-path',
     styleUrls: ['./asset-path.component.scss'],
     templateUrl: './asset-path.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AssetPathComponent {
     @Output()
     public navigate = new EventEmitter<AssetPathItem>();
 
     @Input()
-    public path: ReadonlyArray<AssetPathItem>;
+    public path?: ReadonlyArray<AssetPathItem> | null;
+
+    @Input()
+    public all?: boolean | null;
 }

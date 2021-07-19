@@ -11,15 +11,15 @@ import { AssetsState, Queries, Query, UIState } from '@app/shared';
 @Component({
     selector: 'sqx-assets-filters-page',
     styleUrls: ['./assets-filters-page.component.scss'],
-    templateUrl: './assets-filters-page.component.html'
+    templateUrl: './assets-filters-page.component.html',
 })
 export class AssetsFiltersPageComponent {
-    public assetsQueries = new Queries(this.uiState, 'assets');
+    public assetsQueries: Queries;
 
-    constructor(
+    constructor(uiState: UIState,
         public readonly assetsState: AssetsState,
-        private readonly uiState: UIState
     ) {
+        this.assetsQueries = new Queries(uiState, 'assets');
     }
 
     public search(query: Query) {
@@ -38,7 +38,7 @@ export class AssetsFiltersPageComponent {
         this.assetsState.resetTags();
     }
 
-    public trackByTag(index: number, tag: { name: string }) {
+    public trackByTag(_index: number, tag: { name: string }) {
         return tag.name;
     }
 }

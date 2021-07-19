@@ -5,14 +5,12 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable: readonly-array
-
 import { AfterViewChecked, AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, forwardRef, Input, OnChanges, ViewChild } from '@angular/core';
 import { NG_VALUE_ACCESSOR } from '@angular/forms';
 import { getTagValues, MathHelper, StatefulControlComponent, TagValue, Types } from '@app/framework/internal';
 
 export const SQX_CHECKBOX_GROUP_CONTROL_VALUE_ACCESSOR: any = {
-    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => CheckboxGroupComponent), multi: true
+    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => CheckboxGroupComponent), multi: true,
 };
 
 let CACHED_FONT: string;
@@ -30,9 +28,9 @@ interface State {
     styleUrls: ['./checkbox-group.component.scss'],
     templateUrl: './checkbox-group.component.html',
     providers: [
-        SQX_CHECKBOX_GROUP_CONTROL_VALUE_ACCESSOR
+        SQX_CHECKBOX_GROUP_CONTROL_VALUE_ACCESSOR,
     ],
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CheckboxGroupComponent extends StatefulControlComponent<State, string[]> implements AfterViewInit, AfterViewChecked, OnChanges {
     private childrenWidth = 0;
@@ -46,6 +44,11 @@ export class CheckboxGroupComponent extends StatefulControlComponent<State, stri
     public containerElement: ElementRef<HTMLDivElement>;
 
     @Input()
+    public set disabled(value: boolean | null | undefined) {
+        this.setDisabledState(value === true);
+    }
+
+    @Input()
     public set values(value: ReadonlyArray<string | TagValue>) {
         this.valuesSorted = getTagValues(value);
 
@@ -56,7 +59,7 @@ export class CheckboxGroupComponent extends StatefulControlComponent<State, stri
 
     constructor(changeDetector: ChangeDetectorRef) {
         super(changeDetector, {
-            checkedValues: []
+            checkedValues: [],
         });
     }
 
@@ -105,7 +108,7 @@ export class CheckboxGroupComponent extends StatefulControlComponent<State, stri
 
                 let width = 0;
 
-                for (let value of this.valuesSorted) {
+                for (const value of this.valuesSorted) {
                     width += 30;
                     width += ctx.measureText(value.name).width;
                 }
@@ -153,7 +156,7 @@ export class CheckboxGroupComponent extends StatefulControlComponent<State, stri
             checkedValues = this.valuesSorted.filter(x => obj.indexOf(x.value) >= 0);
         }
 
-        this.next(s => ({ ...s, checkedValues }));
+        this.next({ checkedValues });
     }
 
     public check(isChecked: boolean, value: TagValue) {
@@ -165,7 +168,7 @@ export class CheckboxGroupComponent extends StatefulControlComponent<State, stri
             checkedValues = checkedValues.removed(value);
         }
 
-        this.next(s => ({ ...s, checkedValues }));
+        this.next({ checkedValues });
 
         this.callChange(checkedValues.map(x => x.id));
     }

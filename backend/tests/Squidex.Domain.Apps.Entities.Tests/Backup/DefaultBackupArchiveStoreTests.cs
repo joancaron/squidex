@@ -1,16 +1,16 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using FakeItEasy;
-using Squidex.Infrastructure.Assets;
+using Squidex.Assets;
+using Squidex.Infrastructure;
 using Xunit;
 
 namespace Squidex.Domain.Apps.Entities.Backup
@@ -18,7 +18,7 @@ namespace Squidex.Domain.Apps.Entities.Backup
     public class DefaultBackupArchiveStoreTests
     {
         private readonly IAssetStore assetStore = A.Fake<IAssetStore>();
-        private readonly Guid backupId = Guid.NewGuid();
+        private readonly DomainId backupId = DomainId.NewGuid();
         private readonly string fileName;
         private readonly DefaultBackupArchiveStore sut;
 

@@ -1,12 +1,13 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,250 +21,182 @@ using Squidex.Domain.Apps.Core.Scripting.ContentWrapper;
 using Squidex.Domain.Apps.Core.Scripting.Internal;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Json.Objects;
+using Squidex.Infrastructure.Translations;
 using Squidex.Infrastructure.Validation;
 
 namespace Squidex.Domain.Apps.Core.Scripting
 {
     public sealed class JintScriptEngine : IScriptEngine
     {
-        private readonly IScriptExtension[] extensions;
+        private readonly IJintExtension[] extensions;
         private readonly Parser parser;
 
-        public TimeSpan Timeout { get; set; } = TimeSpan.FromMilliseconds(200);
+        public TimeSpan TimeoutScript { get; set; } = TimeSpan.FromMilliseconds(200);
 
-        public TimeSpan ExecutionTimeout { get; set; } = TimeSpan.FromMilliseconds(4000);
+        public TimeSpan TimeoutExecution { get; set; } = TimeSpan.FromMilliseconds(4000);
 
-        public JintScriptEngine(IMemoryCache memoryCache, IEnumerable<IScriptExtension>? extensions = null)
+        private TimeSpan ActualTimeoutScript
         {
-            parser = new Parser(memoryCache);
+            get
+            {
+                if (Debugger.IsAttached)
+                {
+                    return TimeSpan.FromHours(1);
+                }
 
-            this.extensions = extensions?.ToArray() ?? Array.Empty<IScriptExtension>();
+                return TimeoutScript;
+            }
         }
 
-        public async Task ExecuteAsync(ScriptContext context, string script)
+        private TimeSpan ActualTimeoutExecution
         {
-            Guard.NotNull(context, nameof(context));
+            get
+            {
+                if (Debugger.IsAttached)
+                {
+                    return TimeSpan.FromHours(1);
+                }
+
+                return TimeoutExecution;
+            }
+        }
+
+        public JintScriptEngine(IMemoryCache cache, IEnumerable<IJintExtension>? extensions = null)
+        {
+            parser = new Parser(cache);
+
+            this.extensions = extensions?.ToArray() ?? Array.Empty<IJintExtension>();
+        }
+
+        public async Task<IJsonValue> ExecuteAsync(ScriptVars vars, string script, ScriptOptions options = default,
+            CancellationToken ct = default)
+        {
+            Guard.NotNull(vars, nameof(vars));
             Guard.NotNullOrEmpty(script, nameof(script));
 
-            using (var cts = new CancellationTokenSource(ExecutionTimeout))
+            using (var cts = new CancellationTokenSource(ActualTimeoutExecution))
             {
-                var tcs = new TaskCompletionSource<bool>();
-
-                using (cts.Token.Register(() => tcs.TrySetCanceled()))
+                using (var combined = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, ct))
                 {
-                    var engine =
-                        CreateEngine(context, true, cts.Token, tcs.TrySetException, true)
-                            .AddDisallow()
-                            .AddReject();
+                    var tcs = new TaskCompletionSource<IJsonValue>();
 
-                    engine.SetValue("complete", new Action<JsValue?>(value =>
+                    using (combined.Token.Register(() => tcs.TrySetCanceled()))
                     {
-                        tcs.TrySetResult(true);
-                    }));
+                        var context =
+                            CreateEngine(options)
+                                .Extend(vars, options)
+                                .Extend(extensions)
+                                .ExtendAsync(extensions, tcs.TrySetException, combined.Token);
 
-                    Execute(engine, script);
+                        context.Engine.SetValue("complete", new Action<JsValue?>(value =>
+                        {
+                            tcs.TrySetResult(JsonMapper.Map(value));
+                        }));
 
-                    if (engine.GetValue("async") != true)
-                    {
-                        tcs.TrySetResult(true);
+                        Execute(context.Engine, script);
+
+                        if (!context.IsAsync)
+                        {
+                            tcs.TrySetResult(JsonMapper.Map(context.Engine.GetCompletionValue()));
+                        }
+
+                        return await tcs.Task;
                     }
-
-                    await tcs.Task;
                 }
             }
         }
 
-        public async Task<NamedContentData> ExecuteAndTransformAsync(ScriptContext context, string script)
+        public async Task<ContentData> TransformAsync(ScriptVars vars, string script, ScriptOptions options = default,
+            CancellationToken ct = default)
         {
-            Guard.NotNull(context, nameof(context));
+            Guard.NotNull(vars, nameof(vars));
             Guard.NotNullOrEmpty(script, nameof(script));
 
-            using (var cts = new CancellationTokenSource(ExecutionTimeout))
+            using (var cts = new CancellationTokenSource(ActualTimeoutExecution))
             {
-                var tcs = new TaskCompletionSource<NamedContentData>();
-
-                using (cts.Token.Register(() => tcs.TrySetCanceled()))
+                using (var combined = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, ct))
                 {
-                    var engine =
-                        CreateEngine(context, true, cts.Token, tcs.TrySetException, true)
-                            .AddDisallow()
-                            .AddReject();
+                    var tcs = new TaskCompletionSource<ContentData>();
 
-                    engine.SetValue("complete", new Action<JsValue?>(value =>
+                    using (combined.Token.Register(() => tcs.TrySetCanceled()))
                     {
-                        tcs.TrySetResult(context.Data!);
-                    }));
+                        var context =
+                            CreateEngine(options)
+                                .Extend(vars, options)
+                                .Extend(extensions)
+                                .ExtendAsync(extensions, tcs.TrySetException, combined.Token);
 
-                    engine.SetValue("replace", new Action(() =>
-                    {
-                        var dataInstance = engine.GetValue("ctx").AsObject().Get("data");
-
-                        if (dataInstance != null && dataInstance.IsObject() && dataInstance.AsObject() is ContentDataObject data)
+                        context.Engine.SetValue("complete", new Action<JsValue?>(_ =>
                         {
-                            if (!tcs.Task.IsCompleted)
+                            tcs.TrySetResult(vars.Data!);
+                        }));
+
+                        context.Engine.SetValue("replace", new Action(() =>
+                        {
+                            var dataInstance = context.Engine.GetValue("ctx").AsObject().Get("data");
+
+                            if (dataInstance != null && dataInstance.IsObject() && dataInstance.AsObject() is ContentDataObject data)
                             {
-                                if (data.TryUpdate(out var modified))
+                                if (!tcs.Task.IsCompleted)
                                 {
-                                    tcs.TrySetResult(modified);
-                                }
-                                else
-                                {
-                                    tcs.TrySetResult(context.Data!);
+                                    if (data.TryUpdate(out var modified))
+                                    {
+                                        tcs.TrySetResult(modified);
+                                    }
+                                    else
+                                    {
+                                        tcs.TrySetResult(vars.Data!);
+                                    }
                                 }
                             }
-                        }
-                    }));
+                        }));
 
-                    Execute(engine, script);
+                        Execute(context.Engine, script);
 
-                    if (engine.GetValue("async") != true)
-                    {
-                        tcs.TrySetResult(context.Data!);
-                    }
-
-                    return await tcs.Task;
-                }
-            }
-        }
-
-        public async Task<NamedContentData> TransformAsync(ScriptContext context, string script)
-        {
-            Guard.NotNull(context, nameof(context));
-            Guard.NotNullOrEmpty(script, nameof(script));
-
-            using (var cts = new CancellationTokenSource(ExecutionTimeout))
-            {
-                var tcs = new TaskCompletionSource<NamedContentData>();
-
-                using (cts.Token.Register(() => tcs.TrySetCanceled()))
-                {
-                    var engine = CreateEngine(context, true, cts.Token, tcs.TrySetException, true);
-
-                    engine.SetValue("complete", new Action<JsValue?>(value =>
-                    {
-                        tcs.TrySetResult(context.Data!);
-                    }));
-
-                    engine.SetValue("replace", new Action(() =>
-                    {
-                        var dataInstance = engine.GetValue("ctx").AsObject().Get("data");
-
-                        if (dataInstance != null && dataInstance.IsObject() && dataInstance.AsObject() is ContentDataObject data)
+                        if (!context.IsAsync)
                         {
-                            if (!tcs.Task.IsCompleted)
-                            {
-                                if (data.TryUpdate(out var modified))
-                                {
-                                    tcs.TrySetResult(modified);
-                                }
-                                else
-                                {
-                                    tcs.TrySetResult(context.Data!);
-                                }
-                            }
+                            tcs.TrySetResult(vars.Data!);
                         }
-                    }));
 
-                    Execute(engine, script);
-
-                    if (engine.GetValue("async") != true)
-                    {
-                        tcs.TrySetResult(context.Data!);
-                    }
-
-                    return await tcs.Task;
-                }
-            }
-        }
-
-        public bool Evaluate(ScriptContext context, string script)
-        {
-            Guard.NotNull(context, nameof(context));
-            Guard.NotNullOrEmpty(script, nameof(script));
-
-            try
-            {
-                var engine = CreateEngine(context, false);
-
-                Execute(engine, script);
-
-                var converted = Equals(engine.GetCompletionValue().ToObject(), true);
-
-                return converted;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        public string? Interpolate(ScriptContext context, string script)
-        {
-            Guard.NotNull(context, nameof(context));
-            Guard.NotNullOrEmpty(script, nameof(script));
-
-            try
-            {
-                var engine = CreateEngine(context, false);
-
-                Execute(engine, script);
-
-                var converted = engine.GetCompletionValue().ToObject()?.ToString() ?? "null";
-
-                return converted == "undefined" ? "null" : converted;
-            }
-            catch (Exception ex)
-            {
-                return ex.Message;
-            }
-        }
-
-        public Task<IJsonValue> GetAsync(ScriptContext context, string script)
-        {
-            Guard.NotNull(context, nameof(context));
-            Guard.NotNullOrEmpty(script, nameof(script));
-
-            using (var cts = new CancellationTokenSource(ExecutionTimeout))
-            {
-                var tcs = new TaskCompletionSource<IJsonValue>();
-
-                using (cts.Token.Register(() =>
-                {
-                    tcs.TrySetCanceled();
-                }))
-                {
-                    var engine = CreateEngine(context, true, cts.Token, ex => tcs.TrySetException(ex), true);
-
-                    engine.SetValue("complete", new Action<JsValue?>(value =>
-                    {
-                        tcs.TrySetResult(JsonMapper.Map(value));
-                    }));
-
-                    engine.Execute(script);
-
-                    if (engine.GetValue("async") != true)
-                    {
-                        tcs.TrySetResult(JsonMapper.Map(engine.GetCompletionValue()));
+                        return await tcs.Task;
                     }
                 }
-
-                return tcs.Task;
             }
         }
 
-        private Engine CreateEngine(ScriptContext context, bool nested, CancellationToken cancellationToken = default, ExceptionHandler? exceptionHandler = null, bool async = false)
+        public IJsonValue Execute(ScriptVars vars, string script, ScriptOptions options = default)
         {
-            var engine = new Engine(options =>
+            Guard.NotNull(vars, nameof(vars));
+            Guard.NotNullOrEmpty(script, nameof(script));
+
+            var context =
+                CreateEngine(options)
+                    .Extend(vars, options)
+                    .Extend(extensions);
+
+            Execute(context.Engine, script);
+
+            return JsonMapper.Map(context.Engine.GetCompletionValue());
+        }
+
+        private ExecutionContext CreateEngine(ScriptOptions options)
+        {
+            var engine = new Engine(engineOptions =>
             {
-                options.AddObjectConverter(DefaultConverter.Instance);
-                options.SetReferencesResolver(NullPropagation.Instance);
-                options.Strict();
-                options.TimeoutInterval(Timeout);
+                engineOptions.AddObjectConverter(DefaultConverter.Instance);
+                engineOptions.SetReferencesResolver(NullPropagation.Instance);
+                engineOptions.Strict();
+                engineOptions.TimeoutInterval(ActualTimeoutScript);
             });
 
-            if (async)
+            if (options.CanDisallow)
             {
-                engine.SetValue("async", false);
+                engine.AddDisallow();
+            }
+
+            if (options.CanReject)
+            {
+                engine.AddReject();
             }
 
             foreach (var extension in extensions)
@@ -271,16 +204,9 @@ namespace Squidex.Domain.Apps.Core.Scripting
                 extension.Extend(engine);
             }
 
-            var executionContext = new ExecutionContext(engine, cancellationToken, exceptionHandler);
+            var context = new ExecutionContext(engine);
 
-            context.Add(executionContext, nested);
-
-            foreach (var extension in extensions)
-            {
-                extension.Extend(executionContext, async);
-            }
-
-            return executionContext.Engine;
+            return context;
         }
 
         private void Execute(Engine engine, string script)
@@ -293,15 +219,23 @@ namespace Squidex.Domain.Apps.Core.Scripting
             }
             catch (ArgumentException ex)
             {
-                throw new ValidationException($"Failed to execute script with javascript syntax error: {ex.Message}", new ValidationError(ex.Message));
+                throw new ValidationException(T.Get("common.jsParseError", new { error = ex.Message }));
             }
             catch (JavaScriptException ex)
             {
-                throw new ValidationException($"Failed to execute script with javascript error: {ex.Message}", new ValidationError(ex.Message));
+                throw new ValidationException(T.Get("common.jsError", new { message = ex.Message }));
             }
             catch (ParserException ex)
             {
-                throw new ValidationException($"Failed to execute script with javascript error: {ex.Message}", new ValidationError(ex.Message));
+                throw new ValidationException(T.Get("common.jsError", new { message = ex.Message }));
+            }
+            catch (DomainException)
+            {
+                throw;
+            }
+            catch
+            {
+                throw new ValidationException(T.Get("common.jsError", new { message = "RuntimeError" }));
             }
         }
     }

@@ -1,13 +1,14 @@
-﻿// ==========================================================================
+// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
 using System.Collections;
 using System.Threading.Tasks;
+using Squidex.Infrastructure.Translations;
 
 namespace Squidex.Domain.Apps.Core.ValidateContent.Validators
 {
@@ -19,7 +20,7 @@ namespace Squidex.Domain.Apps.Core.ValidateContent.Validators
 
         public CollectionValidator(bool isRequired, int? minItems = null, int? maxItems = null)
         {
-            if (minItems.HasValue && maxItems.HasValue && minItems.Value > maxItems.Value)
+            if (minItems != null && minItems > maxItems)
             {
                 throw new ArgumentException("Min length must be greater than max length.", nameof(minItems));
             }
@@ -31,37 +32,37 @@ namespace Squidex.Domain.Apps.Core.ValidateContent.Validators
 
         public Task ValidateAsync(object? value, ValidationContext context, AddError addError)
         {
-            if (!(value is ICollection items) || items.Count == 0)
+            if (value is not ICollection items || items.Count == 0)
             {
                 if (isRequired && !context.IsOptional)
                 {
-                    addError(context.Path, "Field is required.");
+                    addError(context.Path, T.Get("contents.validation.required"));
                 }
 
                 return Task.CompletedTask;
             }
 
-            if (minItems.HasValue && maxItems.HasValue)
+            if (minItems != null && maxItems != null)
             {
                 if (minItems == maxItems && minItems != items.Count)
                 {
-                    addError(context.Path, $"Must have exactly {maxItems} item(s).");
+                    addError(context.Path, T.Get("contents.validation.itemCount", new { count = minItems }));
                 }
                 else if (items.Count < minItems || items.Count > maxItems)
                 {
-                    addError(context.Path, $"Must have between {minItems} and {maxItems} item(s).");
+                    addError(context.Path, T.Get("contents.validation.itemCountBetween", new { min = minItems, max = maxItems }));
                 }
             }
             else
             {
-                if (minItems.HasValue && items.Count < minItems.Value)
+                if (minItems != null && items.Count < minItems)
                 {
-                    addError(context.Path, $"Must have at least {minItems} item(s).");
+                    addError(context.Path, T.Get("contents.validation.minItems", new { min = minItems }));
                 }
 
-                if (maxItems.HasValue && items.Count > maxItems.Value)
+                if (maxItems != null && items.Count > maxItems)
                 {
-                    addError(context.Path, $"Must not have more than {maxItems} item(s).");
+                    addError(context.Path, T.Get("contents.validation.maxItems", new { max = maxItems }));
                 }
             }
 

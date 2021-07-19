@@ -6,6 +6,7 @@
 // ==========================================================================
 
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Squidex.Areas.Api.Controllers.Backups.Models;
 using Squidex.Domain.Apps.Entities.Backup;
@@ -20,6 +21,7 @@ namespace Squidex.Areas.Api.Controllers.Backups
     /// Manages backups for apps.
     /// </summary>
     [ApiExplorerSettings(GroupName = nameof(Backups))]
+    [ApiModelValidation(true)]
     public class RestoreController : ApiController
     {
         private readonly IBackupService backupService;
@@ -38,7 +40,7 @@ namespace Squidex.Areas.Api.Controllers.Backups
         /// </returns>
         [HttpGet]
         [Route("apps/restore/")]
-        [ProducesResponseType(typeof(RestoreJobDto), 200)]
+        [ProducesResponseType(typeof(RestoreJobDto), StatusCodes.Status200OK)]
         [ApiPermission(Permissions.AdminRestore)]
         public async Task<IActionResult> GetRestoreJob()
         {

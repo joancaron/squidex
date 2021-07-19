@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -18,7 +18,7 @@ namespace Squidex.Web
 
             if (context == null)
             {
-                context = RequestContext.Anonymous();
+                context = RequestContext.Anonymous(null!);
 
                 httpContext.Features.Set(context);
             }

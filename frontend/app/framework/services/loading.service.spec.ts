@@ -7,16 +7,10 @@
 
 import { Event, NavigationError, NavigationStart } from '@angular/router';
 import { Subject } from 'rxjs';
-import { LoadingService, LoadingServiceFactory } from './loading.service';
+import { LoadingService } from './loading.service';
 
 describe('LoadingService', () => {
-    let events = new Subject<Event>();
-
-    it('should instantiate from factory', () => {
-        const loadingService = LoadingServiceFactory(<any>{ events });
-
-        expect(loadingService).toBeDefined();
-    });
+    const events = new Subject<Event>();
 
     it('should instantiate', () => {
         const loadingService = new LoadingService(<any>{ events });
@@ -31,7 +25,9 @@ describe('LoadingService', () => {
 
         let state = false;
 
-        loadingService.loading.subscribe(v => state = v);
+        loadingService.loading.subscribe(v => {
+            state = v;
+        });
         loadingService.startLoading('1');
 
         expect(state).toBeTruthy();
@@ -42,7 +38,9 @@ describe('LoadingService', () => {
 
         let state = false;
 
-        loadingService.loading.subscribe(v => state = v);
+        loadingService.loading.subscribe(v => {
+            state = v;
+        });
 
         events.next(new NavigationStart(0, ''));
 
@@ -54,7 +52,9 @@ describe('LoadingService', () => {
 
         let state = false;
 
-        loadingService.loading.subscribe(v => state = v);
+        loadingService.loading.subscribe(v => {
+            state = v;
+        });
         loadingService.startLoading('1');
         loadingService.completeLoading('1');
 
@@ -66,7 +66,9 @@ describe('LoadingService', () => {
 
         let state = false;
 
-        loadingService.loading.subscribe(v => state = v);
+        loadingService.loading.subscribe(v => {
+            state = v;
+        });
         loadingService.startLoading('1');
         loadingService.completeLoading('1');
 
@@ -82,7 +84,9 @@ describe('LoadingService', () => {
 
         let state = false;
 
-        loadingService.loading.subscribe(v => state = v);
+        loadingService.loading.subscribe(v => {
+            state = v;
+        });
         events.next(new NavigationStart(0, ''));
         events.next(new NavigationError(0, '', 0));
 
@@ -98,7 +102,9 @@ describe('LoadingService', () => {
 
         let state = false;
 
-        loadingService.loading.subscribe(v => state = v);
+        loadingService.loading.subscribe(v => {
+            state = v;
+        });
         loadingService.startLoading('1');
         loadingService.completeLoading('1');
         loadingService.completeLoading('1');

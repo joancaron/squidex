@@ -1,11 +1,9 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
-
-using System.Collections.Generic;
 
 namespace Squidex.Domain.Apps.Events.Schemas
 {
@@ -13,6 +11,6 @@ namespace Squidex.Domain.Apps.Events.Schemas
     {
         public string Partitioning { get; set; }
 
-        public List<SchemaCreatedNestedField> Nested { get; set; }
+        public SchemaCreatedNestedField[] Nested { get; set; }
     }
 }

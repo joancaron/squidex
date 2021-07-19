@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -9,7 +9,7 @@ using System;
 
 namespace Migrations.OldEvents
 {
-    [Obsolete]
+    [Obsolete("New Event introduced")]
     public enum AppClientPermission
     {
         Developer,

@@ -7,6 +7,7 @@
 
 using System.Threading.Tasks;
 using Squidex.Domain.Apps.Core.Contents;
+using Squidex.Domain.Apps.Core.Schemas;
 using Squidex.Domain.Apps.Entities.Contents.Commands;
 using Squidex.Domain.Apps.Entities.Schemas.Commands;
 using Squidex.Infrastructure;
@@ -21,13 +22,11 @@ namespace Squidex.Domain.Apps.Entities.Contents
         {
             await next(context);
 
-            if (context.IsCompleted &&
-                context.Command is CreateSchema createSchema &&
-                createSchema.IsSingleton)
+            if (context.IsCompleted && context.Command is CreateSchema { Type: SchemaType.Singleton } createSchema)
             {
                 var schemaId = NamedId.Of(createSchema.SchemaId, createSchema.Name);
 
-                var data = new NamedContentData();
+                var data = new ContentData();
 
                 var contentId = schemaId.Id;
                 var content = new CreateContent
@@ -36,8 +35,8 @@ namespace Squidex.Domain.Apps.Entities.Contents
                     ContentId = contentId,
                     DoNotScript = true,
                     DoNotValidate = true,
-                    Publish = true,
-                    SchemaId = schemaId
+                    SchemaId = schemaId,
+                    Status = Status.Published
                 };
 
                 SimpleMapper.Map(createSchema, content);

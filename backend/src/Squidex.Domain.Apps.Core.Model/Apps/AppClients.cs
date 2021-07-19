@@ -1,11 +1,10 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using System.Diagnostics.Contracts;
 using Squidex.Infrastructure;
@@ -21,7 +20,7 @@ namespace Squidex.Domain.Apps.Core.Apps
         {
         }
 
-        public AppClients(Dictionary<string, AppClient> inner)
+        public AppClients(IDictionary<string, AppClient> inner)
             : base(inner)
         {
         }
@@ -31,33 +30,38 @@ namespace Squidex.Domain.Apps.Core.Apps
         {
             Guard.NotNullOrEmpty(id, nameof(id));
 
-            return Without<AppClients>(id);
-        }
-
-        [Pure]
-        public AppClients Add(string id, AppClient client)
-        {
-            Guard.NotNullOrEmpty(id, nameof(id));
-            Guard.NotNull(client, nameof(client));
-
-            return With<AppClients>(id, client);
-        }
-
-        [Pure]
-        public AppClients Add(string id, string secret)
-        {
-            Guard.NotNullOrEmpty(id, nameof(id));
-
-            if (ContainsKey(id))
+            if (!this.TryRemove(id, out var updated))
             {
-                throw new ArgumentException("Id already exists.", nameof(id));
+                return this;
             }
 
-            return With<AppClients>(id, new AppClient(id, secret, Role.Editor));
+            return new AppClients(updated);
         }
 
         [Pure]
-        public AppClients Rename(string id, string newName)
+        public AppClients Add(string id, string secret, string? role = null)
+        {
+            Guard.NotNullOrEmpty(id, nameof(id));
+            Guard.NotNullOrEmpty(secret, nameof(secret));
+
+            var newClient = new AppClient(id, secret)
+            {
+                Role = role.Or(Role.Editor)
+            };
+
+            if (!this.TryAdd(id, newClient, out var updated))
+            {
+                return this;
+            }
+
+            return new AppClients(updated);
+        }
+
+        [Pure]
+        public AppClients Update(string id, string? name = null, string? role = null,
+            long? apiCallsLimit = null,
+            long? apiTrafficLimit = null,
+            bool? allowAnonymous = false)
         {
             Guard.NotNullOrEmpty(id, nameof(id));
 
@@ -66,20 +70,37 @@ namespace Squidex.Domain.Apps.Core.Apps
                 return this;
             }
 
-            return With<AppClients>(id, client.Rename(newName));
-        }
+            var newClient = client with
+            {
+                AllowAnonymous = allowAnonymous ?? client.AllowAnonymous
+            };
 
-        [Pure]
-        public AppClients Update(string id, string role)
-        {
-            Guard.NotNullOrEmpty(id, nameof(id));
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                newClient = newClient with { Name = name };
+            }
 
-            if (!TryGetValue(id, out var client))
+            if (!string.IsNullOrWhiteSpace(role))
+            {
+                newClient = newClient with { Role = role };
+            }
+
+            if (apiCallsLimit >= 0)
+            {
+                newClient = newClient with { ApiCallsLimit = apiCallsLimit.Value };
+            }
+
+            if (apiTrafficLimit >= 0)
+            {
+                newClient = newClient with { ApiTrafficLimit = apiTrafficLimit.Value };
+            }
+
+            if (!this.TrySet(id, newClient, out var updated))
             {
                 return this;
             }
 
-            return With<AppClients>(id, client.Update(role));
+            return new AppClients(updated);
         }
     }
 }

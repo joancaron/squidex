@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Squidex Headless CMS
  *
  * @license
@@ -10,24 +10,24 @@ import { CurrencyConfig, DecimalSeparatorConfig } from '@app/framework/internal'
 
 @Pipe({
     name: 'sqxMoney',
-    pure: true
+    pure: true,
 })
 export class MoneyPipe implements PipeTransform {
     constructor(
         private readonly currency: CurrencyConfig,
-        private readonly separator: DecimalSeparatorConfig
+        private readonly separator: DecimalSeparatorConfig,
     ) {
     }
 
     public transform(value: number): any {
         const money = value.toFixed(2).toString();
 
-        let result = money.substr(0, money.length - 3) + this.separator.value + '<span class="decimal">' + money.substr(money.length - 2, 2) + '</span>';
+        let result = `${money.substr(0, money.length - 3) + this.separator.value}<span class="decimal">${money.substr(money.length - 2, 2)}</span>`;
 
         if (this.currency.showAfter) {
-            result = result + ' ' + this.currency.symbol;
+            result = `${result} ${this.currency.symbol}`;
         } else {
-            result = this.currency.symbol + ' ' + result;
+            result = `${this.currency.symbol} ${result}`;
         }
 
         return result;

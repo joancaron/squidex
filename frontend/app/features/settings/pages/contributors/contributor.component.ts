@@ -5,8 +5,6 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable: component-selector
-
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 import { ContributorDto, ContributorsState, RoleDto } from '@app/shared';
 
@@ -14,20 +12,20 @@ import { ContributorDto, ContributorsState, RoleDto } from '@app/shared';
     selector: '[sqxContributor]',
     styleUrls: ['./contributor.component.scss'],
     templateUrl: './contributor.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ContributorComponent {
     @Input()
     public roles: ReadonlyArray<RoleDto>;
 
     @Input()
-    public search: string;
+    public search?: string | RegExp | null;
 
     @Input('sqxContributor')
     public contributor: ContributorDto;
 
     constructor(
-        private readonly contributorsState: ContributorsState
+        private readonly contributorsState: ContributorsState,
     ) {
     }
 

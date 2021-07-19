@@ -7,6 +7,7 @@
 
 import { Injectable } from '@angular/core';
 import { ActivatedRouteSnapshot, CanActivate, Router, RouterStateSnapshot } from '@angular/router';
+import { defined } from '@app/framework';
 import { Observable } from 'rxjs';
 import { map, take, tap } from 'rxjs/operators';
 import { SchemasState } from './../state/schemas.state';
@@ -15,16 +16,17 @@ import { SchemasState } from './../state/schemas.state';
 export class SchemaMustNotBeSingletonGuard implements CanActivate {
     constructor(
         private readonly schemasState: SchemasState,
-        private readonly router: Router
+        private readonly router: Router,
     ) {
     }
 
     public canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
         const result =
             this.schemasState.selectedSchema.pipe(
+                defined(),
                 take(1),
                 tap(schema => {
-                    if (schema.isSingleton) {
+                    if (schema.type === 'Singleton') {
                         if (state.url.indexOf('/new') >= 0) {
                             const parentUrl = state.url.slice(0, state.url.indexOf(route.url[route.url.length - 1].path));
 
@@ -34,7 +36,7 @@ export class SchemaMustNotBeSingletonGuard implements CanActivate {
                         }
                     }
                 }),
-                map(schema => !schema.isSingleton));
+                map(schema => schema.type === 'Default'));
 
         return result;
     }

@@ -8,7 +8,7 @@
 using System;
 using System.Threading.Tasks;
 using Orleans;
-using Squidex.Infrastructure.Log;
+using Squidex.Log;
 
 namespace Squidex.Infrastructure.Orleans
 {
@@ -18,8 +18,6 @@ namespace Squidex.Infrastructure.Orleans
 
         public LoggingFilter(ISemanticLog log)
         {
-            Guard.NotNull(log, nameof(log));
-
             this.log = log;
         }
 

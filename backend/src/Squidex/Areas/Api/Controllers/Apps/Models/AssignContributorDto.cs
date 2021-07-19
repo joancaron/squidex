@@ -1,13 +1,13 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System.ComponentModel.DataAnnotations;
 using Squidex.Domain.Apps.Entities.Apps.Commands;
 using Squidex.Infrastructure.Reflection;
+using Squidex.Infrastructure.Validation;
 using Roles = Squidex.Domain.Apps.Core.Apps.Role;
 
 namespace Squidex.Areas.Api.Controllers.Apps.Models
@@ -17,7 +17,7 @@ namespace Squidex.Areas.Api.Controllers.Apps.Models
         /// <summary>
         /// The id or email of the user to add to the app.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public string ContributorId { get; set; }
 
         /// <summary>

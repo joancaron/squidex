@@ -5,7 +5,6 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -15,6 +14,7 @@ using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Routing;
 using Squidex.Domain.Apps.Entities;
+using Squidex.Domain.Apps.Entities.TestHelpers;
 using Squidex.Infrastructure;
 using Squidex.Shared;
 using Squidex.Shared.Identity;
@@ -31,6 +31,8 @@ namespace Squidex.Web
         private readonly ActionExecutingContext actionExecutingContext;
         private readonly ActionExecutionDelegate next;
         private readonly ClaimsIdentity user = new ClaimsIdentity();
+        private readonly NamedId<DomainId> appId = NamedId.Of(DomainId.NewGuid(), "my-app");
+        private readonly NamedId<DomainId> schemaId = NamedId.Of(DomainId.NewGuid(), "my-schema");
         private bool isNextCalled;
 
         public ApiPermissionAttributeTests()
@@ -48,7 +50,7 @@ namespace Squidex.Web
             {
                 isNextCalled = true;
 
-                return Task.FromResult<ActionExecutedContext?>(null);
+                return Task.FromResult<ActionExecutedContext>(null!);
             };
         }
 
@@ -63,7 +65,7 @@ namespace Squidex.Web
         [Fact]
         public async Task Should_make_permission_check_with_app_feature()
         {
-            actionExecutingContext.HttpContext.Features.Set<IAppFeature>(new AppFeature(NamedId.Of(Guid.NewGuid(), "my-app")));
+            actionExecutingContext.HttpContext.Features.Set<IAppFeature>(new AppFeature(Mocks.App(appId)));
 
             user.AddClaim(new Claim(SquidexClaimTypes.Permissions, "squidex.apps.my-app"));
 
@@ -80,8 +82,8 @@ namespace Squidex.Web
         [Fact]
         public async Task Should_make_permission_check_with_schema_feature()
         {
-            actionExecutingContext.HttpContext.Features.Set<IAppFeature>(new AppFeature(NamedId.Of(Guid.NewGuid(), "my-app")));
-            actionExecutingContext.HttpContext.Features.Set<ISchemaFeature>(new SchemaFeature(NamedId.Of(Guid.NewGuid(), "my-schema")));
+            actionExecutingContext.HttpContext.Features.Set<IAppFeature>(new AppFeature(Mocks.App(appId)));
+            actionExecutingContext.HttpContext.Features.Set<ISchemaFeature>(new SchemaFeature(Mocks.Schema(appId, schemaId)));
 
             user.AddClaim(new Claim(SquidexClaimTypes.Permissions, "squidex.apps.my-app.schemas.my-schema"));
 
@@ -96,9 +98,9 @@ namespace Squidex.Web
         }
 
         [Fact]
-        public async Task Should_return_forbidden_when_user_has_wrong_permission()
+        public async Task Should_return_forbidden_if_user_has_wrong_permission()
         {
-            actionExecutingContext.HttpContext.Features.Set<IAppFeature>(new AppFeature(NamedId.Of(Guid.NewGuid(), "my-app")));
+            actionExecutingContext.HttpContext.Features.Set<IAppFeature>(new AppFeature(Mocks.App(appId)));
 
             user.AddClaim(new Claim(SquidexClaimTypes.Permissions, "squidex.apps.other-app"));
 
@@ -113,7 +115,7 @@ namespace Squidex.Web
         }
 
         [Fact]
-        public async Task Should_return_forbidden_when_route_data_has_no_value()
+        public async Task Should_return_forbidden_if_route_data_has_no_value()
         {
             user.AddClaim(new Claim(SquidexClaimTypes.Permissions, "squidex.apps.other-app"));
 
@@ -128,7 +130,7 @@ namespace Squidex.Web
         }
 
         [Fact]
-        public async Task Should_return_forbidden_when_user_has_no_permission()
+        public async Task Should_return_forbidden_if_user_has_no_permission()
         {
             SetContext();
 
@@ -142,7 +144,9 @@ namespace Squidex.Web
 
         private void SetContext()
         {
-            actionExecutingContext.HttpContext.Features.Set(new Context(new ClaimsPrincipal(actionExecutingContext.HttpContext.User)));
+            var context = new Context(new ClaimsPrincipal(actionExecutingContext.HttpContext.User), null!);
+
+            actionExecutingContext.HttpContext.Features.Set(context);
         }
     }
 }

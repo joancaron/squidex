@@ -11,15 +11,15 @@ import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
     selector: 'sqx-form-hint',
     styleUrls: ['./form-hint.component.scss'],
     templateUrl: './form-hint.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FormHintComponent {
     @Input()
     public class: string;
 
     @Input()
-    public marginTop = 0;
+    public marginTop: number | string = 0;
 
     @Input()
-    public marginBottom = 0;
+    public marginBottom: number | string = 0;
 }

@@ -5,43 +5,59 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, OnChanges, SimpleChanges } from '@angular/core';
 import { AppsState, ClientDto, ClientsState, DialogModel, RoleDto } from '@app/shared';
 
 @Component({
     selector: 'sqx-client',
     styleUrls: ['./client.component.scss'],
     templateUrl: './client.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ClientComponent {
+export class ClientComponent implements OnChanges {
     @Input()
     public client: ClientDto;
 
     @Input()
     public clientRoles: ReadonlyArray<RoleDto>;
 
+    public apiCallsLimit: number;
+
     public connectDialog = new DialogModel();
 
     constructor(
         public readonly appsState: AppsState,
-        private readonly clientsState: ClientsState
+        private readonly clientsState: ClientsState,
     ) {
+    }
+
+    public ngOnChanges(changes: SimpleChanges) {
+        if (changes['client']) {
+            this.apiCallsLimit = this.client.apiCallsLimit;
+        }
     }
 
     public revoke() {
         this.clientsState.revoke(this.client);
     }
 
-    public update(role: string) {
+    public updateRole(role: string) {
         this.clientsState.update(this.client, { role });
+    }
+
+    public updateAllowAnonymous(allowAnonymous: boolean) {
+        this.clientsState.update(this.client, { allowAnonymous });
+    }
+
+    public updateApiCallsLimit() {
+        this.clientsState.update(this.client, { apiCallsLimit: this.client.apiCallsLimit });
     }
 
     public rename(name: string) {
         this.clientsState.update(this.client, { name });
     }
 
-    public trackByRole(role: RoleDto) {
+    public trackByRole(_index: number, role: RoleDto) {
         return role.name;
     }
 }

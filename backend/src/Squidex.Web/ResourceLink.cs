@@ -1,21 +1,22 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System.ComponentModel.DataAnnotations;
+using Squidex.Infrastructure.Validation;
 
 namespace Squidex.Web
 {
     public class ResourceLink
     {
-        [Required]
+        [LocalizedRequired]
         [Display(Description = "The link url.")]
         public string Href { get; set; }
 
-        [Required]
+        [LocalizedRequired]
         [Display(Description = "The link method.")]
         public string Method { get; set; }
 

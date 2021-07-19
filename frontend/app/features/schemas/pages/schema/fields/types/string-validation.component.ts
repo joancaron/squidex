@@ -5,9 +5,9 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { Component, Input, OnChanges, OnInit } from '@angular/core';
-import { FormControl, FormGroup } from '@angular/forms';
-import { fadeAnimation, FieldDto, hasNoValue$, hasValue$, ModalModel, PatternDto, ResourceOwner, RootFieldDto, StringFieldPropertiesDto, Types, value$ } from '@app/shared';
+import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
+import { FormGroup } from '@angular/forms';
+import { AppSettingsDto, fadeAnimation, FieldDto, hasNoValue$, hasValue$, LanguageDto, ModalModel, PatternDto, ResourceOwner, RootFieldDto, StringFieldPropertiesDto, STRING_CONTENT_TYPES, Types, value$ } from '@app/shared';
 import { Observable } from 'rxjs';
 
 @Component({
@@ -15,12 +15,12 @@ import { Observable } from 'rxjs';
     styleUrls: ['string-validation.component.scss'],
     templateUrl: 'string-validation.component.html',
     animations: [
-        fadeAnimation
-    ]
+        fadeAnimation,
+    ],
 })
-export class StringValidationComponent extends ResourceOwner implements OnChanges, OnInit {
+export class StringValidationComponent extends ResourceOwner implements OnChanges {
     @Input()
-    public editForm: FormGroup;
+    public fieldForm: FormGroup;
 
     @Input()
     public field: FieldDto;
@@ -29,81 +29,67 @@ export class StringValidationComponent extends ResourceOwner implements OnChange
     public properties: StringFieldPropertiesDto;
 
     @Input()
-    public patterns: ReadonlyArray<PatternDto>;
+    public settings: AppSettingsDto;
 
-    public showDefaultValue: Observable<boolean>;
+    @Input()
+    public languages: ReadonlyArray<LanguageDto>;
+
+    @Input()
+    public isLocalizable?: boolean | null;
+
+    public contentTypes = STRING_CONTENT_TYPES;
+
     public showPatternMessage: Observable<boolean>;
     public showPatternSuggestions: Observable<boolean>;
 
     public patternName: string;
     public patternsModal = new ModalModel();
 
-    public showUnique: boolean;
-
-    public ngOnInit() {
-        this.showUnique = Types.is(this.field, RootFieldDto) && !this.field.isLocalizable;
-
-        if (this.showUnique) {
-            this.editForm.setControl('isUnique',
-                new FormControl(this.properties.isUnique));
-        }
-
-        this.editForm.setControl('maxLength',
-            new FormControl(this.properties.maxLength));
-
-        this.editForm.setControl('minLength',
-            new FormControl(this.properties.minLength));
-
-        this.editForm.setControl('pattern',
-            new FormControl(this.properties.pattern));
-
-        this.editForm.setControl('patternMessage',
-            new FormControl(this.properties.patternMessage));
-
-        this.editForm.setControl('defaultValue',
-            new FormControl(this.properties.defaultValue));
-
-        this.showDefaultValue =
-            hasNoValue$(this.editForm.controls['isRequired']);
-
-        this.showPatternSuggestions =
-            hasNoValue$(this.editForm.controls['pattern']);
-
-        this.showPatternSuggestions =
-            hasNoValue$(this.editForm.controls['pattern']);
-
-        this.showPatternMessage =
-            hasValue$(this.editForm.controls['pattern']);
-
-        this.own(
-            value$(this.editForm.controls['pattern'])
-                .subscribe((value: string) => {
-                    if (!value) {
-                        this.editForm.controls['patternMessage'].setValue(undefined);
-                    }
-
-                    this.setPatternName();
-                }));
-
-        this.setPatternName();
+    public get showUnique() {
+        return Types.is(this.field, RootFieldDto) && !this.field.isLocalizable;
     }
 
-    public ngOnChanges() {
-        this.setPatternName();
+    public ngOnChanges(changes: SimpleChanges) {
+        if (changes['settings']) {
+            this.setPatternName();
+        }
+
+        if (changes['fieldForm']) {
+            this.unsubscribeAll();
+
+            this.showPatternSuggestions =
+                hasNoValue$(this.fieldForm.controls['pattern']);
+
+            this.showPatternSuggestions =
+                hasNoValue$(this.fieldForm.controls['pattern']);
+
+            this.showPatternMessage =
+                hasValue$(this.fieldForm.controls['pattern']);
+
+            this.own(
+                value$(this.fieldForm.controls['pattern'])
+                    .subscribe((value: string) => {
+                        if (!value) {
+                            this.fieldForm.controls['patternMessage'].setValue(undefined);
+                        }
+
+                        this.setPatternName();
+                    }));
+        }
     }
 
     public setPattern(pattern: PatternDto) {
-        this.editForm.controls['pattern'].setValue(pattern.pattern);
-        this.editForm.controls['patternMessage'].setValue(pattern.message);
+        this.fieldForm.controls['pattern'].setValue(pattern.regex);
+        this.fieldForm.controls['patternMessage'].setValue(pattern.message);
     }
 
     private setPatternName() {
-        const value = this.editForm.controls['pattern']?.value;
+        const regex = this.fieldForm.controls['pattern']?.value;
 
-        if (!value) {
+        if (!regex) {
             this.patternName = '';
         } else {
-            const matchingPattern = this.patterns.find(x => x.pattern === this.editForm.controls['pattern'].value);
+            const matchingPattern = this.settings.patterns.find(x => x.regex === regex);
 
             if (matchingPattern) {
                 this.patternName = matchingPattern.name;

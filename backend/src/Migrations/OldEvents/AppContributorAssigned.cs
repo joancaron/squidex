@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -16,7 +16,7 @@ using AppContributorAssignedV2 = Squidex.Domain.Apps.Events.Apps.AppContributorA
 namespace Migrations.OldEvents
 {
     [EventType(nameof(AppContributorAssigned))]
-    [Obsolete]
+    [Obsolete("New Event introduced")]
     public sealed class AppContributorAssigned : AppEvent, IMigrated<IEvent>
     {
         public string ContributorId { get; set; }

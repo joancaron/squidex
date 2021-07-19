@@ -1,4 +1,4 @@
-﻿// ==========================================================================
+// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
 //  Copyright (c) Squidex UG (haftungsbeschraenkt)
@@ -7,6 +7,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
 using Microsoft.OData;
 using Microsoft.OData.Edm;
@@ -14,11 +16,13 @@ using NJsonSchema;
 using Squidex.Domain.Apps.Core.Tags;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Json;
-using Squidex.Infrastructure.Log;
 using Squidex.Infrastructure.Queries;
 using Squidex.Infrastructure.Queries.Json;
 using Squidex.Infrastructure.Queries.OData;
+using Squidex.Infrastructure.Translations;
 using Squidex.Infrastructure.Validation;
+using Squidex.Log;
+using Squidex.Text;
 
 namespace Squidex.Domain.Apps.Entities.Assets.Queries
 {
@@ -32,63 +36,84 @@ namespace Squidex.Domain.Apps.Entities.Assets.Queries
 
         public AssetQueryParser(IJsonSerializer jsonSerializer, ITagService tagService, IOptions<AssetOptions> options)
         {
-            Guard.NotNull(jsonSerializer, nameof(jsonSerializer));
-            Guard.NotNull(options, nameof(options));
-            Guard.NotNull(tagService, nameof(tagService));
-
             this.jsonSerializer = jsonSerializer;
-            this.options = options.Value;
+
             this.tagService = tagService;
+
+            this.options = options.Value;
         }
 
-        public virtual ClrQuery ParseQuery(Context context, Q q)
+        public virtual async Task<Q> ParseAsync(Context context, Q q)
         {
             Guard.NotNull(context, nameof(context));
+            Guard.NotNull(q, nameof(q));
 
             using (Profiler.TraceMethod<AssetQueryParser>())
             {
-                ClrQuery result;
+                var query = ParseClrQuery(q);
 
-                if (q.Query != null)
+                await TransformTagAsync(context, query);
+
+                WithSorting(query);
+                WithPaging(query);
+
+                q = q.WithQuery(query);
+
+                if (context.ShouldSkipTotal())
                 {
-                    result = q.Query;
-                }
-                else
-                {
-                    if (!string.IsNullOrWhiteSpace(q?.JsonQuery))
-                    {
-                        result = ParseJson(q.JsonQuery);
-                    }
-                    else if (!string.IsNullOrWhiteSpace(q?.ODataQuery))
-                    {
-                        result = ParseOData(q.ODataQuery);
-                    }
-                    else
-                    {
-                        result = new ClrQuery();
-                    }
+                    q = q.WithoutTotal();
                 }
 
-                if (result.Filter != null)
-                {
-                    result.Filter = FilterTagTransformer.Transform(result.Filter, context.App.Id, tagService);
-                }
+                return q;
+            }
+        }
 
-                if (result.Sort.Count == 0)
-                {
-                    result.Sort.Add(new SortNode(new List<string> { "lastModified" }, SortOrder.Descending));
-                }
+        private ClrQuery ParseClrQuery(Q q)
+        {
+            var query = q.Query;
 
-                if (result.Take == long.MaxValue)
-                {
-                    result.Take = options.DefaultPageSize;
-                }
-                else if (result.Take > options.MaxResults)
-                {
-                    result.Take = options.MaxResults;
-                }
+            if (!string.IsNullOrWhiteSpace(q?.JsonQueryString))
+            {
+                query = ParseJson(q.JsonQueryString);
+            }
+            else if (!string.IsNullOrWhiteSpace(q?.ODataQuery))
+            {
+                query = ParseOData(q.ODataQuery);
+            }
 
-                return result;
+            return query;
+        }
+
+        private void WithPaging(ClrQuery query)
+        {
+            if (query.Take == long.MaxValue)
+            {
+                query.Take = options.DefaultPageSize;
+            }
+            else if (query.Take > options.MaxResults)
+            {
+                query.Take = options.MaxResults;
+            }
+        }
+
+        private static void WithSorting(ClrQuery query)
+        {
+            if (query.Sort.Count == 0)
+            {
+                query.Sort.Add(new SortNode(new List<string> { "lastModified" }, SortOrder.Descending));
+            }
+
+            if (!query.Sort.Any(x => string.Equals(x.Path.ToString(), "id", StringComparison.OrdinalIgnoreCase)))
+            {
+                query.Sort.Add(new SortNode(new List<string> { "id" }, SortOrder.Ascending));
+            }
+        }
+
+        private async Task TransformTagAsync(Context context, ClrQuery query)
+        {
+            if (query.Filter != null)
+            {
+                query.Filter = await FilterTagTransformer.TransformAsync(query.Filter, context.App.Id, tagService);
             }
         }
 
@@ -105,11 +130,17 @@ namespace Squidex.Domain.Apps.Entities.Assets.Queries
             }
             catch (NotSupportedException)
             {
-                throw new ValidationException("OData operation is not supported.");
+                throw new ValidationException(T.Get("common.odataNotSupported", new { odata }));
             }
             catch (ODataException ex)
             {
-                throw new ValidationException($"Failed to parse query: {ex.Message}", ex);
+                var message = ex.Message;
+
+                throw new ValidationException(T.Get("common.odataFailure", new { odata, message }), ex);
+            }
+            catch (Exception)
+            {
+                throw new ValidationException(T.Get("common.odataNotSupported", new { odata }));
             }
         }
 
@@ -124,21 +155,23 @@ namespace Squidex.Domain.Apps.Entities.Assets.Queries
                 schema.Properties[name.ToCamelCase()] = property;
             }
 
-            AddProperty(nameof(IAssetEntity.Id), JsonObjectType.String, JsonFormatStrings.Guid);
-            AddProperty(nameof(IAssetEntity.Created), JsonObjectType.String, JsonFormatStrings.DateTime);
-            AddProperty(nameof(IAssetEntity.CreatedBy), JsonObjectType.String);
-            AddProperty(nameof(IAssetEntity.FileHash), JsonObjectType.String);
-            AddProperty(nameof(IAssetEntity.FileName), JsonObjectType.String);
-            AddProperty(nameof(IAssetEntity.FileSize), JsonObjectType.Integer);
-            AddProperty(nameof(IAssetEntity.FileVersion), JsonObjectType.Integer);
-            AddProperty(nameof(IAssetEntity.LastModified), JsonObjectType.String, JsonFormatStrings.DateTime);
-            AddProperty(nameof(IAssetEntity.LastModifiedBy), JsonObjectType.String);
-            AddProperty(nameof(IAssetEntity.Metadata), JsonObjectType.None);
-            AddProperty(nameof(IAssetEntity.MimeType), JsonObjectType.String);
-            AddProperty(nameof(IAssetEntity.Slug), JsonObjectType.String);
-            AddProperty(nameof(IAssetEntity.Tags), JsonObjectType.String);
-            AddProperty(nameof(IAssetEntity.Type), JsonObjectType.String);
-            AddProperty(nameof(IAssetEntity.Version), JsonObjectType.Integer);
+            AddProperty("id", JsonObjectType.String);
+            AddProperty("version", JsonObjectType.Integer);
+            AddProperty("created", JsonObjectType.String, JsonFormatStrings.DateTime);
+            AddProperty("createdBy", JsonObjectType.String);
+            AddProperty("fileHash", JsonObjectType.String);
+            AddProperty("fileName", JsonObjectType.String);
+            AddProperty("fileSize", JsonObjectType.Integer);
+            AddProperty("fileVersion", JsonObjectType.Integer);
+            AddProperty("isDeleted", JsonObjectType.Boolean);
+            AddProperty("isProtected", JsonObjectType.Boolean);
+            AddProperty("lastModified", JsonObjectType.String, JsonFormatStrings.DateTime);
+            AddProperty("lastModifiedBy", JsonObjectType.String);
+            AddProperty("metadata", JsonObjectType.None);
+            AddProperty("mimeType", JsonObjectType.String);
+            AddProperty("slug", JsonObjectType.String);
+            AddProperty("tags", JsonObjectType.String);
+            AddProperty("type", JsonObjectType.String);
 
             return schema;
         }
@@ -159,22 +192,24 @@ namespace Squidex.Domain.Apps.Entities.Assets.Queries
 
             var jsonType = new EdmComplexType("Squidex", "Json", null, false, true);
 
-            AddPropertyReference(nameof(IAssetEntity.Metadata), new EdmComplexTypeReference(jsonType, false));
+            AddPropertyReference("Metadata", new EdmComplexTypeReference(jsonType, false));
 
-            AddProperty(nameof(IAssetEntity.Id), EdmPrimitiveTypeKind.String);
-            AddProperty(nameof(IAssetEntity.Created), EdmPrimitiveTypeKind.DateTimeOffset);
-            AddProperty(nameof(IAssetEntity.CreatedBy), EdmPrimitiveTypeKind.String);
-            AddProperty(nameof(IAssetEntity.FileHash), EdmPrimitiveTypeKind.String);
-            AddProperty(nameof(IAssetEntity.FileName), EdmPrimitiveTypeKind.String);
-            AddProperty(nameof(IAssetEntity.FileSize), EdmPrimitiveTypeKind.Int64);
-            AddProperty(nameof(IAssetEntity.FileVersion), EdmPrimitiveTypeKind.Int64);
-            AddProperty(nameof(IAssetEntity.LastModified), EdmPrimitiveTypeKind.DateTimeOffset);
-            AddProperty(nameof(IAssetEntity.LastModifiedBy), EdmPrimitiveTypeKind.String);
-            AddProperty(nameof(IAssetEntity.MimeType), EdmPrimitiveTypeKind.String);
-            AddProperty(nameof(IAssetEntity.Slug), EdmPrimitiveTypeKind.String);
-            AddProperty(nameof(IAssetEntity.Tags), EdmPrimitiveTypeKind.String);
-            AddProperty(nameof(IAssetEntity.Type), EdmPrimitiveTypeKind.String);
-            AddProperty(nameof(IAssetEntity.Version), EdmPrimitiveTypeKind.Int64);
+            AddProperty("id", EdmPrimitiveTypeKind.String);
+            AddProperty("version", EdmPrimitiveTypeKind.Int64);
+            AddProperty("created", EdmPrimitiveTypeKind.DateTimeOffset);
+            AddProperty("createdBy", EdmPrimitiveTypeKind.String);
+            AddProperty("fileHash", EdmPrimitiveTypeKind.String);
+            AddProperty("fileName", EdmPrimitiveTypeKind.String);
+            AddProperty("isDeleted", EdmPrimitiveTypeKind.Boolean);
+            AddProperty("isProtected", EdmPrimitiveTypeKind.Boolean);
+            AddProperty("fileSize", EdmPrimitiveTypeKind.Int64);
+            AddProperty("fileVersion", EdmPrimitiveTypeKind.Int64);
+            AddProperty("lastModified", EdmPrimitiveTypeKind.DateTimeOffset);
+            AddProperty("lastModifiedBy", EdmPrimitiveTypeKind.String);
+            AddProperty("mimeType", EdmPrimitiveTypeKind.String);
+            AddProperty("slug", EdmPrimitiveTypeKind.String);
+            AddProperty("tags", EdmPrimitiveTypeKind.String);
+            AddProperty("type", EdmPrimitiveTypeKind.String);
 
             var container = new EdmEntityContainer("Squidex", "Container");
 

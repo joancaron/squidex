@@ -7,11 +7,10 @@
 
 using System.Threading.Tasks;
 using NodaTime;
-using Squidex.Domain.Apps.Entities.Apps.Notifications;
+using Squidex.Domain.Apps.Entities.Notifications;
 using Squidex.Domain.Apps.Events.Apps;
-using Squidex.Infrastructure;
 using Squidex.Infrastructure.EventSourcing;
-using Squidex.Infrastructure.Log;
+using Squidex.Log;
 using Squidex.Shared.Users;
 
 namespace Squidex.Domain.Apps.Entities.Apps.Invitation
@@ -25,7 +24,7 @@ namespace Squidex.Domain.Apps.Entities.Apps.Invitation
 
         public string Name
         {
-            get { return "NotificationEmailSender"; }
+            get => "NotificationEmailSender";
         }
 
         public string EventsFilter
@@ -35,24 +34,10 @@ namespace Squidex.Domain.Apps.Entities.Apps.Invitation
 
         public InvitationEventConsumer(INotificationSender emailSender, IUserResolver userResolver, ISemanticLog log)
         {
-            Guard.NotNull(emailSender, nameof(emailSender));
-            Guard.NotNull(userResolver, nameof(userResolver));
-            Guard.NotNull(log, nameof(log));
-
             this.emailSender = emailSender;
             this.userResolver = userResolver;
 
             this.log = log;
-        }
-
-        public bool Handles(StoredEvent @event)
-        {
-            return true;
-        }
-
-        public Task ClearAsync()
-        {
-            return Task.CompletedTask;
         }
 
         public async Task On(Envelope<IEvent> @event)
@@ -78,7 +63,7 @@ namespace Squidex.Domain.Apps.Entities.Apps.Invitation
 
             if (@event.Payload is AppContributorAssigned appContributorAssigned)
             {
-                if (!appContributorAssigned.Actor.IsSubject || !appContributorAssigned.IsAdded)
+                if (!appContributorAssigned.Actor.IsUser || !appContributorAssigned.IsAdded)
                 {
                     return;
                 }

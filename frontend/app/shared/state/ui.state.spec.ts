@@ -13,7 +13,7 @@ import { TestValues } from './_test-helpers';
 describe('UIState', () => {
     const {
         app,
-        appsState
+        appsState,
     } = TestValues;
 
     const common = {
@@ -21,29 +21,29 @@ describe('UIState', () => {
         map: {
             type: 'GSM',
             sizeX: 800,
-            sizeY: 600
+            sizeY: 600,
         },
-        canCreateApps: true
+        canCreateApps: true,
     };
 
     const shared = {
         map: {
-            type: 'GM', key: 'xyz'
+            type: 'GM', key: 'xyz',
         },
-        canCreateApps: true
+        canCreateApps: true,
     };
 
     const user = {
         map: {
-            sizeX: 1000
+            sizeX: 1000,
         },
-        canCustomize: true
+        canCustomize: true,
     };
 
     const resources: ResourceLinks = {
-        ['admin/events']: { method: 'GET', href: '/api/events' },
-        ['admin/restore']: { method: 'GET', href: '/api/restore' },
-        ['admin/users']: { method: 'GET', href: '/api/users' }
+        'admin/events': { method: 'GET', href: '/api/events' },
+        'admin/restore': { method: 'GET', href: '/api/restore' },
+        'admin/users': { method: 'GET', href: '/api/users' },
     };
 
     let usersService: IMock<UsersService>;
@@ -77,10 +77,10 @@ describe('UIState', () => {
                 type: 'GM',
                 sizeX: 1000,
                 sizeY: 600,
-                key: 'xyz'
+                key: 'xyz',
             },
             canCreateApps: true,
-            canCustomize: true
+            canCustomize: true,
         });
 
         expect(uiState.snapshot.canReadEvents).toBeTruthy();
@@ -88,7 +88,7 @@ describe('UIState', () => {
         expect(uiState.snapshot.canRestore).toBeTruthy();
     });
 
-    it('should add value to snapshot when set as shared', () => {
+    it('should add value to snapshot if set as shared', () => {
         uiService.setup(x => x.putSharedSetting(app, 'root.nested', 123))
             .returns(() => of({})).verifiable();
 
@@ -100,13 +100,13 @@ describe('UIState', () => {
                 type: 'GM',
                 sizeX: 1000,
                 sizeY: 600,
-                key: 'xyz'
+                key: 'xyz',
             },
             canCreateApps: true,
             canCustomize: true,
             root: {
-                nested: 123
-            }
+                nested: 123,
+            },
         });
 
         uiState.get('root', {}).subscribe(x => {
@@ -124,7 +124,7 @@ describe('UIState', () => {
         uiService.verifyAll();
     });
 
-    it('should add value to snapshot when set as user', () => {
+    it('should add value to snapshot if set as user', () => {
         uiService.setup(x => x.putUserSetting(app, 'root.nested', 123))
             .returns(() => of({})).verifiable();
 
@@ -136,13 +136,13 @@ describe('UIState', () => {
                 type: 'GM',
                 sizeX: 1000,
                 sizeY: 600,
-                key: 'xyz'
+                key: 'xyz',
             },
             canCreateApps: true,
             canCustomize: true,
             root: {
-                nested: 123
-            }
+                nested: 123,
+            },
         });
 
         uiState.get('root', {}).subscribe(x => {
@@ -160,7 +160,7 @@ describe('UIState', () => {
         uiService.verifyAll();
     });
 
-    it('should remove value from snapshot and shared settings when removed', () => {
+    it('should remove value from snapshot and shared settings if removed', () => {
         uiService.setup(x => x.deleteSharedSetting(app, 'map.key'))
             .returns(() => of({})).verifiable();
 
@@ -171,16 +171,16 @@ describe('UIState', () => {
             map: {
                 type: 'GM',
                 sizeX: 1000,
-                sizeY: 600
+                sizeY: 600,
             },
             canCreateApps: true,
-            canCustomize: true
+            canCustomize: true,
         });
 
         uiService.verifyAll();
     });
 
-    it('should remove value from snapshot and user settings when removed', () => {
+    it('should remove value from snapshot and user settings if removed', () => {
         uiService.setup(x => x.deleteUserSetting(app, 'map.sizeX'))
             .returns(() => of({})).verifiable();
 
@@ -192,10 +192,10 @@ describe('UIState', () => {
                 type: 'GM',
                 sizeX: 800,
                 sizeY: 600,
-                key: 'xyz'
+                key: 'xyz',
             },
             canCreateApps: true,
-            canCustomize: true
+            canCustomize: true,
         });
 
         uiService.verifyAll();

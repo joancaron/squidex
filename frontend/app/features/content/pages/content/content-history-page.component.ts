@@ -5,12 +5,10 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable: triple-equals
-
 import { Component, OnInit, ViewChild } from '@angular/core';
-import { AppsState, ContentDto, ContentsState, fadeAnimation, HistoryEventDto, HistoryService, ModalModel, ResourceOwner, SchemaDetailsDto, SchemasState, switchSafe } from '@app/shared';
+import { AppsState, ContentDto, ContentsState, defined, fadeAnimation, HistoryEventDto, HistoryService, ModalModel, ResourceOwner, SchemasState, switchSafe } from '@app/shared';
 import { Observable, timer } from 'rxjs';
-import { filter, map, onErrorResumeNext, switchMap } from 'rxjs/operators';
+import { map } from 'rxjs/operators';
 import { DueTimeSelectorComponent } from './../../shared/due-time-selector.component';
 import { ContentPageComponent } from './content-page.component';
 
@@ -19,14 +17,12 @@ import { ContentPageComponent } from './content-page.component';
     styleUrls: ['./content-history-page.component.scss'],
     templateUrl: './content-history-page.component.html',
     animations: [
-        fadeAnimation
-    ]
+        fadeAnimation,
+    ],
 })
 export class ContentHistoryPageComponent extends ResourceOwner implements OnInit {
     @ViewChild('dueTimeSelector', { static: false })
     public dueTimeSelector: DueTimeSelectorComponent;
-
-    public schema: SchemaDetailsDto;
 
     public content: ContentDto;
     public contentEvents: Observable<ReadonlyArray<HistoryEventDto>>;
@@ -34,52 +30,48 @@ export class ContentHistoryPageComponent extends ResourceOwner implements OnInit
     public dropdown = new ModalModel();
     public dropdownNew = new ModalModel();
 
+    public get disableScheduler() {
+        return this.appsState.snapshot.selectedSettings?.hideScheduler === true;
+    }
+
     constructor(
         private readonly appsState: AppsState,
         private readonly contentPage: ContentPageComponent,
         private readonly contentsState: ContentsState,
         private readonly historyService: HistoryService,
-        private readonly schemasState: SchemasState
+        private readonly schemasState: SchemasState,
     ) {
         super();
     }
 
     public ngOnInit() {
         this.own(
-            this.schemasState.selectedSchema
-                .subscribe(schema => {
-                    if (schema) {
-                        this.schema = schema;
-                    }
-                }));
-
-        this.own(
-            this.contentsState.selectedContent
+            this.contentsState.selectedContent.pipe(defined())
                 .subscribe(content => {
-                    if (content) {
-                        this.content = content;
-                    }
+                    this.content = content;
                 }));
 
         this.contentEvents =
             this.contentsState.selectedContent.pipe(
-                filter(x => !!x),
-                map(content => `contents.${content?.id}`),
+                defined(),
+                map(content => `schemas.${this.schemasState.schemaId}.contents.${content.id}`),
                 switchSafe(channel => timer(0, 5000).pipe(map(() => channel))),
                 switchSafe(channel => this.historyService.getHistory(this.appsState.appName, channel)));
     }
 
     public changeStatus(status: string) {
-        this.contentPage.checkPendingChanges('change the status').pipe(
-                filter(x => !!x),
-                switchMap(_ => this.dueTimeSelector.selectDueTime(status)),
-                switchMap(d => this.contentsState.changeStatus(this.content, status, d)),
-                onErrorResumeNext())
+        this.contentPage.checkPendingChangesBeforeChangingStatus().pipe(
+                defined(),
+                switchSafe(_ => this.dueTimeSelector.selectDueTime(status)),
+                switchSafe(d => this.contentsState.changeManyStatus([this.content], status, d)))
             .subscribe();
     }
 
     public createDraft() {
-        this.contentsState.createDraft(this.content);
+        this.contentPage.checkPendingChangesBeforeChangingStatus().pipe(
+                defined(),
+                switchSafe(() => this.contentsState.createDraft(this.content)))
+            .subscribe();
     }
 
     public delete() {
@@ -98,7 +90,7 @@ export class ContentHistoryPageComponent extends ResourceOwner implements OnInit
         this.contentPage.loadVersion(event.version, true);
     }
 
-    public trackByEvent(index: number, event: HistoryEventDto) {
+    public trackByEvent(_index: number, event: HistoryEventDto) {
         return event.eventId;
     }
 }

@@ -1,18 +1,19 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using IdentityServer4;
-using IdentityServer4.AccessTokenValidation;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using OpenIddict.Validation.AspNetCore;
+using Squidex.Hosting;
 using Squidex.Web;
+using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Squidex.Config.Authentication
 {
@@ -20,64 +21,58 @@ namespace Squidex.Config.Authentication
     {
         public static AuthenticationBuilder AddSquidexIdentityServerAuthentication(this AuthenticationBuilder authBuilder, MyIdentityOptions identityOptions, IConfiguration config)
         {
-            var apiAuthorityUrl = identityOptions.AuthorityUrl;
-
-            var useCustomAuthorityUrl = !string.IsNullOrWhiteSpace(apiAuthorityUrl);
-
-            if (!useCustomAuthorityUrl)
-            {
-                var urlsOptions = config.GetSection("urls").Get<UrlsOptions>();
-
-                apiAuthorityUrl = urlsOptions.BuildUrl(Constants.IdentityServerPrefix);
-            }
-
-            var apiScope = Constants.ApiScope;
+            var useCustomAuthorityUrl = !string.IsNullOrWhiteSpace(identityOptions.AuthorityUrl);
 
             if (useCustomAuthorityUrl)
             {
-                authBuilder.AddIdentityServerAuthentication(options =>
+                const string ExternalIdentityServerSchema = nameof(ExternalIdentityServerSchema);
+
+                authBuilder.AddOpenIdConnect(ExternalIdentityServerSchema, options =>
                 {
-                    options.Authority = apiAuthorityUrl;
-                    options.ApiName = apiScope;
-                    options.ApiSecret = null;
-                    options.RequireHttpsMetadata = identityOptions.RequiresHttps;
-                    options.SupportedTokens = SupportedTokens.Jwt;
+                    options.Authority = identityOptions.AuthorityUrl;
+                    options.Scope.Add(Scopes.Email);
+                    options.Scope.Add(Scopes.Profile);
+                    options.Scope.Add(Constants.ScopePermissions);
+                    options.Scope.Add(Constants.ScopeApi);
+                });
+
+                authBuilder.AddPolicyScheme(Constants.ApiSecurityScheme, Constants.ApiSecurityScheme, options =>
+                {
+                    options.ForwardDefaultSelector = context => ExternalIdentityServerSchema;
                 });
             }
             else
             {
-                authBuilder.AddLocalApi(options =>
+                authBuilder.AddPolicyScheme(Constants.ApiSecurityScheme, Constants.ApiSecurityScheme, options =>
                 {
-                    options.ExpectedScope = apiScope;
+                    options.ForwardDefaultSelector = _ => OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme;
                 });
             }
 
-            authBuilder.AddOpenIdConnect(options =>
-            {
-                options.Authority = apiAuthorityUrl;
-                options.ClientId = Constants.InternalClientId;
-                options.ClientSecret = Constants.InternalClientSecret;
-                options.CallbackPath = "/signin-internal";
-                options.RequireHttpsMetadata = identityOptions.RequiresHttps;
-                options.SaveTokens = true;
-                options.Scope.Add(Constants.PermissionsScope);
-                options.Scope.Add(Constants.ProfileScope);
-                options.Scope.Add(Constants.RoleScope);
-                options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-            });
+            authBuilder.AddOpenIdConnect();
 
-            authBuilder.AddPolicyScheme(Constants.ApiSecurityScheme, Constants.ApiSecurityScheme, options =>
-            {
-                options.ForwardDefaultSelector = context =>
+            authBuilder.Services.AddOptions<OpenIdConnectOptions>(OpenIdConnectDefaults.AuthenticationScheme)
+                .Configure<IUrlGenerator>((options, urlGenerator) =>
                 {
-                    if (useCustomAuthorityUrl)
+                    if (!string.IsNullOrWhiteSpace(identityOptions.AuthorityUrl))
                     {
-                        return IdentityServerAuthenticationDefaults.AuthenticationScheme;
+                        options.Authority = identityOptions.AuthorityUrl;
+                    }
+                    else
+                    {
+                        options.Authority = urlGenerator.BuildUrl(Constants.PrefixIdentityServer, false);
                     }
 
-                    return IdentityServerConstants.LocalApi.PolicyName;
-                };
-            });
+                    options.ClientId = Constants.ClientInternalId;
+                    options.ClientSecret = Constants.ClientInternalSecret;
+                    options.CallbackPath = "/signin-internal";
+                    options.RequireHttpsMetadata = identityOptions.RequiresHttps;
+                    options.SaveTokens = true;
+                    options.Scope.Add(Scopes.Email);
+                    options.Scope.Add(Scopes.Profile);
+                    options.Scope.Add(Constants.ScopePermissions);
+                    options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+                });
 
             return authBuilder;
         }

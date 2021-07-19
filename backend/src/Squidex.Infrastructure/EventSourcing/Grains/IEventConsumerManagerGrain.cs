@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -20,11 +20,11 @@ namespace Squidex.Infrastructure.EventSourcing.Grains
 
         Task StopAllAsync();
 
-        Task<Immutable<EventConsumerInfo>> StopAsync(string consumerName);
+        Task<EventConsumerInfo> StopAsync(string consumerName);
 
-        Task<Immutable<EventConsumerInfo>> StartAsync(string consumerName);
+        Task<EventConsumerInfo> StartAsync(string consumerName);
 
-        Task<Immutable<EventConsumerInfo>> ResetAsync(string consumerName);
+        Task<EventConsumerInfo> ResetAsync(string consumerName);
 
         Task<Immutable<List<EventConsumerInfo>>> GetConsumersAsync();
     }

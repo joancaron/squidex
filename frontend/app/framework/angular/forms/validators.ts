@@ -89,13 +89,11 @@ export module ValidatorsEx {
                 const value = parseFloat(control.value);
 
                 if (min === max) {
-                    if (isNaN(value) || value !== min) {
+                    if (!Types.isNumber(value) || Number.isNaN(value) || value !== min) {
                         return { exactly: { expected: min, actual: value } };
                     }
-                } else {
-                    if (isNaN(value) || value < min || value > max) {
-                        return { between: { min: min, max: max, actual: value }};
-                    }
+                } else if (!Types.isNumber(value) || Number.isNaN(value) || value < min || value > max) {
+                    return { between: { min, max, actual: value } };
                 }
 
                 return null;
@@ -121,13 +119,11 @@ export module ValidatorsEx {
                 const length: number = control.value?.length || 0;
 
                 if (minLength === maxLength) {
-                    if (isNaN(length) || length !== minLength) {
+                    if (!Types.isNumber(length) || Number.isNaN(length) || length !== minLength) {
                         return { exactlylength: { expected: minLength, actual: length } };
                     }
-                } else {
-                    if (isNaN(length) || length < minLength || length > maxLength) {
-                        return { betweenlength: { minLength, maxLength, actual: length }};
-                    }
+                } else if (!Types.isNumber(length) || Number.isNaN(length) || length < minLength || length > maxLength) {
+                    return { betweenlength: { minlength: minLength, maxlength: maxLength, actual: length } };
                 }
 
                 return null;
@@ -139,15 +135,15 @@ export module ValidatorsEx {
         }
     }
 
-    export function validValues<T>(values: ReadonlyArray<T>): ValidatorFn {
-        if (!values) {
+    export function validValues<T>(allowed: ReadonlyArray<T>): ValidatorFn {
+        if (!allowed || allowed.length === 0) {
             return Validators.nullValidator;
         }
 
         return (control: AbstractControl) => {
-            const n: T = control.value;
+            const value: T = control.value;
 
-            if (values.indexOf(n) < 0) {
+            if (allowed.indexOf(value) < 0) {
                 return { validvalues: false };
             }
 
@@ -155,18 +151,18 @@ export module ValidatorsEx {
         };
     }
 
-    export function validArrayValues<T>(values: ReadonlyArray<T>): ValidatorFn {
-        if (!values) {
+    export function validArrayValues<T>(allowed: ReadonlyArray<T>): ValidatorFn {
+        if (!allowed || allowed.length === 0) {
             return Validators.nullValidator;
         }
 
         return (control: AbstractControl) => {
-            const ns: T[] = control.value;
+            const values: T[] = control.value;
 
-            if (ns) {
-                for (const n of ns) {
-                    if (values.indexOf(n) < 0) {
-                        return { validarrayvalues: { invalidvalue: n } };
+            if (values) {
+                for (const value of values) {
+                    if (allowed.indexOf(value) < 0) {
+                        return { validarrayvalues: { invalidvalue: value } };
                     }
                 }
             }
@@ -181,14 +177,14 @@ export module ValidatorsEx {
                 return null;
             }
 
-            const a: string[] = control.value;
-            const unique: { [key: string]: boolean } = {};
+            const values: string[] = control.value;
+            const valuesUnique: { [key: string]: boolean } = {};
 
-            for (const value of a) {
-                if (unique[value]) {
+            for (const value of values) {
+                if (valuesUnique[value]) {
                     return { uniquestrings: false };
                 } else {
-                    unique[value] = true;
+                    valuesUnique[value] = true;
                 }
             }
 

@@ -13,7 +13,7 @@ import { AppLanguageDto, EditLanguageForm, LanguageDto, LanguagesState, sorted }
 @Component({
     selector: 'sqx-language',
     styleUrls: ['./language.component.scss'],
-    templateUrl: './language.component.html'
+    templateUrl: './language.component.html',
 })
 export class LanguageComponent implements OnChanges {
     @Input()
@@ -27,14 +27,14 @@ export class LanguageComponent implements OnChanges {
 
     public otherLanguage: LanguageDto;
 
-    public isEditing = false;
+    public isEditing?: boolean | null;
     public isEditable = false;
 
     public editForm = new EditLanguageForm(this.formBuilder);
 
     constructor(
         private readonly formBuilder: FormBuilder,
-        private readonly languagesState: LanguagesState
+        private readonly languagesState: LanguagesState,
     ) {
     }
 
@@ -72,29 +72,27 @@ export class LanguageComponent implements OnChanges {
             this.languagesState.update(this.language, request)
                 .subscribe(() => {
                     this.editForm.submitCompleted({ noReset: true });
-
-                    this.toggleEditing();
                 }, error => {
                     this.editForm.submitFailed(error);
                 });
         }
     }
 
-    public removeFallbackLanguage(language: AppLanguageDto) {
+    public removeFallbackLanguage(language: LanguageDto) {
         this.fallbackLanguages = this.fallbackLanguages.removed(language);
-        this.fallbackLanguagesNew = [...this.fallbackLanguagesNew, language].sortedByString(x => x.iso2Code);
+        this.fallbackLanguagesNew = [...this.fallbackLanguagesNew, language].sortByString(x => x.iso2Code);
 
         this.otherLanguage = this.fallbackLanguagesNew[0];
     }
 
     public addFallbackLanguage() {
-        this.fallbackLanguages = [...this.fallbackLanguages, this.otherLanguage].sortedByString(x => x.iso2Code);
+        this.fallbackLanguages = [...this.fallbackLanguages, this.otherLanguage].sortByString(x => x.iso2Code);
         this.fallbackLanguagesNew = this.fallbackLanguagesNew.removed(this.otherLanguage);
 
         this.otherLanguage = this.fallbackLanguagesNew[0];
     }
 
-    public trackByLanguage(index: number, language: AppLanguageDto) {
+    public trackByLanguage(_index: number, language: AppLanguageDto) {
         return language.iso2Code;
     }
 }

@@ -11,13 +11,13 @@ using Squidex.Infrastructure;
 
 namespace Squidex.Web
 {
-    public struct Deferred
+    public readonly struct Deferred
     {
         private readonly Lazy<Task<object>> value;
 
         public Task<object> Value
         {
-            get { return value.Value; }
+            get => value.Value;
         }
 
         private Deferred(Func<Task<object>> value)

@@ -1,17 +1,16 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading.Tasks;
-using Squidex.Domain.Apps.Entities;
 using Squidex.Domain.Apps.Entities.Contents;
 using Squidex.Domain.Apps.Entities.Schemas;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.Validation;
 using Squidex.Web;
 
 namespace Squidex.Areas.Api.Controllers.Contents.Models
@@ -26,22 +25,22 @@ namespace Squidex.Areas.Api.Controllers.Contents.Models
         /// <summary>
         /// The content items.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public ContentDto[] Items { get; set; }
 
         /// <summary>
         /// The possible statuses.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public StatusInfoDto[] Statuses { get; set; }
 
-        public static async Task<ContentsDto> FromContentsAsync(IResultList<IEnrichedContentEntity> contents, Context context, Resources resources,
+        public static async Task<ContentsDto> FromContentsAsync(IResultList<IEnrichedContentEntity> contents, Resources resources,
             ISchemaEntity? schema, IContentWorkflow workflow)
         {
             var result = new ContentsDto
             {
                 Total = contents.Total,
-                Items = contents.Select(x => ContentDto.FromContent(context, x, resources)).ToArray()
+                Items = contents.Select(x => ContentDto.FromContent(x, resources)).ToArray()
             };
 
             if (schema != null)
@@ -63,7 +62,7 @@ namespace Squidex.Areas.Api.Controllers.Contents.Models
 
         private void CreateLinks(Resources resources, string schema)
         {
-            var values = new { app = resources.App, name = schema };
+            var values = new { app = resources.App, schema };
 
             AddSelfLink(resources.Url<ContentsController>(x => nameof(x.GetContents), values));
 
@@ -71,7 +70,9 @@ namespace Squidex.Areas.Api.Controllers.Contents.Models
             {
                 AddPostLink("create", resources.Url<ContentsController>(x => nameof(x.PostContent), values));
 
-                AddPostLink("create/publish", resources.Url<ContentsController>(x => nameof(x.PostContent), values) + "?publish=true");
+                var publishValues = new { values.app, values.schema, publish = true };
+
+                AddPostLink("create/publish", resources.Url<ContentsController>(x => nameof(x.PostContent), publishValues));
             }
         }
     }

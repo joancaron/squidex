@@ -18,6 +18,28 @@ namespace Squidex.Shared.Users
         private readonly RefToken token;
         private readonly List<Claim> claims;
 
+        public string Id
+        {
+            get => token.Identifier;
+        }
+
+        public string Email
+        {
+            get => token.ToString();
+        }
+
+        public bool IsLocked
+        {
+            get => false;
+        }
+
+        public IReadOnlyList<Claim> Claims
+        {
+            get => claims;
+        }
+
+        public object Identity => throw new System.NotImplementedException();
+
         public ClientUser(RefToken token)
         {
             Guard.NotNull(token, nameof(token));
@@ -27,28 +49,8 @@ namespace Squidex.Shared.Users
             claims = new List<Claim>
             {
                 new Claim(OpenIdClaims.ClientId, token.Identifier),
-                new Claim(SquidexClaimTypes.DisplayName, token.ToString())
+                new Claim(SquidexClaimTypes.DisplayName, token.Identifier)
             };
-        }
-
-        public string Id
-        {
-            get { return token.Identifier; }
-        }
-
-        public string Email
-        {
-            get { return token.ToString(); }
-        }
-
-        public bool IsLocked
-        {
-            get { return false; }
-        }
-
-        public IReadOnlyList<Claim> Claims
-        {
-            get { return claims; }
         }
     }
 }

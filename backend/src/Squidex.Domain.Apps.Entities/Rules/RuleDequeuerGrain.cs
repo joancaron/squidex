@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -16,8 +16,8 @@ using Squidex.Domain.Apps.Core.HandleRules;
 using Squidex.Domain.Apps.Core.Rules;
 using Squidex.Domain.Apps.Entities.Rules.Repositories;
 using Squidex.Infrastructure;
-using Squidex.Infrastructure.Log;
 using Squidex.Infrastructure.Tasks;
+using Squidex.Log;
 
 namespace Squidex.Domain.Apps.Entities.Rules
 {
@@ -25,18 +25,16 @@ namespace Squidex.Domain.Apps.Entities.Rules
     {
         private readonly ITargetBlock<IRuleEventEntity> requestBlock;
         private readonly IRuleEventRepository ruleEventRepository;
-        private readonly RuleService ruleService;
-        private readonly ConcurrentDictionary<Guid, bool> executing = new ConcurrentDictionary<Guid, bool>();
+        private readonly IRuleService ruleService;
+        private readonly ConcurrentDictionary<DomainId, bool> executing = new ConcurrentDictionary<DomainId, bool>();
         private readonly IClock clock;
         private readonly ISemanticLog log;
 
-        public RuleDequeuerGrain(RuleService ruleService, IRuleEventRepository ruleEventRepository, ISemanticLog log, IClock clock)
+        public RuleDequeuerGrain(
+            IRuleService ruleService,
+            IRuleEventRepository ruleEventRepository,
+            ISemanticLog log, IClock clock)
         {
-            Guard.NotNull(ruleEventRepository, nameof(ruleEventRepository));
-            Guard.NotNull(ruleService, nameof(ruleService));
-            Guard.NotNull(clock, nameof(clock));
-            Guard.NotNull(log, nameof(log));
-
             this.ruleEventRepository = ruleEventRepository;
             this.ruleService = ruleService;
 
@@ -112,10 +110,20 @@ namespace Squidex.Domain.Apps.Entities.Rules
                     ExecutionResult = response.Status,
                     Finished = now,
                     JobNext = jobDelay,
-                    JobResult = ComputeJobResult(response.Status, jobDelay),
+                    JobResult = jobResult
                 };
 
                 await ruleEventRepository.UpdateAsync(@event.Job, update);
+
+                if (response.Status == RuleResult.Failed)
+                {
+                    log.LogWarning(response.Exception!, w => w
+                        .WriteProperty("action", "SendRuleEvent")
+                        .WriteProperty("status", "Failed")
+                        .WriteProperty("ruleId", @event.Job.RuleId.ToString())
+                        .WriteProperty("ruleDescription", @event.Job.Description)
+                        .WriteProperty("dump", response.Dump));
+                }
             }
             catch (Exception ex)
             {
@@ -131,11 +139,11 @@ namespace Squidex.Domain.Apps.Entities.Rules
 
         private static RuleJobResult ComputeJobResult(RuleResult result, Instant? nextCall)
         {
-            if (result != RuleResult.Success && !nextCall.HasValue)
+            if (result != RuleResult.Success && nextCall == null)
             {
                 return RuleJobResult.Failed;
             }
-            else if (result != RuleResult.Success && nextCall.HasValue)
+            else if (result != RuleResult.Success && nextCall != null)
             {
                 return RuleJobResult.Retry;
             }

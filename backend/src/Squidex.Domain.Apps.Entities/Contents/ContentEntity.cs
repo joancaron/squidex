@@ -5,7 +5,6 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using NodaTime;
 using Squidex.Domain.Apps.Core.Contents;
 using Squidex.Domain.Apps.Core.Schemas;
@@ -13,13 +12,13 @@ using Squidex.Infrastructure;
 
 namespace Squidex.Domain.Apps.Entities.Contents
 {
-    public sealed class ContentEntity : IEnrichedContentEntity, IContentEntity
+    public sealed class ContentEntity : IEnrichedContentEntity
     {
-        public Guid Id { get; set; }
+        public DomainId Id { get; set; }
 
-        public NamedId<Guid> AppId { get; set; }
+        public NamedId<DomainId> AppId { get; set; }
 
-        public NamedId<Guid> SchemaId { get; set; }
+        public NamedId<DomainId> SchemaId { get; set; }
 
         public long Version { get; set; }
 
@@ -31,9 +30,9 @@ namespace Squidex.Domain.Apps.Entities.Contents
 
         public RefToken LastModifiedBy { get; set; }
 
-        public NamedContentData Data { get; set; }
+        public ContentData Data { get; set; }
 
-        public NamedContentData? ReferenceData { get; set; }
+        public ContentData? ReferenceData { get; set; }
 
         public ScheduleJob? ScheduleJob { get; set; }
 
@@ -47,8 +46,6 @@ namespace Squidex.Domain.Apps.Entities.Contents
 
         public bool IsSingleton { get; set; }
 
-        public string SchemaName { get; set; }
-
         public string SchemaDisplayName { get; set; }
 
         public string StatusColor { get; set; }
@@ -58,5 +55,10 @@ namespace Squidex.Domain.Apps.Entities.Contents
         public string? ScheduledStatusColor { get; set; }
 
         public RootField[]? ReferenceFields { get; set; }
+
+        public DomainId UniqueId
+        {
+            get => DomainId.Combine(AppId, Id);
+        }
     }
 }

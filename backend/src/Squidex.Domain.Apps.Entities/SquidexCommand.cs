@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -15,7 +15,9 @@ namespace Squidex.Domain.Apps.Entities
     {
         public RefToken Actor { get; set; }
 
-        public ClaimsPrincipal User { get; set; }
+        public ClaimsPrincipal? User { get; set; }
+
+        public bool FromRule { get; set; }
 
         public long ExpectedVersion { get; set; } = EtagVersion.Auto;
     }

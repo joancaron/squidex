@@ -16,12 +16,16 @@ import { map, tap } from 'rxjs/operators';
 export class UserMustExistGuard implements CanActivate {
     constructor(
         private readonly usersState: UsersState,
-        private readonly router: Router
+        private readonly router: Router,
     ) {
     }
 
     public canActivate(route: ActivatedRouteSnapshot): Observable<boolean> {
         const userId = allParams(route)['userId'];
+
+        if (!userId || userId === 'new') {
+            return this.usersState.select(null).pipe(map(u => u === null));
+        }
 
         const result =
             this.usersState.select(userId).pipe(

@@ -20,25 +20,25 @@ namespace Squidex.Extensions.Actions.Discourse
         Display = "Post to discourse",
         Description = "Create a post or topic at discourse.",
         ReadMore = "https://www.discourse.org/")]
-    public sealed class DiscourseAction : RuleAction
+    public sealed record DiscourseAction : RuleAction
     {
         [AbsoluteUrl]
-        [Required]
+        [LocalizedRequired]
         [Display(Name = "Server Url", Description = "The url to the discourse server.")]
         [DataType(DataType.Url)]
         public Uri Url { get; set; }
 
-        [Required]
+        [LocalizedRequired]
         [Display(Name = "Api Key", Description = "The api key to authenticate to your discourse server.")]
         [DataType(DataType.Text)]
         public string ApiKey { get; set; }
 
-        [Required]
+        [LocalizedRequired]
         [Display(Name = "Api User", Description = "The api username to authenticate to your discourse server.")]
         [DataType(DataType.Text)]
         public string ApiUsername { get; set; }
 
-        [Required]
+        [LocalizedRequired]
         [Display(Name = "Text", Description = "The text as markdown.")]
         [DataType(DataType.MultilineText)]
         [Formattable]

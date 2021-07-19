@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -20,8 +20,6 @@ using Squidex.Config.Domain;
 using Squidex.Config.Web;
 using Squidex.Pipeline.Plugins;
 using Squidex.Web.Pipeline;
-
-#pragma warning disable CS0618 // Type or member is obsolete
 
 namespace Squidex
 {
@@ -53,11 +51,13 @@ namespace Squidex
             services.AddSquidexControllerServices(config);
             services.AddSquidexEventPublisher(config);
             services.AddSquidexEventSourcing(config);
+            services.AddSquidexGraphQL();
             services.AddSquidexHealthChecks(config);
-            services.AddSquidexHistory();
+            services.AddSquidexHistory(config);
             services.AddSquidexIdentity(config);
             services.AddSquidexIdentityServer();
             services.AddSquidexInfrastructure(config);
+            services.AddSquidexLocalization();
             services.AddSquidexMigration(config);
             services.AddSquidexNotifications(config);
             services.AddSquidexOpenApiSettings();
@@ -76,12 +76,16 @@ namespace Squidex
         {
             app.UseCookiePolicy();
 
-            app.UseSquidexForwardingRules(config);
-            app.UseSquidexTracking();
-            app.UseSquidexLocalCache();
-            app.UseSquidexCors();
+            app.UseDefaultPathBase();
+            app.UseDefaultForwardRules();
+
+            app.UseSquidexCacheKeys();
             app.UseSquidexHealthCheck();
             app.UseSquidexRobotsTxt();
+            app.UseSquidexTracking();
+            app.UseSquidexLocalization();
+            app.UseSquidexLocalCache();
+            app.UseSquidexCors();
 
             app.ConfigureApi();
             app.ConfigurePortal();

@@ -1,26 +1,138 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 
 namespace Squidex.Infrastructure
 {
     public static class CollectionExtensions
     {
+        public static bool TryAdd<TKey, TValue>(this IReadOnlyDictionary<TKey, TValue> source, TKey key, TValue value, [MaybeNullWhen(false)] out Dictionary<TKey, TValue> result) where TKey : notnull
+        {
+            result = null;
+
+            if (!source.ContainsKey(key))
+            {
+                var clone = new Dictionary<TKey, TValue>(source)
+                {
+                    [key] = value
+                };
+
+                result = clone;
+
+                return true;
+            }
+
+            return false;
+        }
+
+        public static bool TrySet<TKey, TValue>(this IReadOnlyDictionary<TKey, TValue> source, TKey key, TValue value, [MaybeNullWhen(false)] out Dictionary<TKey, TValue> result) where TKey : notnull
+        {
+            result = null;
+
+            if (!source.TryGetValue(key, out var found) || !Equals(found, value))
+            {
+                var clone = new Dictionary<TKey, TValue>(source)
+                {
+                    [key] = value
+                };
+
+                result = clone;
+
+                return true;
+            }
+
+            return false;
+        }
+
+        public static bool TryUpdate<TKey, TValue>(this IReadOnlyDictionary<TKey, TValue> source, TKey key, TValue value, [MaybeNullWhen(false)] out Dictionary<TKey, TValue> result) where TKey : notnull
+        {
+            result = null;
+
+            if (source.TryGetValue(key, out var found) && !Equals(found, value))
+            {
+                var clone = new Dictionary<TKey, TValue>(source)
+                {
+                    [key] = value
+                };
+
+                result = clone;
+
+                return true;
+            }
+
+            return false;
+        }
+
+        public static bool TryRemove<TKey, TValue>(this IReadOnlyDictionary<TKey, TValue> source, TKey key, [MaybeNullWhen(false)] out Dictionary<TKey, TValue> result) where TKey : notnull
+        {
+            result = null;
+
+            if (source.ContainsKey(key))
+            {
+                var clone = new Dictionary<TKey, TValue>(source);
+
+                result = clone;
+                result.Remove(key);
+
+                return true;
+            }
+
+            return false;
+        }
+
         public static bool SetEquals<T>(this IReadOnlyCollection<T> source, IReadOnlyCollection<T> other)
         {
-            return source.Intersect(other).Count() == other.Count;
+            return source.Count == other.Count && source.Intersect(other).Count() == other.Count;
+        }
+
+        public static IEnumerable<IEnumerable<TSource>> Batch<TSource>(this IEnumerable<TSource> source, int size)
+        {
+            TSource[]? bucket = null;
+
+            var bucketIndex = 0;
+
+            foreach (var item in source)
+            {
+                if (bucket == null)
+                {
+                    bucket = new TSource[size];
+                }
+
+                bucket[bucketIndex++] = item;
+
+                if (bucketIndex != size)
+                {
+                    continue;
+                }
+
+                yield return bucket;
+
+                bucket = null;
+                bucketIndex = 0;
+            }
+
+            if (bucket != null && bucketIndex > 0)
+            {
+                yield return bucket.Take(bucketIndex);
+            }
         }
 
         public static bool SetEquals<T>(this IReadOnlyCollection<T> source, IReadOnlyCollection<T> other, IEqualityComparer<T> comparer)
         {
-            return source.Intersect(other, comparer).Count() == other.Count;
+            return source.Count == other.Count && source.Intersect(other, comparer).Count() == other.Count;
+        }
+
+        public static IEnumerable<T> Reverse<T>(this IEnumerable<T> source, bool reverse)
+        {
+            return reverse ? source.Reverse() : source;
         }
 
         public static IResultList<T> SortSet<T, TKey>(this IResultList<T> input, Func<T, TKey> idProvider, IReadOnlyList<TKey> ids) where T : class
@@ -85,21 +197,14 @@ namespace Squidex.Infrastructure
             return source.Where(x => x != null)!;
         }
 
+        public static IEnumerable<TOut> NotNull<TIn, TOut>(this IEnumerable<TIn> source, Func<TIn, TOut?> selector) where TOut : class
+        {
+            return source.Select(selector).Where(x => x != null)!;
+        }
+
         public static IEnumerable<T> Concat<T>(this IEnumerable<T> source, T value)
         {
             return source.Concat(Enumerable.Repeat(value, 1));
-        }
-
-        public static TResult[] Map<TResult, T>(this T[] value, Func<T, TResult> convert)
-        {
-            var result = new TResult[value.Length];
-
-            for (var i = 0; i < value.Length; i++)
-            {
-                result[i] = convert(value[i]);
-            }
-
-            return result;
         }
 
         public static int SequentialHashCode<T>(this IEnumerable<T> collection)
@@ -117,27 +222,6 @@ namespace Squidex.Infrastructure
                 {
                     hashCode = (hashCode * 23) + comparer.GetHashCode(item);
                 }
-            }
-
-            return hashCode;
-        }
-
-        public static int OrderedHashCode<T>(this IEnumerable<T> collection) where T : notnull
-        {
-            return collection.OrderedHashCode(EqualityComparer<T>.Default);
-        }
-
-        public static int OrderedHashCode<T>(this IEnumerable<T> collection, IEqualityComparer<T> comparer) where T : notnull
-        {
-            Guard.NotNull(comparer, nameof(comparer));
-
-            var hashCodes = collection.Where(x => !Equals(x, null)).Select(x => x.GetHashCode()).OrderBy(x => x).ToArray();
-
-            var hashCode = 17;
-
-            foreach (var code in hashCodes)
-            {
-                hashCode = (hashCode * 23) + code;
             }
 
             return hashCode;
@@ -165,16 +249,21 @@ namespace Squidex.Infrastructure
             return hashCode;
         }
 
-        public static bool EqualsDictionary<TKey, TValue>(this IReadOnlyDictionary<TKey, TValue> dictionary, IReadOnlyDictionary<TKey, TValue> other) where TKey : notnull
+        public static bool EqualsDictionary<TKey, TValue>(this IReadOnlyDictionary<TKey, TValue> dictionary, IReadOnlyDictionary<TKey, TValue>? other) where TKey : notnull
         {
             return EqualsDictionary(dictionary, other, EqualityComparer<TKey>.Default, EqualityComparer<TValue>.Default);
         }
 
-        public static bool EqualsDictionary<TKey, TValue>(this IReadOnlyDictionary<TKey, TValue> dictionary, IReadOnlyDictionary<TKey, TValue> other, IEqualityComparer<TKey> keyComparer, IEqualityComparer<TValue> valueComparer) where TKey : notnull
+        public static bool EqualsDictionary<TKey, TValue>(this IReadOnlyDictionary<TKey, TValue> dictionary, IReadOnlyDictionary<TKey, TValue>? other, IEqualityComparer<TKey> keyComparer, IEqualityComparer<TValue> valueComparer) where TKey : notnull
         {
             if (other == null)
             {
                 return false;
+            }
+
+            if (ReferenceEquals(dictionary, other))
+            {
+                return true;
             }
 
             if (dictionary.Count != other.Count)
@@ -185,6 +274,39 @@ namespace Squidex.Infrastructure
             var comparer = new KeyValuePairComparer<TKey, TValue>(keyComparer, valueComparer);
 
             return !dictionary.Except(other, comparer).Any();
+        }
+
+        public static bool EqualsList<T>(this IReadOnlyList<T> list, IReadOnlyList<T>? other)
+        {
+            return EqualsList(list, other, EqualityComparer<T>.Default);
+        }
+
+        public static bool EqualsList<T>(this IReadOnlyList<T> list, IReadOnlyList<T>? other, IEqualityComparer<T> comparer)
+        {
+            if (other == null)
+            {
+                return false;
+            }
+
+            if (ReferenceEquals(list, other))
+            {
+                return true;
+            }
+
+            if (list.Count != other.Count)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < list.Count; i++)
+            {
+                if (!comparer.Equals(list[i], other[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         public static Dictionary<TKey, TValue> ToDictionary<TKey, TValue>(this IReadOnlyDictionary<TKey, TValue> dictionary) where TKey : notnull
@@ -260,9 +382,18 @@ namespace Squidex.Infrastructure
 
         public static void Foreach<T>(this IEnumerable<T> collection, Action<T> action)
         {
+            collection.Foreach((x, i) => action(x));
+        }
+
+        public static void Foreach<T>(this IEnumerable<T> collection, Action<T, int> action)
+        {
+            var index = 0;
+
             foreach (var item in collection)
             {
-                action(item);
+                action(item, index);
+
+                index++;
             }
         }
 

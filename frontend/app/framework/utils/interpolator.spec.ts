@@ -5,6 +5,8 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
+/* eslint-disable no-template-curly-in-string */
+
 import { DateTime } from './date-time';
 import { interpolate } from './interpolator';
 
@@ -17,6 +19,12 @@ describe('interpolate', () => {
 
     it('should interpolate with object value', () => {
         const result = interpolate('hello ${string}', { string: 'world' });
+
+        expect(result).toEqual('hello world');
+    });
+
+    it('should interpolate without dollar', () => {
+        const result = interpolate('hello {string}', { string: 'world' });
 
         expect(result).toEqual('hello world');
     });

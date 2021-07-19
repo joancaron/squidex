@@ -5,28 +5,24 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { CdkDragDrop } from '@angular/cdk/drag-drop';
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges } from '@angular/core';
-import { fadeAnimation, LocalStoreService, SchemaCategory, SchemaDto, SchemasState, StatefulComponent } from '@app/shared/internal';
+import { CdkDragDrop, CdkDragStart } from '@angular/cdk/drag-drop';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, Output } from '@angular/core';
+import { fadeAnimation, LocalStoreService, SchemaCategory, SchemaDto, SchemasList, SchemasState } from '@app/shared/internal';
+import { AppsState } from '../state/apps.state';
+import { Settings } from '../state/settings';
 
-interface State {
-    // The filtered schemas.
-    filtered: ReadonlyArray<SchemaDto>;
-
-    // True when the category is open.
-    isOpen?: boolean;
-}
+const ITEM_HEIGHT = 3.125;
 
 @Component({
     selector: 'sqx-schema-category',
     styleUrls: ['./schema-category.component.scss'],
     templateUrl: './schema-category.component.html',
     animations: [
-        fadeAnimation
+        fadeAnimation,
     ],
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class SchemaCategoryComponent extends StatefulComponent<State> implements OnInit, OnChanges {
+export class SchemaCategoryComponent implements OnChanges {
     @Output()
     public remove = new EventEmitter();
 
@@ -37,49 +33,46 @@ export class SchemaCategoryComponent extends StatefulComponent<State> implements
     public schemasFilter: string;
 
     @Input()
-    public forContent: boolean;
+    public forContent?: boolean | null;
 
-    constructor(changeDetector: ChangeDetectorRef,
+    public filteredSchemas: SchemasList;
+
+    public isCollapsed = false;
+
+    constructor(
+        private readonly appsState: AppsState,
         private readonly localStore: LocalStoreService,
-        private readonly schemasState: SchemasState
+        private readonly schemasState: SchemasState,
     ) {
-        super(changeDetector, { filtered: [], isOpen: true });
-    }
-
-    public ngOnInit() {
-        this.next(s => ({ ...s, isOpen: !this.localStore.getBoolean(this.configKey()) }));
     }
 
     public toggle() {
-        this.next(s => ({ ...s, isOpen: !s.isOpen }));
+        this.isCollapsed = !this.isCollapsed;
 
-        this.localStore.setBoolean(this.configKey(), !this.snapshot.isOpen);
+        this.localStore.setBoolean(this.configKey(), this.isCollapsed);
     }
 
-    public ngOnChanges(changes: SimpleChanges): void {
-        if (changes['schemaCategory'] || changes['schemasFilter']) {
-            let filtered = this.schemaCategory.schemas;
+    public ngOnChanges() {
+        this.filteredSchemas = this.schemaCategory.schemas;
 
-            if (this.forContent) {
-                filtered = filtered.filter(x => x.canReadContents && x.isPublished);
-            }
+        if (this.forContent) {
+            const app = this.appsState.snapshot.selectedApp!;
 
-            let isOpen = false;
+            this.filteredSchemas = this.filteredSchemas.filter(x => x.canReadContents && x.isPublished && x.type !== 'Component');
+            this.filteredSchemas = this.filteredSchemas.filter(x => !app.roleProperties[Settings.AppProperties.HIDE_CONTENTS(x.name)]);
+        }
 
-            if (this.schemasFilter) {
-                filtered = filtered.filter(x => x.name.indexOf(this.schemasFilter) >= 0);
+        if (this.schemasFilter) {
+            this.filteredSchemas = this.filteredSchemas.filter(x => x.name.indexOf(this.schemasFilter) >= 0);
 
-                isOpen = true;
-            } else {
-                isOpen = this.localStore.get(`schema-category.${this.schemaCategory.name}`) !== 'false';
-            }
-
-            this.next(s => ({ ...s, isOpen, filtered }));
+            this.isCollapsed = false;
+        } else {
+            this.isCollapsed = this.localStore.getBoolean(this.configKey());
         }
     }
 
     public schemaRoute(schema: SchemaDto) {
-        if (schema.isSingleton && this.forContent) {
+        if (schema.type === 'Singleton' && this.forContent) {
             return [schema.name, schema.id, 'history'];
         } else {
             return [schema.name];
@@ -92,11 +85,30 @@ export class SchemaCategoryComponent extends StatefulComponent<State> implements
         }
     }
 
-    public trackBySchema(index: number, schema: SchemaDto) {
+    public dragStarted(event: CdkDragStart) {
+        setTimeout(() => {
+            const dropContainer = event.source._dragRef['_dropContainer'];
+
+            if (dropContainer) {
+                dropContainer['_cacheOwnPosition']();
+                dropContainer['_cacheItemPositions']();
+            }
+        });
+    }
+
+    public getItemHeight() {
+        return `${ITEM_HEIGHT}rem`;
+    }
+
+    public getContainerHeight() {
+        return `${ITEM_HEIGHT * this.filteredSchemas.length}rem`;
+    }
+
+    public trackBySchema(_index: number, schema: SchemaDto) {
         return schema.id;
     }
 
     private configKey(): string {
-        return `squidex.schema.category.${this.schemaCategory.name}.closed`;
+        return `squidex.schema.category.${this.schemaCategory.name}.collapsed`;
     }
 }

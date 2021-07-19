@@ -13,11 +13,15 @@ import { map } from 'rxjs/operators';
 
 export class CallsUsageDto {
     constructor(
+        public readonly allowedBytes: number,
         public readonly allowedCalls: number,
+        public readonly blockingCalls: number,
         public readonly totalBytes: number,
         public readonly totalCalls: number,
+        public readonly monthBytes: number,
+        public readonly monthCalls: number,
         public readonly averageElapsedMs: number,
-        public readonly details: { [category: string]: ReadonlyArray<CallsUsagePerDateDto> }
+        public readonly details: { [category: string]: ReadonlyArray<CallsUsagePerDateDto> },
     ) {
     }
 }
@@ -27,7 +31,7 @@ export class CallsUsagePerDateDto {
         public readonly date: DateTime,
         public readonly totalBytes: number,
         public readonly totalCalls: number,
-        public readonly averageElapsedMs: number
+        public readonly averageElapsedMs: number,
     ) {
     }
 }
@@ -36,7 +40,7 @@ export class StorageUsagePerDateDto {
     constructor(
         public readonly date: DateTime,
         public readonly totalCount: number,
-        public readonly totalSize: number
+        public readonly totalSize: number,
     ) {
     }
 }
@@ -44,7 +48,7 @@ export class StorageUsagePerDateDto {
 export class CurrentStorageDto {
     constructor(
         public readonly size: number,
-        public readonly maxAllowed: number
+        public readonly maxAllowed: number,
     ) {
     }
 }
@@ -53,7 +57,7 @@ export class CurrentStorageDto {
 export class UsagesService {
     constructor(
         private readonly http: HttpClient,
-        private readonly apiUrl: ApiUrlConfig
+        private readonly apiUrl: ApiUrlConfig,
     ) {
     }
 
@@ -64,7 +68,7 @@ export class UsagesService {
             map(body => {
                 return body.downloadUrl;
             }),
-            pretifyError('Failed to load monthly api calls. Please reload.'));
+            pretifyError('i18n:usages.loadMonthlyCallsFailed'));
     }
 
     public getTodayStorage(app: string): Observable<CurrentStorageDto> {
@@ -74,7 +78,7 @@ export class UsagesService {
             map(body => {
                 return new CurrentStorageDto(body.size, body.maxAllowed);
             }),
-            pretifyError('Failed to load todays storage size. Please reload.'));
+            pretifyError('i18n:usages.loadTodayStorageFailed'));
     }
 
     public getCallsUsages(app: string, fromDate: string, toDate: string): Observable<CallsUsageDto> {
@@ -84,7 +88,7 @@ export class UsagesService {
             map(body => {
                 const details: { [category: string]: CallsUsagePerDateDto[] } = {};
 
-                for (let category of Object.keys(body.details)) {
+                for (const category of Object.keys(body.details)) {
                     details[category] = body.details[category].map((item: any) =>
                         new CallsUsagePerDateDto(
                             DateTime.parseISO(item.date),
@@ -95,15 +99,19 @@ export class UsagesService {
 
                 const usages =
                     new CallsUsageDto(
+                        body.allowedBytes,
                         body.allowedCalls,
+                        body.blockingCalls,
                         body.totalBytes,
                         body.totalCalls,
+                        body.monthBytes,
+                        body.monthCalls,
                         body.averageElapsedMs,
                         details);
 
                 return usages;
             }),
-            pretifyError('Failed to load calls usage. Please reload.'));
+            pretifyError('i18n:usages.loadCallsFailed'));
     }
 
     public getStorageUsages(app: string, fromDate: string, toDate: string): Observable<ReadonlyArray<StorageUsagePerDateDto>> {
@@ -119,6 +127,6 @@ export class UsagesService {
 
                 return usages;
             }),
-            pretifyError('Failed to load storage usage. Please reload.'));
+            pretifyError('i18n:usages.loadStorageFailed'));
     }
 }

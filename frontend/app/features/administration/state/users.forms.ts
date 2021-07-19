@@ -11,33 +11,33 @@ import { UpdateUserDto, UserDto } from './../services/users.service';
 
 export class UserForm extends Form<FormGroup, UpdateUserDto, UserDto> {
     constructor(
-        formBuilder: FormBuilder
+        formBuilder: FormBuilder,
     ) {
         super(formBuilder.group({
             email: ['',
                 [
                     Validators.email,
                     Validators.required,
-                    Validators.maxLength(100)
-                ]
+                    Validators.maxLength(100),
+                ],
             ],
             displayName: ['',
                 [
                     Validators.required,
-                    Validators.maxLength(100)
-                ]
+                    Validators.maxLength(100),
+                ],
             ],
             password: ['',
                 [
-                    Validators.required
-                ]
+                    Validators.required,
+                ],
             ],
             passwordConfirm: ['',
                 [
-                    ValidatorsEx.match('password', 'Passwords must be the same.')
-                ]
+                    ValidatorsEx.match('password', 'i18n:users.passwordConfirmValidationMessage'),
+                ],
             ],
-            permissions: ['']
+            permissions: [''],
         }));
     }
 
@@ -54,10 +54,12 @@ export class UserForm extends Form<FormGroup, UpdateUserDto, UserDto> {
     protected transformLoad(user: Partial<UserDto>) {
         const permissions = user.permissions?.join('\n') || '';
 
-        return { ...user, permissions: permissions };
+        return { ...user, permissions };
     }
 
     protected transformSubmit(value: any) {
-        return { ...value, permissions: value['permissions'].split('\n').filter((x: any) => !!x) };
+        const permissions = value['permissions'].split('\n').filter((x: any) => !!x);
+
+        return { ...value, permissions };
     }
 }

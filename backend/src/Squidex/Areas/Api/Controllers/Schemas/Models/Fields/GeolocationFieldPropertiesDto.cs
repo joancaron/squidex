@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -12,11 +12,6 @@ namespace Squidex.Areas.Api.Controllers.Schemas.Models.Fields
 {
     public sealed class GeolocationFieldPropertiesDto : FieldPropertiesDto
     {
-        /// <summary>
-        /// The default value for the field value.
-        /// </summary>
-        public bool? DefaultValue { get; set; }
-
         /// <summary>
         /// The editor that is used to manage this field.
         /// </summary>

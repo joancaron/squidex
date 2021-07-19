@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -29,7 +29,6 @@ namespace Squidex.Domain.Apps.Core.Model.Schemas
         [Fact]
         public void Should_instantiate_field()
         {
-            Assert.True(field_0.RawProperties.IsFrozen);
             Assert.Equal("my-field", field_0.Name);
         }
 
@@ -96,7 +95,6 @@ namespace Squidex.Domain.Apps.Core.Model.Schemas
             var field_1 = field_0.Update(new NumberFieldProperties { Hints = "my-hints" });
 
             Assert.Null(field_0.RawProperties.Hints);
-            Assert.True(field_1.RawProperties.IsFrozen);
             Assert.Equal("my-hints", field_1.RawProperties.Hints);
         }
 
@@ -104,13 +102,6 @@ namespace Squidex.Domain.Apps.Core.Model.Schemas
         public void Should_throw_exception_if_updating_with_invalid_properties_type()
         {
             Assert.Throws<ArgumentException>(() => field_0.Update(new StringFieldProperties()));
-        }
-
-        [Theory]
-        [MemberData(nameof(FieldProperties))]
-        public void Should_freeze_field_properties(FieldProperties action)
-        {
-            TestUtils.TestFreeze(action);
         }
     }
 }

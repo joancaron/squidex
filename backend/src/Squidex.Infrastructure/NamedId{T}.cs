@@ -1,21 +1,20 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
+using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
-
-#pragma warning disable RECS0108 // Warns about static fields in generic types
 
 namespace Squidex.Infrastructure
 {
     public delegate bool Parser<T>(ReadOnlySpan<char> input, out T result);
 
-    [Equals(DoNotAddEqualityOperators = true)]
-    public sealed class NamedId<T> where T : notnull
+    [TypeConverter(typeof(NamedIdTypeConverter))]
+    public sealed record NamedId<T> where T : notnull
     {
         private static readonly int GuidLength = Guid.Empty.ToString().Length;
 
@@ -50,7 +49,7 @@ namespace Squidex.Infrastructure
                     {
                         if (parser(span.Slice(0, GuidLength), out var id))
                         {
-                            result = new NamedId<T>(id, value.Substring(GuidLength + 1));
+                            result = new NamedId<T>(id, value[(GuidLength + 1)..]);
 
                             return true;
                         }
@@ -64,7 +63,7 @@ namespace Squidex.Infrastructure
                     {
                         if (parser(span.Slice(0, index), out var id))
                         {
-                            result = new NamedId<T>(id, value.Substring(index + 1));
+                            result = new NamedId<T>(id, value[(index + 1)..]);
 
                             return true;
                         }

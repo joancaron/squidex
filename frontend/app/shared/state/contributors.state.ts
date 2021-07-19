@@ -6,33 +6,18 @@
  */
 
 import { Injectable } from '@angular/core';
-import { DialogService, ErrorDto, LocalStoreService, Pager, shareMapSubscribed, shareSubscribed, State, Types, Version } from '@app/framework';
-import { Observable, throwError } from 'rxjs';
+import { DialogService, ErrorDto, getPagingInfo, ListState, shareMapSubscribed, shareSubscribed, State, Types, Version } from '@app/framework';
+import { EMPTY, Observable, throwError } from 'rxjs';
 import { catchError, finalize, tap } from 'rxjs/operators';
 import { AssignContributorDto, ContributorDto, ContributorsPayload, ContributorsService } from './../services/contributors.service';
 import { AppsState } from './apps.state';
 
-interface Snapshot {
-    // All loaded contributors.
-    contributors: ContributorsList;
-
-    // The pagination information.
-    contributorsPager: Pager;
-
-    // Indicates if the contributors are loaded.
-    isLoaded?: boolean;
-
-    // Indicates if the contributors are loading.
-    isLoading?: boolean;
+interface Snapshot extends ListState {
+    // The current contributors.
+    contributors: ReadonlyArray<ContributorDto>;
 
     // The maximum allowed users.
     maxContributors: number;
-
-    // The search query.
-    query?: string;
-
-    // Query regex.
-    queryRegex?: RegExp;
 
     // The app version.
     version: Version;
@@ -41,18 +26,19 @@ interface Snapshot {
     canCreate?: boolean;
 }
 
-type ContributorsList = ReadonlyArray<ContributorDto>;
-
 @Injectable()
 export class ContributorsState extends State<Snapshot> {
     public contributors =
         this.project(x => x.contributors);
 
+    public paging =
+        this.project(x => getPagingInfo(x, x.contributors.length));
+
     public query =
         this.project(x => x.query);
 
     public queryRegex =
-        this.project(x => x.queryRegex);
+        this.projectFrom(this.query, x => (x ? new RegExp(x, 'i') : undefined));
 
     public maxContributors =
         this.project(x => x.maxContributors);
@@ -66,66 +52,67 @@ export class ContributorsState extends State<Snapshot> {
     public canCreate =
         this.project(x => x.canCreate === true);
 
-    public filtered =
-        this.projectFrom2(this.queryRegex, this.contributors, (q, c) => getFilteredContributors(c, q));
+    public contributorsFiltered =
+        this.project(getFilteredContributors);
 
-    public contributorsPager =
-        this.project(x => x.contributorsPager);
-
-    public contributorsPaged =
-        this.projectFrom2(this.contributorsPager, this.filtered, (p, c) => getPagedContributors(c, p));
+    public get appId() {
+        return this.appsState.appId;
+    }
 
     constructor(
         private readonly appsState: AppsState,
         private readonly contributorsService: ContributorsService,
         private readonly dialogs: DialogService,
-        private readonly localStore: LocalStoreService
     ) {
         super({
             contributors: [],
-            contributorsPager: Pager.fromLocalStore('contributors', localStore),
             maxContributors: -1,
-            version: Version.EMPTY
-        });
-
-        this.contributorsPager.subscribe(pager => {
-            pager.saveTo('contributors', this.localStore);
-        });
+            page: 0,
+            pageSize: 10,
+            total: 0,
+            version: Version.EMPTY,
+        }, 'Contributors');
     }
 
-    public load(isReload = false): Observable<any> {
-        if (isReload) {
-            const contributorsPager = this.snapshot.contributorsPager.reset();
+    public loadIfNotLoaded(): Observable<any> {
+        if (this.snapshot.isLoaded) {
+            return EMPTY;
+        }
 
-            this.resetState({ contributorsPager });
+        return this.loadInternal(false);
+    }
+
+    public load(isReload = false, update: Partial<Snapshot> = {}): Observable<any> {
+        if (!isReload) {
+            this.resetState(update, 'Loading Initial');
         }
 
         return this.loadInternal(isReload);
     }
 
     private loadInternal(isReload: boolean): Observable<any> {
-        this.next({ isLoading: true });
+        this.next({ isLoading: true }, 'Loading Started');
 
         return this.contributorsService.getContributors(this.appName).pipe(
             tap(({ version, payload }) => {
                 if (isReload) {
-                    this.dialogs.notifyInfo('Contributors reloaded.');
+                    this.dialogs.notifyInfo('i18n:contributors.reloaded');
                 }
 
                 this.replaceContributors(version, payload);
             }),
             finalize(() => {
-                this.next({ isLoading: false });
+                this.next({ isLoading: false }, 'Loading Done');
             }),
             shareSubscribed(this.dialogs));
     }
 
-    public setPager(contributorsPager: Pager) {
-        this.next(s => ({ ...s, contributorsPager }));
+    public page(paging: { page: number; pageSize: number }) {
+        this.next(paging, 'Results Paged');
     }
 
     public search(query: string) {
-        this.next(s => ({ ...s, query, queryRegex: new RegExp(query, 'i') }));
+        this.next({ query }, 'Results Filtered');
     }
 
     public revoke(contributor: ContributorDto): Observable<any> {
@@ -140,9 +127,9 @@ export class ContributorsState extends State<Snapshot> {
         return this.contributorsService.postContributor(this.appName, request, this.version).pipe(
             catchError(error => {
                 if (Types.is(error, ErrorDto) && error.statusCode === 404) {
-                    return throwError(new ErrorDto(404, 'The user does not exist.'));
+                    return throwError(() => new ErrorDto(404, 'i18n:contributors.userNotFound'));
                 } else {
-                    return throwError(error);
+                    return throwError(() => error);
                 }
             }),
             tap(({ version, payload }) => {
@@ -151,22 +138,16 @@ export class ContributorsState extends State<Snapshot> {
             shareMapSubscribed(this.dialogs, x => x.payload._meta && x.payload._meta['isInvited'] === '1', options));
     }
 
-    private replaceContributors(version: Version, payload: ContributorsPayload) {
-        this.next(s => {
-            const { canCreate, items: contributors, maxContributors } = payload;
-
-            const contributorsPager = s.contributorsPager.setCount(contributors.length);
-
-            return {
-                canCreate,
-                contributors,
-                contributorsPager,
-                isLoaded: true,
-                isLoading: false,
-                maxContributors,
-                version
-            };
-        });
+    private replaceContributors(version: Version, { canCreate, items, maxContributors }: ContributorsPayload) {
+        this.next({
+            canCreate,
+            contributors: items,
+            isLoaded: true,
+            isLoading: false,
+            maxContributors,
+            total: items.length,
+            version,
+        }, 'Loading Success / Updated');
     }
 
     private get appName() {
@@ -178,16 +159,16 @@ export class ContributorsState extends State<Snapshot> {
     }
 }
 
-function getPagedContributors(contributors: ContributorsList, pager: Pager) {
-    return contributors.slice(pager.page * pager.pageSize, (pager.page + 1) * pager.pageSize);
-}
+function getFilteredContributors(snapshot: Snapshot) {
+    const { contributors, query, page, pageSize } = snapshot;
 
-function getFilteredContributors(contributors: ContributorsList, query?: RegExp) {
     let filtered = contributors;
 
     if (query) {
-        filtered = filtered.filter(x => query.test(x.contributorName));
+        const regex = new RegExp(query, 'i');
+
+        filtered = filtered.filter(x => regex.test(x.contributorName));
     }
 
-    return filtered;
+    return filtered.slice(page * pageSize, (page + 1) * pageSize);
 }

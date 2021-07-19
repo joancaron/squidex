@@ -7,6 +7,7 @@
 
 using System.Threading.Tasks;
 using Orleans;
+using Squidex.Domain.Apps.Entities.Comments.DomainObject;
 using Squidex.Infrastructure;
 
 namespace Squidex.Domain.Apps.Entities.Comments
@@ -20,9 +21,9 @@ namespace Squidex.Domain.Apps.Entities.Comments
             this.grainFactory = grainFactory;
         }
 
-        public Task<CommentsResult> GetCommentsAsync(string id, long version = EtagVersion.Any)
+        public Task<CommentsResult> GetCommentsAsync(DomainId id, long version = EtagVersion.Any)
         {
-            var grain = grainFactory.GetGrain<ICommentsGrain>(id);
+            var grain = grainFactory.GetGrain<ICommentsGrain>(id.ToString());
 
             return grain.GetCommentsAsync(version);
         }

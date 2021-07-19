@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Dataflow;
 using Microsoft.Extensions.DependencyInjection;
 using NodaTime;
 using Squidex.Domain.Apps.Core.Apps;
@@ -19,10 +20,11 @@ using Squidex.Domain.Apps.Events.Apps;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Commands;
 using Squidex.Infrastructure.EventSourcing;
-using Squidex.Infrastructure.Log;
 using Squidex.Infrastructure.Orleans;
 using Squidex.Infrastructure.States;
 using Squidex.Infrastructure.Tasks;
+using Squidex.Infrastructure.Translations;
+using Squidex.Log;
 using Squidex.Shared.Users;
 
 namespace Squidex.Domain.Apps.Entities.Backup
@@ -38,12 +40,13 @@ namespace Squidex.Domain.Apps.Entities.Backup
         private readonly IServiceProvider serviceProvider;
         private readonly IStreamNameResolver streamNameResolver;
         private readonly IUserResolver userResolver;
-        private readonly IGrainState<RestoreState2> state;
-        private RestoreContext restoreContext;
+        private readonly IGrainState<BackupRestoreState> state;
+        private RestoreContext runningContext;
+        private StreamMapper runningStreamMapper;
 
         private RestoreJob CurrentJob
         {
-            get { return state.Value.Job; }
+            get => state.Value.Job;
         }
 
         public RestoreGrain(
@@ -52,23 +55,12 @@ namespace Squidex.Domain.Apps.Entities.Backup
             ICommandBus commandBus,
             IEventDataFormatter eventDataFormatter,
             IEventStore eventStore,
-            IGrainState<RestoreState2> state,
+            IGrainState<BackupRestoreState> state,
             IServiceProvider serviceProvider,
             IStreamNameResolver streamNameResolver,
             IUserResolver userResolver,
             ISemanticLog log)
         {
-            Guard.NotNull(backupArchiveLocation, nameof(backupArchiveLocation));
-            Guard.NotNull(clock, nameof(clock));
-            Guard.NotNull(commandBus, nameof(commandBus));
-            Guard.NotNull(eventDataFormatter, nameof(eventDataFormatter));
-            Guard.NotNull(eventStore, nameof(eventStore));
-            Guard.NotNull(serviceProvider, nameof(serviceProvider));
-            Guard.NotNull(state, nameof(state));
-            Guard.NotNull(streamNameResolver, nameof(streamNameResolver));
-            Guard.NotNull(userResolver, nameof(userResolver));
-            Guard.NotNull(log, nameof(log));
-
             this.backupArchiveLocation = backupArchiveLocation;
             this.clock = clock;
             this.commandBus = commandBus;
@@ -112,12 +104,12 @@ namespace Squidex.Domain.Apps.Entities.Backup
 
             if (CurrentJob?.Status == JobStatus.Started)
             {
-                throw new DomainException("A restore operation is already running.");
+                throw new DomainException(T.Get("backups.restoreRunning"));
             }
 
             state.Value.Job = new RestoreJob
             {
-                Id = Guid.NewGuid(),
+                Id = DomainId.NewGuid(),
                 NewAppName = newAppName,
                 Actor = actor,
                 Started = clock.GetCurrentInstant(),
@@ -139,7 +131,10 @@ namespace Squidex.Domain.Apps.Entities.Backup
         {
             var handlers = CreateHandlers();
 
-            var logContext = (jobId: CurrentJob.Id.ToString(), jobUrl: CurrentJob.Url.ToString());
+            var logContext = (
+                jobId: CurrentJob.Id.ToString(),
+                jobUrl: CurrentJob.Url.ToString()
+            );
 
             using (Profiler.StartSession())
             {
@@ -159,6 +154,8 @@ namespace Squidex.Domain.Apps.Entities.Backup
 
                     using (var reader = await DownloadAsync())
                     {
+                        await reader.CheckCompatibilityAsync();
+
                         using (Profiler.Trace("ReadEvents"))
                         {
                             await ReadEventsAsync(reader, handlers);
@@ -168,7 +165,7 @@ namespace Squidex.Domain.Apps.Entities.Backup
                         {
                             using (Profiler.TraceMethod(handler.GetType(), nameof(IBackupHandler.RestoreAsync)))
                             {
-                                await handler.RestoreAsync(restoreContext);
+                                await handler.RestoreAsync(runningContext);
                             }
 
                             Log($"Restored {handler.Name}");
@@ -178,7 +175,7 @@ namespace Squidex.Domain.Apps.Entities.Backup
                         {
                             using (Profiler.TraceMethod(handler.GetType(), nameof(IBackupHandler.CompleteRestoreAsync)))
                             {
-                                await handler.CompleteRestoreAsync(restoreContext);
+                                await handler.CompleteRestoreAsync(runningContext);
                             }
 
                             Log($"Completed {handler.Name}");
@@ -222,7 +219,7 @@ namespace Squidex.Domain.Apps.Entities.Backup
 
                     log.LogError(ex, logContext, (ctx, w) =>
                     {
-                        w.WriteProperty("action", "retore");
+                        w.WriteProperty("action", "restore");
                         w.WriteProperty("status", "failed");
                         w.WriteProperty("operationId", ctx.jobId);
                         w.WriteProperty("url", ctx.jobUrl);
@@ -235,6 +232,9 @@ namespace Squidex.Domain.Apps.Entities.Backup
                     CurrentJob.Stopped = clock.GetCurrentInstant();
 
                     await state.WriteAsync();
+
+                    runningStreamMapper = null!;
+                    runningContext = null!;
                 }
             }
         }
@@ -243,14 +243,14 @@ namespace Squidex.Domain.Apps.Entities.Backup
         {
             var actor = CurrentJob.Actor;
 
-            if (actor?.IsSubject == true)
+            if (actor?.IsUser == true)
             {
                 try
                 {
                     await commandBus.PublishAsync(new AssignContributor
                     {
                         Actor = actor,
-                        AppId = CurrentJob.AppId.Id,
+                        AppId = CurrentJob.AppId,
                         ContributorId = actor.Identifier,
                         Restoring = true,
                         Role = Role.Owner
@@ -308,35 +308,89 @@ namespace Squidex.Domain.Apps.Entities.Backup
 
         private async Task ReadEventsAsync(IBackupReader reader, IEnumerable<IBackupHandler> handlers)
         {
-            await reader.ReadEventsAsync(streamNameResolver, eventDataFormatter, async storedEvent =>
+            const int BatchSize = 100;
+
+            var handled = 0;
+
+            var writeBlock = new ActionBlock<(string, Envelope<IEvent>)[]>(async batch =>
             {
-                await HandleEventAsync(reader, handlers, storedEvent.Stream, storedEvent.Event);
+                try
+                {
+                    var commits = new List<EventCommit>(batch.Length);
+
+                    foreach (var (stream, @event) in batch)
+                    {
+                        var offset = runningStreamMapper.GetStreamOffset(stream);
+
+                        commits.Add(EventCommit.Create(stream, offset, @event, eventDataFormatter));
+                    }
+
+                    await eventStore.AppendUnsafeAsync(commits);
+
+                    handled += commits.Count;
+
+                    Log($"Reading {reader.ReadEvents}/{handled} events and {reader.ReadAttachments} attachments completed.", true);
+                }
+                catch (OperationCanceledException ex)
+                {
+                    // Dataflow swallows operation cancelled exception.
+                    throw new AggregateException(ex);
+                }
+            }, new ExecutionDataflowBlockOptions
+            {
+                MaxDegreeOfParallelism = 1,
+                MaxMessagesPerTask = 1,
+                BoundedCapacity = 2
             });
 
-            Log($"Reading {reader.ReadEvents} events and {reader.ReadAttachments} attachments completed.", true);
+            var batchBlock = new BatchBlock<(string, Envelope<IEvent>)>(BatchSize, new GroupingDataflowBlockOptions
+            {
+                BoundedCapacity = BatchSize * 2
+            });
+
+            batchBlock.LinkTo(writeBlock, new DataflowLinkOptions
+            {
+                PropagateCompletion = true
+            });
+
+            await reader.ReadEventsAsync(streamNameResolver, eventDataFormatter, async job =>
+            {
+                var newStream = await HandleEventAsync(reader, handlers, job.Stream, job.Event);
+
+                if (newStream != null)
+                {
+                    await batchBlock.SendAsync((newStream, job.Event));
+                }
+            });
+
+            batchBlock.Complete();
+
+            await writeBlock.Completion;
         }
 
-        private async Task HandleEventAsync(IBackupReader reader, IEnumerable<IBackupHandler> handlers, string stream, Envelope<IEvent> @event)
+        private async Task<string?> HandleEventAsync(IBackupReader reader, IEnumerable<IBackupHandler> handlers, string stream, Envelope<IEvent> @event)
         {
             if (@event.Payload is AppCreated appCreated)
             {
+                var previousAppId = appCreated.AppId.Id;
+
                 if (!string.IsNullOrWhiteSpace(CurrentJob.NewAppName))
                 {
                     appCreated.Name = CurrentJob.NewAppName;
 
-                    CurrentJob.AppId = NamedId.Of(appCreated.AppId.Id, CurrentJob.NewAppName);
+                    CurrentJob.AppId = NamedId.Of(DomainId.NewGuid(), CurrentJob.NewAppName);
                 }
                 else
                 {
-                    CurrentJob.AppId = appCreated.AppId;
+                    CurrentJob.AppId = NamedId.Of(DomainId.NewGuid(), appCreated.Name);
                 }
 
-                await CreateContextAsync(reader);
+                await CreateContextAsync(reader, previousAppId);
             }
 
             if (@event.Payload is SquidexEvent squidexEvent && squidexEvent.Actor != null)
             {
-                if (restoreContext.UserMapping.TryMap(squidexEvent.Actor, out var newUser))
+                if (runningContext.UserMapping.TryMap(squidexEvent.Actor, out var newUser))
                 {
                     squidexEvent.Actor = newUser;
                 }
@@ -347,23 +401,23 @@ namespace Squidex.Domain.Apps.Entities.Backup
                 appEvent.AppId = CurrentJob.AppId;
             }
 
+            var (newStream, id) = runningStreamMapper.Map(stream);
+
+            @event.SetAggregateId(id);
+            @event.SetRestored();
+
             foreach (var handler in handlers)
             {
-                if (!await handler.RestoreEventAsync(@event, restoreContext))
+                if (!await handler.RestoreEventAsync(@event, runningContext))
                 {
-                    return;
+                    return null;
                 }
             }
 
-            var eventData = eventDataFormatter.ToEventData(@event, @event.Headers.CommitId());
-            var eventCommit = new List<EventData> { eventData };
-
-            await eventStore.AppendAsync(Guid.NewGuid(), stream, eventCommit);
-
-            Log($"Read {reader.ReadEvents} events and {reader.ReadAttachments} attachments.", true);
+            return newStream;
         }
 
-        private async Task CreateContextAsync(IBackupReader reader)
+        private async Task CreateContextAsync(IBackupReader reader, DomainId previousAppId)
         {
             var userMapping = new UserMapping(CurrentJob.Actor);
 
@@ -376,7 +430,8 @@ namespace Squidex.Domain.Apps.Entities.Backup
                 Log("Created Users");
             }
 
-            restoreContext = new RestoreContext(CurrentJob.AppId.Id, userMapping, reader);
+            runningContext = new RestoreContext(CurrentJob.AppId.Id, userMapping, reader, previousAppId);
+            runningStreamMapper = new StreamMapper(runningContext);
         }
 
         private void Log(string message, bool replace = false)

@@ -1,59 +1,63 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Linq;
+using Squidex.Infrastructure;
+using Squidex.Infrastructure.Collections;
 
 namespace Squidex.Domain.Apps.Core.Schemas
 {
-    [Equals(DoNotAddEqualityOperators = true)]
-    public sealed class ReferencesFieldProperties : FieldProperties
+    public sealed record ReferencesFieldProperties : FieldProperties
     {
-        public int? MinItems { get; set; }
+        public LocalizedValue<ImmutableList<string>?> DefaultValues { get; init; }
 
-        public int? MaxItems { get; set; }
+        public ImmutableList<string>? DefaultValue { get; init; }
 
-        public bool ResolveReference { get; set; }
+        public int? MinItems { get; init; }
 
-        public bool AllowDuplicates { get; set; }
+        public int? MaxItems { get; init; }
 
-        public ReferencesFieldEditor Editor { get; set; }
+        public bool ResolveReference { get; init; }
 
-        public Guid SchemaId
+        public bool AllowDuplicates { get; init; }
+
+        public bool MustBePublished { get; init; }
+
+        public ReferencesFieldEditor Editor { get; init; }
+
+        public DomainId SchemaId
         {
-            get
-            {
-                return SchemaIds?.FirstOrDefault() ?? Guid.Empty;
-            }
-            set
+            init
             {
                 if (value != default)
                 {
-                    SchemaIds = new ReadOnlyCollection<Guid>(new List<Guid> { value });
+                    SchemaIds = ImmutableList.Create(value);
                 }
                 else
                 {
                     SchemaIds = null;
                 }
             }
+            get
+            {
+                return SchemaIds?.FirstOrDefault() ?? default;
+            }
         }
 
-        public ReadOnlyCollection<Guid>? SchemaIds { get; set; }
+        public ImmutableList<DomainId>? SchemaIds { get; init; }
 
-        public override T Accept<T>(IFieldPropertiesVisitor<T> visitor)
+        public override T Accept<T, TArgs>(IFieldPropertiesVisitor<T, TArgs> visitor, TArgs args)
         {
-            return visitor.Visit(this);
+            return visitor.Visit(this, args);
         }
 
-        public override T Accept<T>(IFieldVisitor<T> visitor, IField field)
+        public override T Accept<T, TArgs>(IFieldVisitor<T, TArgs> visitor, IField field, TArgs args)
         {
-            return visitor.Visit((IField<ReferencesFieldProperties>)field);
+            return visitor.Visit((IField<ReferencesFieldProperties>)field, args);
         }
 
         public override RootField CreateRootField(long id, string name, Partitioning partitioning, IFieldSettings? settings = null)

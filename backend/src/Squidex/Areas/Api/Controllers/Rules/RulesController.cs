@@ -1,19 +1,21 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
 using NodaTime;
 using Squidex.Areas.Api.Controllers.Rules.Models;
 using Squidex.Domain.Apps.Core.HandleRules;
+using Squidex.Domain.Apps.Entities;
 using Squidex.Domain.Apps.Entities.Rules;
 using Squidex.Domain.Apps.Entities.Rules.Commands;
 using Squidex.Domain.Apps.Entities.Rules.Repositories;
@@ -31,22 +33,28 @@ namespace Squidex.Areas.Api.Controllers.Rules
     [ApiExplorerSettings(GroupName = nameof(Rules))]
     public sealed class RulesController : ApiController
     {
+        private readonly EventJsonSchemaGenerator eventJsonSchemaGenerator;
+        private readonly IAppProvider appProvider;
+        private readonly IRuleEventRepository ruleEventsRepository;
         private readonly IRuleQueryService ruleQuery;
         private readonly IRuleRunnerService ruleRunnerService;
-        private readonly IRuleEventRepository ruleEventsRepository;
         private readonly RuleRegistry ruleRegistry;
 
         public RulesController(ICommandBus commandBus,
+            IAppProvider appProvider,
             IRuleEventRepository ruleEventsRepository,
             IRuleQueryService ruleQuery,
             IRuleRunnerService ruleRunnerService,
-            RuleRegistry ruleRegistry)
+            RuleRegistry ruleRegistry,
+            EventJsonSchemaGenerator eventJsonSchemaGenerator)
             : base(commandBus)
         {
+            this.appProvider = appProvider;
             this.ruleEventsRepository = ruleEventsRepository;
             this.ruleQuery = ruleQuery;
             this.ruleRunnerService = ruleRunnerService;
             this.ruleRegistry = ruleRegistry;
+            this.eventJsonSchemaGenerator = eventJsonSchemaGenerator;
         }
 
         /// <summary>
@@ -57,12 +65,12 @@ namespace Squidex.Areas.Api.Controllers.Rules
         /// </returns>
         [HttpGet]
         [Route("rules/actions/")]
-        [ProducesResponseType(typeof(Dictionary<string, RuleElementDto>), 200)]
+        [ProducesResponseType(typeof(Dictionary<string, RuleElementDto>), StatusCodes.Status200OK)]
         [ApiPermission]
         [ApiCosts(0)]
         public IActionResult GetActions()
         {
-            var etag = string.Concat(ruleRegistry.Actions.Select(x => x.Key)).Sha256Base64();
+            var etag = string.Concat(ruleRegistry.Actions.Select(x => x.Key)).ToSha256Base64();
 
             var response = Deferred.Response(() =>
             {
@@ -84,18 +92,16 @@ namespace Squidex.Areas.Api.Controllers.Rules
         /// </returns>
         [HttpGet]
         [Route("apps/{app}/rules/")]
-        [ProducesResponseType(typeof(RulesDto), 200)]
-        [ApiPermission(Permissions.AppRulesRead)]
+        [ProducesResponseType(typeof(RulesDto), StatusCodes.Status200OK)]
+        [ApiPermissionOrAnonymous(Permissions.AppRulesRead)]
         [ApiCosts(1)]
         public async Task<IActionResult> GetRules(string app)
         {
             var rules = await ruleQuery.QueryAsync(Context);
 
-            var runningRuleId = await ruleRunnerService.GetRunningRuleIdAsync(Context.App.Id);
-
-            var response = Deferred.Response(() =>
+            var response = Deferred.AsyncResponse(() =>
             {
-                return RulesDto.FromRules(rules, runningRuleId, Resources);
+                return RulesDto.FromRulesAsync(rules, ruleRunnerService, Resources);
             });
 
             return Ok(response);
@@ -108,19 +114,19 @@ namespace Squidex.Areas.Api.Controllers.Rules
         /// <param name="request">The rule object that needs to be added to the app.</param>
         /// <returns>
         /// 201 => Rule created.
-        /// 400 => Rule is not valid.
+        /// 400 => Rule request not valid.
         /// 404 => App not found.
         /// </returns>
         [HttpPost]
         [Route("apps/{app}/rules/")]
         [ProducesResponseType(typeof(RuleDto), 201)]
-        [ApiPermission(Permissions.AppRulesCreate)]
+        [ApiPermissionOrAnonymous(Permissions.AppRulesCreate)]
         [ApiCosts(1)]
         public async Task<IActionResult> PostRule(string app, [FromBody] CreateRuleDto request)
         {
             var command = request.ToCommand();
 
-            var response = await InvokeCommandAsync(app, command);
+            var response = await InvokeCommandAsync(command);
 
             return CreatedAtAction(nameof(GetRules), new { app }, response);
         }
@@ -134,8 +140,8 @@ namespace Squidex.Areas.Api.Controllers.Rules
         /// </returns>
         [HttpDelete]
         [Route("apps/{app}/rules/run")]
-        [ProducesResponseType(204)]
-        [ApiPermission(Permissions.AppRulesEvents)]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ApiPermissionOrAnonymous(Permissions.AppRulesEvents)]
         [ApiCosts(1)]
         public async Task<IActionResult> DeleteRuleRun(string app)
         {
@@ -152,19 +158,19 @@ namespace Squidex.Areas.Api.Controllers.Rules
         /// <param name="request">The rule object that needs to be added to the app.</param>
         /// <returns>
         /// 200 => Rule updated.
-        /// 400 => Rule is not valid.
+        /// 400 => Rule request not valid.
         /// 404 => Rule or app not found.
         /// </returns>
         [HttpPut]
         [Route("apps/{app}/rules/{id}/")]
-        [ProducesResponseType(typeof(RuleDto), 200)]
-        [ApiPermission(Permissions.AppRulesUpdate)]
+        [ProducesResponseType(typeof(RuleDto), StatusCodes.Status200OK)]
+        [ApiPermissionOrAnonymous(Permissions.AppRulesUpdate)]
         [ApiCosts(1)]
-        public async Task<IActionResult> PutRule(string app, Guid id, [FromBody] UpdateRuleDto request)
+        public async Task<IActionResult> PutRule(string app, DomainId id, [FromBody] UpdateRuleDto request)
         {
             var command = request.ToCommand(id);
 
-            var response = await InvokeCommandAsync(app, command);
+            var response = await InvokeCommandAsync(command);
 
             return Ok(response);
         }
@@ -180,14 +186,14 @@ namespace Squidex.Areas.Api.Controllers.Rules
         /// </returns>
         [HttpPut]
         [Route("apps/{app}/rules/{id}/enable/")]
-        [ProducesResponseType(typeof(RuleDto), 200)]
-        [ApiPermission(Permissions.AppRulesDisable)]
+        [ProducesResponseType(typeof(RuleDto), StatusCodes.Status200OK)]
+        [ApiPermissionOrAnonymous(Permissions.AppRulesDisable)]
         [ApiCosts(1)]
-        public async Task<IActionResult> EnableRule(string app, Guid id)
+        public async Task<IActionResult> EnableRule(string app, DomainId id)
         {
             var command = new EnableRule { RuleId = id };
 
-            var response = await InvokeCommandAsync(app, command);
+            var response = await InvokeCommandAsync(command);
 
             return Ok(response);
         }
@@ -203,14 +209,14 @@ namespace Squidex.Areas.Api.Controllers.Rules
         /// </returns>
         [HttpPut]
         [Route("apps/{app}/rules/{id}/disable/")]
-        [ProducesResponseType(typeof(RuleDto), 200)]
-        [ApiPermission(Permissions.AppRulesDisable)]
+        [ProducesResponseType(typeof(RuleDto), StatusCodes.Status200OK)]
+        [ApiPermissionOrAnonymous(Permissions.AppRulesDisable)]
         [ApiCosts(1)]
-        public async Task<IActionResult> DisableRule(string app, Guid id)
+        public async Task<IActionResult> DisableRule(string app, DomainId id)
         {
             var command = new DisableRule { RuleId = id };
 
-            var response = await InvokeCommandAsync(app, command);
+            var response = await InvokeCommandAsync(command);
 
             return Ok(response);
         }
@@ -226,9 +232,9 @@ namespace Squidex.Areas.Api.Controllers.Rules
         /// </returns>
         [HttpPut]
         [Route("apps/{app}/rules/{id}/trigger/")]
-        [ApiPermission(Permissions.AppRulesEvents)]
+        [ApiPermissionOrAnonymous(Permissions.AppRulesEvents)]
         [ApiCosts(1)]
-        public async Task<IActionResult> TriggerRule(string app, Guid id)
+        public async Task<IActionResult> TriggerRule(string app, DomainId id)
         {
             var command = new TriggerRule { RuleId = id };
 
@@ -242,19 +248,50 @@ namespace Squidex.Areas.Api.Controllers.Rules
         /// </summary>
         /// <param name="app">The name of the app.</param>
         /// <param name="id">The id of the rule to run.</param>
+        /// <param name="fromSnapshots">Runs the rule from snapeshots if possible.</param>
         /// <returns>
         /// 204 => Rule started.
         /// </returns>
         [HttpPut]
         [Route("apps/{app}/rules/{id}/run")]
-        [ProducesResponseType(204)]
-        [ApiPermission(Permissions.AppRulesEvents)]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ApiPermissionOrAnonymous(Permissions.AppRulesEvents)]
         [ApiCosts(1)]
-        public async Task<IActionResult> PutRuleRun(string app, Guid id)
+        public async Task<IActionResult> PutRuleRun(string app, DomainId id, [FromQuery] bool fromSnapshots = false)
         {
-            await ruleRunnerService.RunAsync(App.Id, id);
+            await ruleRunnerService.RunAsync(App.Id, id, fromSnapshots);
 
             return NoContent();
+        }
+
+        /// <summary>
+        /// Simulate a rule.
+        /// </summary>
+        /// <param name="app">The name of the app.</param>
+        /// <param name="id">The id of the rule to simulate.</param>
+        /// <returns>
+        /// 200 => Rule simulated.
+        /// 404 => Rule or app not found.
+        /// </returns>
+        [HttpGet]
+        [Route("apps/{app}/rules/{id}/simulate/")]
+        [ProducesResponseType(typeof(SimulatedRuleEventsDto), StatusCodes.Status200OK)]
+        [ApiPermissionOrAnonymous(Permissions.AppRulesEvents)]
+        [ApiCosts(5)]
+        public async Task<IActionResult> Simulate(string app, DomainId id)
+        {
+            var rule = await appProvider.GetRuleAsync(AppId, id);
+
+            if (rule == null)
+            {
+                return NotFound();
+            }
+
+            var simulation = await ruleRunnerService.SimulateAsync(rule, HttpContext.RequestAborted);
+
+            var response = SimulatedRuleEventsDto.FromSimulatedRuleEvents(simulation);
+
+            return Ok(response);
         }
 
         /// <summary>
@@ -268,9 +305,9 @@ namespace Squidex.Areas.Api.Controllers.Rules
         /// </returns>
         [HttpDelete]
         [Route("apps/{app}/rules/{id}/")]
-        [ApiPermission(Permissions.AppRulesDelete)]
+        [ApiPermissionOrAnonymous(Permissions.AppRulesDelete)]
         [ApiCosts(1)]
-        public async Task<IActionResult> DeleteRule(string app, Guid id)
+        public async Task<IActionResult> DeleteRule(string app, DomainId id)
         {
             await CommandBus.PublishAsync(new DeleteRule { RuleId = id });
 
@@ -290,10 +327,10 @@ namespace Squidex.Areas.Api.Controllers.Rules
         /// </returns>
         [HttpGet]
         [Route("apps/{app}/rules/events/")]
-        [ProducesResponseType(typeof(RuleEventsDto), 200)]
-        [ApiPermission(Permissions.AppRulesRead)]
+        [ProducesResponseType(typeof(RuleEventsDto), StatusCodes.Status200OK)]
+        [ApiPermissionOrAnonymous(Permissions.AppRulesRead)]
         [ApiCosts(0)]
-        public async Task<IActionResult> GetEvents(string app, [FromQuery] Guid? ruleId = null, [FromQuery] int skip = 0, [FromQuery] int take = 20)
+        public async Task<IActionResult> GetEvents(string app, [FromQuery] DomainId? ruleId = null, [FromQuery] int skip = 0, [FromQuery] int take = 20)
         {
             var ruleEvents = await ruleEventsRepository.QueryByAppAsync(AppId, ruleId, skip, take);
 
@@ -313,9 +350,9 @@ namespace Squidex.Areas.Api.Controllers.Rules
         /// </returns>
         [HttpPut]
         [Route("apps/{app}/rules/events/{id}/")]
-        [ApiPermission(Permissions.AppRulesEvents)]
+        [ApiPermissionOrAnonymous(Permissions.AppRulesEvents)]
         [ApiCosts(0)]
-        public async Task<IActionResult> PutEvent(string app, Guid id)
+        public async Task<IActionResult> PutEvent(string app, DomainId id)
         {
             var ruleEvent = await ruleEventsRepository.FindAsync(id);
 
@@ -340,9 +377,9 @@ namespace Squidex.Areas.Api.Controllers.Rules
         /// </returns>
         [HttpDelete]
         [Route("apps/{app}/rules/events/{id}/")]
-        [ApiPermission(Permissions.AppRulesEvents)]
+        [ApiPermissionOrAnonymous(Permissions.AppRulesEvents)]
         [ApiCosts(0)]
-        public async Task<IActionResult> DeleteEvent(string app, Guid id)
+        public async Task<IActionResult> DeleteEvent(string app, DomainId id)
         {
             var ruleEvent = await ruleEventsRepository.FindAsync(id);
 
@@ -356,14 +393,55 @@ namespace Squidex.Areas.Api.Controllers.Rules
             return NoContent();
         }
 
-        private async Task<RuleDto> InvokeCommandAsync(string app, ICommand command)
+        /// <summary>
+        /// Provide a list of all event types that are used in rules.
+        /// </summary>
+        /// <returns>
+        /// 200 => Rule events returned.
+        /// </returns>
+        [HttpGet]
+        [Route("rules/eventtypes")]
+        [ProducesResponseType(typeof(List<string>), StatusCodes.Status200OK)]
+        [AllowAnonymous]
+        public IActionResult GetEventTypes()
+        {
+            var types = eventJsonSchemaGenerator.AllTypes;
+
+            return Ok(types);
+        }
+
+        /// <summary>
+        /// Provide the json schema for the event with the specified name.
+        /// </summary>
+        /// <param name="type">The type name of the event.</param>
+        /// <returns>
+        /// 200 => Rule event type found.
+        /// 404 => Rule event not found.
+        /// </returns>
+        [HttpGet]
+        [Route("rules/eventtypes/{type}")]
+        [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+        [AllowAnonymous]
+        public IActionResult GetEventSchema(string type)
+        {
+            var schema = eventJsonSchemaGenerator.GetSchema(type);
+
+            if (schema == null)
+            {
+                return NotFound();
+            }
+
+            return Content(schema.ToJson(), "application/json");
+        }
+
+        private async Task<RuleDto> InvokeCommandAsync(ICommand command)
         {
             var context = await CommandBus.PublishAsync(command);
 
             var runningRuleId = await ruleRunnerService.GetRunningRuleIdAsync(Context.App.Id);
 
             var result = context.Result<IEnrichedRuleEntity>();
-            var response = RuleDto.FromRule(result, runningRuleId, Resources);
+            var response = RuleDto.FromRule(result, runningRuleId == null, ruleRunnerService, Resources);
 
             return response;
         }

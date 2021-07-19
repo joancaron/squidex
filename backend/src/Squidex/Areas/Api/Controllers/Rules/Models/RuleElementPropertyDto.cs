@@ -5,8 +5,8 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System.ComponentModel.DataAnnotations;
 using Squidex.Domain.Apps.Core.HandleRules;
+using Squidex.Infrastructure.Validation;
 
 namespace Squidex.Areas.Api.Controllers.Rules.Models
 {
@@ -15,20 +15,25 @@ namespace Squidex.Areas.Api.Controllers.Rules.Models
         /// <summary>
         /// The html editor.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public RuleActionPropertyEditor Editor { get; set; }
 
         /// <summary>
         /// The name of the editor.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public string Name { get; set; }
 
         /// <summary>
         /// The label to use.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public string Display { get; set; }
+
+        /// <summary>
+        /// The options, if the editor is a dropdown.
+        /// </summary>
+        public string[]? Options { get; set; }
 
         /// <summary>
         /// The optional description.

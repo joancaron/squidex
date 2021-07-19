@@ -1,22 +1,24 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Options;
 using Squidex.Domain.Apps.Entities.Contents.Repositories;
 using Squidex.Domain.Apps.Entities.Schemas;
 using Squidex.Infrastructure;
-using Squidex.Infrastructure.Log;
-using Squidex.Infrastructure.Queries;
+using Squidex.Infrastructure.Security;
+using Squidex.Infrastructure.Translations;
+using Squidex.Log;
 using Squidex.Shared;
-
-#pragma warning disable RECS0147
+using Squidex.Shared.Identity;
 
 namespace Squidex.Domain.Apps.Entities.Contents.Queries
 {
@@ -26,223 +28,236 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
         private readonly IAppProvider appProvider;
         private readonly IContentEnricher contentEnricher;
         private readonly IContentRepository contentRepository;
-        private readonly IContentLoader contentVersionLoader;
+        private readonly IContentLoader contentLoader;
         private readonly ContentQueryParser queryParser;
+        private readonly ContentOptions options;
 
         public ContentQueryService(
             IAppProvider appProvider,
             IContentEnricher contentEnricher,
             IContentRepository contentRepository,
-            IContentLoader contentVersionLoader,
+            IContentLoader contentLoader,
+            IOptions<ContentOptions> options,
             ContentQueryParser queryParser)
         {
-            Guard.NotNull(appProvider, nameof(appProvider));
-            Guard.NotNull(contentEnricher, nameof(contentEnricher));
-            Guard.NotNull(contentRepository, nameof(contentRepository));
-            Guard.NotNull(contentVersionLoader, nameof(contentVersionLoader));
-            Guard.NotNull(queryParser, nameof(queryParser));
-
             this.appProvider = appProvider;
             this.contentEnricher = contentEnricher;
             this.contentRepository = contentRepository;
-            this.contentVersionLoader = contentVersionLoader;
-            this.queryParser = queryParser;
+            this.contentLoader = contentLoader;
+            this.options = options.Value;
             this.queryParser = queryParser;
         }
 
-        public async Task<IEnrichedContentEntity> FindContentAsync(Context context, string schemaIdOrName, Guid id, long version = -1)
+        public async Task<IEnrichedContentEntity?> FindAsync(Context context, string schemaIdOrName, DomainId id, long version = EtagVersion.Any,
+            CancellationToken ct = default)
         {
             Guard.NotNull(context, nameof(context));
 
-            var schema = await GetSchemaOrThrowAsync(context, schemaIdOrName);
-
-            CheckPermission(context, schema);
-
             using (Profiler.TraceMethod<ContentQueryService>())
             {
+                var schema = await GetSchemaOrThrowAsync(context, schemaIdOrName);
+
                 IContentEntity? content;
 
                 if (version > EtagVersion.Empty)
                 {
-                    content = await FindByVersionAsync(id, version);
+                    content = await contentLoader.GetAsync(context.App.Id, id, version);
                 }
                 else
                 {
-                    content = await FindCoreAsync(context, id, schema);
+                    content = await FindCoreAsync(context, id, schema, ct);
                 }
 
                 if (content == null || content.SchemaId.Id != schema.Id)
                 {
-                    throw new DomainObjectNotFoundException(id.ToString(), typeof(IContentEntity));
+                    return null;
                 }
 
-                return await TransformAsync(context, content);
+                return await TransformAsync(context, content, ct);
             }
         }
 
-        public async Task<IResultList<IEnrichedContentEntity>> QueryAsync(Context context, string schemaIdOrName, Q query)
-        {
-            Guard.NotNull(context, nameof(context));
-
-            var schema = await GetSchemaOrThrowAsync(context, schemaIdOrName);
-
-            CheckPermission(context, schema);
-
-            using (Profiler.TraceMethod<ContentQueryService>())
-            {
-                IResultList<IContentEntity> contents;
-
-                if (query.Ids != null && query.Ids.Count > 0)
-                {
-                    contents = await QueryByIdsAsync(context, schema, query);
-                }
-                else
-                {
-                    contents = await QueryByQueryAsync(context, schema, query);
-                }
-
-                return await TransformAsync(context, contents);
-            }
-        }
-
-        public async Task<IResultList<IEnrichedContentEntity>> QueryAsync(Context context, IReadOnlyList<Guid> ids)
+        public async Task<IResultList<IEnrichedContentEntity>> QueryAsync(Context context, string schemaIdOrName, Q q,
+            CancellationToken ct = default)
         {
             Guard.NotNull(context, nameof(context));
 
             using (Profiler.TraceMethod<ContentQueryService>())
             {
-                if (ids == null || ids.Count == 0)
+                if (q == null)
                 {
                     return EmptyContents;
                 }
 
-                var contents = await QueryCoreAsync(context, ids);
+                var schema = await GetSchemaOrThrowAsync(context, schemaIdOrName);
 
-                var filtered =
-                    contents
-                        .GroupBy(x => x.Schema.Id)
-                        .Select(g => FilterContents(g, context))
-                        .SelectMany(c => c);
+                if (!HasPermission(context, schema, Permissions.AppContentsRead))
+                {
+                    q = q with { CreatedBy = context.User.Token() };
+                }
 
-                var results = await TransformCoreAsync(context, filtered);
+                q = await queryParser.ParseAsync(context, q, schema);
 
-                return ResultList.Create(results.Count, results.SortList(x => x.Id, ids));
+                var contents = await QueryCoreAsync(context, q, schema, ct);
+
+                if (q.Ids != null && q.Ids.Count > 0)
+                {
+                    contents = contents.SortSet(x => x.Id, q.Ids);
+                }
+
+                return await TransformAsync(context, contents, ct);
             }
         }
 
-        private async Task<IResultList<IEnrichedContentEntity>> TransformAsync(Context context, IResultList<IContentEntity> contents)
+        public async Task<IResultList<IEnrichedContentEntity>> QueryAsync(Context context, Q q,
+            CancellationToken ct = default)
         {
-            var transformed = await TransformCoreAsync(context, contents);
+            Guard.NotNull(context, nameof(context));
+
+            using (Profiler.TraceMethod<ContentQueryService>())
+            {
+                if (q == null)
+                {
+                    return EmptyContents;
+                }
+
+                var schemas = await GetSchemasAsync(context);
+
+                if (schemas.Count == 0)
+                {
+                    return EmptyContents;
+                }
+
+                q = await queryParser.ParseAsync(context, q);
+
+                var contents = await QueryCoreAsync(context, q, schemas, ct);
+
+                if (q.Ids != null && q.Ids.Count > 0)
+                {
+                    contents = contents.SortSet(x => x.Id, q.Ids);
+                }
+
+                return await TransformAsync(context, contents, ct);
+            }
+        }
+
+        private async Task<IResultList<IEnrichedContentEntity>> TransformAsync(Context context, IResultList<IContentEntity> contents,
+            CancellationToken ct)
+        {
+            var transformed = await TransformCoreAsync(context, contents, ct);
 
             return ResultList.Create(contents.Total, transformed);
         }
 
-        private async Task<IEnrichedContentEntity> TransformAsync(Context context, IContentEntity content)
+        private async Task<IEnrichedContentEntity> TransformAsync(Context context, IContentEntity content,
+            CancellationToken ct)
         {
-            var transformed = await TransformCoreAsync(context, Enumerable.Repeat(content, 1));
+            var transformed = await TransformCoreAsync(context, Enumerable.Repeat(content, 1), ct);
 
             return transformed[0];
         }
 
-        private async Task<IReadOnlyList<IEnrichedContentEntity>> TransformCoreAsync(Context context, IEnumerable<IContentEntity> contents)
+        private async Task<IReadOnlyList<IEnrichedContentEntity>> TransformCoreAsync(Context context, IEnumerable<IContentEntity> contents,
+            CancellationToken ct)
         {
             using (Profiler.TraceMethod<ContentQueryService>())
             {
-                return await contentEnricher.EnrichAsync(contents, context);
+                return await contentEnricher.EnrichAsync(contents, context, ct);
             }
         }
 
         public async Task<ISchemaEntity> GetSchemaOrThrowAsync(Context context, string schemaIdOrName)
         {
-            ISchemaEntity? schema = null;
-
-            if (Guid.TryParse(schemaIdOrName, out var id))
-            {
-                schema = await appProvider.GetSchemaAsync(context.App.Id, id);
-            }
+            var schema = await GetSchemaAsync(context, schemaIdOrName);
 
             if (schema == null)
             {
-                schema = await appProvider.GetSchemaAsync(context.App.Id, schemaIdOrName);
-            }
-
-            if (schema == null)
-            {
-                throw new DomainObjectNotFoundException(schemaIdOrName, typeof(ISchemaEntity));
+                throw new DomainObjectNotFoundException(schemaIdOrName);
             }
 
             return schema;
         }
 
-        private static void CheckPermission(Context context, params ISchemaEntity[] schemas)
+        public async Task<ISchemaEntity?> GetSchemaAsync(Context context, string schemaIdOrName)
         {
-            foreach (var schema in schemas)
+            Guard.NotNull(context, nameof(context));
+            Guard.NotNullOrEmpty(schemaIdOrName, nameof(schemaIdOrName));
+
+            ISchemaEntity? schema = null;
+
+            var canCache = !context.IsFrontendClient;
+
+            if (Guid.TryParse(schemaIdOrName, out var guid))
             {
-                if (!HasPermission(context, schema))
+                var schemaId = DomainId.Create(guid);
+
+                schema = await appProvider.GetSchemaAsync(context.App.Id, schemaId, canCache);
+            }
+
+            if (schema == null)
+            {
+                schema = await appProvider.GetSchemaAsync(context.App.Id, schemaIdOrName, canCache);
+            }
+
+            if (schema != null && !HasPermission(context, schema, Permissions.AppContentsReadOwn))
+            {
+                throw new DomainForbiddenException(T.Get("schemas.noPermission"));
+            }
+
+            return schema;
+        }
+
+        private async Task<List<ISchemaEntity>> GetSchemasAsync(Context context)
+        {
+            var schemas = await appProvider.GetSchemasAsync(context.App.Id);
+
+            return schemas.Where(x => IsAccessible(x) && HasPermission(context, x, Permissions.AppContentsReadOwn)).ToList();
+        }
+
+        private async Task<IResultList<IContentEntity>> QueryCoreAsync(Context context, Q q, ISchemaEntity schema,
+            CancellationToken ct)
+        {
+            using (var timeout = new CancellationTokenSource(options.TimeoutQuery))
+            {
+                using (var combined = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token, ct))
                 {
-                    throw new DomainForbiddenException("You do not have permission for this schema.");
+                    return await contentRepository.QueryAsync(context.App, schema, q, context.Scope(), ct);
                 }
             }
         }
 
-        private static IEnumerable<IContentEntity> FilterContents(IGrouping<Guid, (IContentEntity Content, ISchemaEntity Schema)> group, Context context)
+        private async Task<IResultList<IContentEntity>> QueryCoreAsync(Context context, Q q, List<ISchemaEntity> schemas,
+            CancellationToken ct)
         {
-            var schema = group.First().Schema;
-
-            if (HasPermission(context, schema))
+            using (var timeout = new CancellationTokenSource(options.TimeoutQuery))
             {
-                return group.Select(x => x.Content);
-            }
-            else
-            {
-                return Enumerable.Empty<IContentEntity>();
+                using (var combined = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token, ct))
+                {
+                    return await contentRepository.QueryAsync(context.App, schemas, q, context.Scope(), ct);
+                }
             }
         }
 
-        private static bool HasPermission(Context context, ISchemaEntity schema)
+        private async Task<IContentEntity?> FindCoreAsync(Context context, DomainId id, ISchemaEntity schema,
+            CancellationToken ct)
         {
-            var permission = Permissions.ForApp(Permissions.AppContentsRead, schema.AppId.Name, schema.SchemaDef.Name);
-
-            return context.Permissions.Allows(permission);
+            using (var timeout = new CancellationTokenSource(options.TimeoutFind))
+            {
+                using (var combined = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token, ct))
+                {
+                    return await contentRepository.FindContentAsync(context.App, schema, id, context.Scope(), combined.Token);
+                }
+            }
         }
 
-        private async Task<IResultList<IContentEntity>> QueryByQueryAsync(Context context, ISchemaEntity schema, Q query)
+        private static bool IsAccessible(ISchemaEntity schema)
         {
-            var parsedQuery = queryParser.ParseQuery(context, schema, query);
-
-            return await QueryCoreAsync(context, schema, parsedQuery);
+            return schema.SchemaDef.IsPublished;
         }
 
-        private async Task<IResultList<IContentEntity>> QueryByIdsAsync(Context context, ISchemaEntity schema, Q query)
+        private static bool HasPermission(Context context, ISchemaEntity schema, string permissionId)
         {
-            var contents = await QueryCoreAsync(context, schema, query.Ids.ToHashSet());
-
-            return contents.SortSet(x => x.Id, query.Ids);
-        }
-
-        private Task<List<(IContentEntity Content, ISchemaEntity Schema)>> QueryCoreAsync(Context context, IReadOnlyList<Guid> ids)
-        {
-            return contentRepository.QueryAsync(context.App, new HashSet<Guid>(ids), context.Scope());
-        }
-
-        private Task<IResultList<IContentEntity>> QueryCoreAsync(Context context, ISchemaEntity schema, ClrQuery query)
-        {
-            return contentRepository.QueryAsync(context.App, schema, query, context.Scope());
-        }
-
-        private Task<IResultList<IContentEntity>> QueryCoreAsync(Context context, ISchemaEntity schema, HashSet<Guid> ids)
-        {
-            return contentRepository.QueryAsync(context.App, schema, ids, context.Scope());
-        }
-
-        private Task<IContentEntity?> FindCoreAsync(Context context, Guid id, ISchemaEntity schema)
-        {
-            return contentRepository.FindContentAsync(context.App, schema, id, context.Scope());
-        }
-
-        private Task<IContentEntity> FindByVersionAsync(Guid id, long version)
-        {
-            return contentVersionLoader.GetAsync(id, version);
+            return context.UserPermissions.Allows(permissionId, context.App.Name, schema.SchemaDef.Name);
         }
     }
 }

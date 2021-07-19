@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -22,8 +22,6 @@ namespace Squidex.Web.CommandMiddlewares
 
         public ETagCommandMiddleware(IHttpContextAccessor httpContextAccessor)
         {
-            Guard.NotNull(httpContextAccessor, nameof(httpContextAccessor));
-
             this.httpContextAccessor = httpContextAccessor;
         }
 
@@ -54,9 +52,9 @@ namespace Squidex.Web.CommandMiddlewares
 
             await next(context);
 
-            if (context.PlainResult is EntitySavedResult result)
+            if (context.PlainResult is CommandResult result)
             {
-                SetResponsEtag(httpContext, result.Version);
+                SetResponsEtag(httpContext, result.NewVersion);
             }
             else if (context.PlainResult is IEntityWithVersion entity)
             {
@@ -77,7 +75,7 @@ namespace Squidex.Web.CommandMiddlewares
             {
                 if (etag.StartsWith("W/", StringComparison.OrdinalIgnoreCase))
                 {
-                    etag = etag.Substring(2);
+                    etag = etag[2..];
                 }
 
                 if (long.TryParse(etag, NumberStyles.Any, CultureInfo.InvariantCulture, out version))

@@ -6,7 +6,6 @@
 // ==========================================================================
 
 using System;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -17,9 +16,9 @@ using Xunit;
 
 namespace Squidex.Domain.Users
 {
-    public class DefaultXmlRepositoryTests
+    public sealed class DefaultXmlRepositoryTests
     {
-        private readonly ISnapshotStore<DefaultXmlRepository.State, string> store = A.Fake<ISnapshotStore<DefaultXmlRepository.State, string>>();
+        private readonly ISnapshotStore<DefaultXmlRepository.State> store = A.Fake<ISnapshotStore<DefaultXmlRepository.State>>();
         private readonly DefaultXmlRepository sut;
 
         public DefaultXmlRepositoryTests()
@@ -28,30 +27,36 @@ namespace Squidex.Domain.Users
         }
 
         [Fact]
-        public void Should_write_new_item_to_store_with_friendly_name()
+        public void Should_read_from_store()
         {
-            sut.StoreElement(new XElement("a"), "friendly-name");
+            A.CallTo(() => store.ReadAllAsync(A<Func<DefaultXmlRepository.State, long, Task>>._, A<CancellationToken>._))
+                .Invokes((Func<DefaultXmlRepository.State, long, Task> callback, CancellationToken _) =>
+                {
+                    callback(new DefaultXmlRepository.State
+                    {
+                        Xml = new XElement("xml").ToString()
+                    }, 0);
 
-            A.CallTo(() => store.WriteAsync("friendly-name", A<DefaultXmlRepository.State>.That.Matches(x => x.Xml == "<a />"), EtagVersion.Any, EtagVersion.Any))
-                .MustHaveHappened();
+                    callback(new DefaultXmlRepository.State
+                    {
+                        Xml = new XElement("xml").ToString()
+                    }, 0);
+                });
+
+            var xml = sut.GetAllElements();
+
+            Assert.Equal(2, xml.Count);
         }
 
         [Fact]
-        public void Should_return_items_from_store()
+        public void Should_write_to_store()
         {
-            A.CallTo(() => store.ReadAllAsync(A<Func<DefaultXmlRepository.State, long, Task>>._, A<CancellationToken>._))
-                .Invokes((Func<DefaultXmlRepository.State, long, Task> callback, CancellationToken ct) =>
-                {
-                    callback(new DefaultXmlRepository.State { Xml = "<a />" }, EtagVersion.Any);
-                    callback(new DefaultXmlRepository.State { Xml = "<b />" }, EtagVersion.Any);
-                    callback(new DefaultXmlRepository.State { Xml = "<c />" }, EtagVersion.Any);
-                });
+            var xml = new XElement("xml");
 
-            var result = sut.GetAllElements().ToList();
+            sut.StoreElement(xml, "name");
 
-            Assert.Equal("<a />", result[0].ToString());
-            Assert.Equal("<b />", result[1].ToString());
-            Assert.Equal("<c />", result[2].ToString());
+            A.CallTo(() => store.WriteAsync(DomainId.Create("name"), A<DefaultXmlRepository.State>._, A<long>._, 0))
+                .MustHaveHappened();
         }
     }
 }

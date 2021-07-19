@@ -13,7 +13,7 @@ export class TagValue<T = any> {
     constructor(
         public readonly id: any,
         public readonly name: string,
-        public readonly value: T
+        public readonly value: T,
     ) {
         this.lowerCaseName = name.toLowerCase();
     }
@@ -34,7 +34,9 @@ export class IntConverter implements TagConverter {
 
     public static readonly INSTANCE: TagConverter = new IntConverter();
 
-    private constructor() {}
+    private constructor() {
+        /* NOOP */
+    }
 
     public convertInput(input: string) {
         if (input === '0') {
@@ -43,7 +45,7 @@ export class IntConverter implements TagConverter {
 
         const parsed = parseInt(input, 10);
 
-        if (parsed) {
+        if (Types.isNumber(parsed)) {
             return new TagValue(parsed, input, parsed);
         }
 
@@ -64,7 +66,9 @@ export class FloatConverter implements TagConverter {
 
     public static readonly INSTANCE: TagConverter = new FloatConverter();
 
-    private constructor() {}
+    private constructor() {
+        /* NOOP */
+    }
 
     public convertInput(input: string) {
         if (input === '0') {
@@ -73,7 +77,7 @@ export class FloatConverter implements TagConverter {
 
         const parsed = parseFloat(input);
 
-        if (parsed) {
+        if (Types.isNumber(parsed)) {
             return new TagValue(parsed, input, parsed);
         }
 
@@ -92,7 +96,9 @@ export class FloatConverter implements TagConverter {
 export class StringConverter implements TagConverter {
     public static readonly INSTANCE: TagConverter = new StringConverter();
 
-    private constructor() {}
+    private constructor() {
+        /* NOOP */
+    }
 
     public convertInput(input: string) {
         if (input) {
@@ -117,14 +123,14 @@ export class StringConverter implements TagConverter {
     }
 }
 
-export function getTagValues(values: ReadonlyArray<string | TagValue>) {
-
+export function getTagValues(values: ReadonlyArray<string | TagValue> | undefined | null) {
     if (!Types.isArray(values)) {
         return [];
     }
+
     const result: TagValue[] = [];
 
-    for (let value of values) {
+    for (const value of values) {
         if (Types.isString(value)) {
             result.push(new TagValue(value, value, value));
         } else {
@@ -132,5 +138,5 @@ export function getTagValues(values: ReadonlyArray<string | TagValue>) {
         }
     }
 
-    return result.sortedByString(x => x.lowerCaseName);
+    return result.sortByString(x => x.lowerCaseName);
 }

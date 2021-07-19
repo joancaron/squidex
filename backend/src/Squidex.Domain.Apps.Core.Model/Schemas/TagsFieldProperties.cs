@@ -1,35 +1,38 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System.Collections.ObjectModel;
+using Squidex.Infrastructure.Collections;
 
 namespace Squidex.Domain.Apps.Core.Schemas
 {
-    [Equals(DoNotAddEqualityOperators = true)]
-    public sealed class TagsFieldProperties : FieldProperties
+    public sealed record TagsFieldProperties : FieldProperties
     {
-        public ReadOnlyCollection<string>? AllowedValues { get; set; }
+        public ImmutableList<string>? AllowedValues { get; init; }
 
-        public int? MinItems { get; set; }
+        public LocalizedValue<ImmutableList<string>?> DefaultValues { get; init; }
 
-        public int? MaxItems { get; set; }
+        public ImmutableList<string>? DefaultValue { get; init; }
 
-        public TagsFieldEditor Editor { get; set; }
+        public int? MinItems { get; init; }
 
-        public TagsFieldNormalization Normalization { get; set; }
+        public int? MaxItems { get; init; }
 
-        public override T Accept<T>(IFieldPropertiesVisitor<T> visitor)
+        public TagsFieldEditor Editor { get; init; }
+
+        public TagsFieldNormalization Normalization { get; init; }
+
+        public override T Accept<T, TArgs>(IFieldPropertiesVisitor<T, TArgs> visitor, TArgs args)
         {
-            return visitor.Visit(this);
+            return visitor.Visit(this, args);
         }
 
-        public override T Accept<T>(IFieldVisitor<T> visitor, IField field)
+        public override T Accept<T, TArgs>(IFieldVisitor<T, TArgs> visitor, IField field, TArgs args)
         {
-            return visitor.Visit((IField<TagsFieldProperties>)field);
+            return visitor.Visit((IField<TagsFieldProperties>)field, args);
         }
 
         public override RootField CreateRootField(long id, string name, Partitioning partitioning, IFieldSettings? settings = null)

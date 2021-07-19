@@ -1,4 +1,4 @@
-<div *ngIf="!forContent || snapshot.filtered.length > 0" class="droppable category"
+<div *ngIf="!forContent || filteredSchemas.length > 0" class="droppable category"
     cdkDropList
     cdkDropListSortingDisabled
     [cdkDropListData]="schemaCategory.name"
@@ -8,33 +8,36 @@
         <div class="row no-gutters">
             <div class="col-auto">
                 <button type="button" class="btn btn-sm btn-text-secondary" (click)="toggle()">
-                    <i [class.icon-caret-right]="!snapshot.isOpen" [class.icon-caret-down]="snapshot.isOpen"></i> 
+                    <i [class.icon-caret-right]="isCollapsed" [class.icon-caret-down]="!isCollapsed"></i> 
                 </button>
             </div>
             <div class="col">
-                <h3 class="truncate">{{schemaCategory.name}} </h3>
+                <h3 class="truncate">
+                    {{schemaCategory.displayName | sqxTranslate}}
+                </h3>
             </div>
             <div class="col-auto">
                 <ng-container *ngIf="schemaCategory.schemas.length > 0; else noSchemas">
-                    ({{snapshot.filtered.length}})
+                    ({{filteredSchemas.length}})
                 </ng-container>
                 <ng-template #noSchemas>
-                    <button type="button" class="btn btn-sm btn-text-secondary btn-remove" (click)="remove.emit()">
+                    <button type="button" class="btn btn-sm btn-text-secondary btn-remove" (click)="remove.emit()" *ngIf="schemaCategory.name">
                         <i class="icon-bin2"></i> 
                     </button>
                 </ng-template>
             </div>
-        </div>        
+        </div>
     </div>
 
-    <div class="nav nav-panel nav-dark nav-dark-bordered flex-column" *ngIf="snapshot.isOpen" @fade>
+    <div class="nav nav-panel nav-dark nav-dark-bordered flex-column" *ngIf="!isCollapsed" @fade [style.height]="getContainerHeight()">
         <ng-container *ngIf="!forContent; else simpleMode">
-            <div *ngFor="let schema of snapshot.filtered; trackBy: trackBySchema" class="nav-item"
+            <div *ngFor="let schema of filteredSchemas; trackBy: trackBySchema" class="nav-item"
+                [style.height]="getItemHeight()"
                 routerLinkActive="active"
-                cdkDropList
                 cdkDrag
                 cdkDragLockAxis="y"
-                [cdkDragData]="schema">
+                [cdkDragData]="schema"
+                (cdkDragStarted)="dragStarted($event)">
 
                 <i cdkDragHandle class="icon-drag2 drag-handle"></i>
 
@@ -59,9 +62,9 @@
         </ng-container>
     
         <ng-template #simpleMode>
-            <li *ngFor="let schema of snapshot.filtered; trackBy: trackBySchema" class="nav-item">
-                <a class="nav-link" [routerLink]="schemaRoute(schema)" routerLinkActive="active">
-                    <span class="schema-name" *ngIf="forContent">{{schema.displayName}}</span>
+            <li *ngFor="let schema of filteredSchemas; trackBy: trackBySchema" class="nav-item">
+                <a class="nav-link" [routerLink]="schemaRoute(schema)" routerLinkActive="active" title="{{schema.displayName}}" titlePosition="top-left">
+                    <span class="schema-name">{{schema.displayName}}</span>
                 </a>
             </li>
         </ng-template>

@@ -7,20 +7,22 @@
 
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Squidex.Infrastructure.Translations;
 
 namespace Squidex.Domain.Apps.Core.ValidateContent.Validators
 {
     public sealed class ObjectValidator<TValue> : IValidator
     {
         private static readonly IReadOnlyDictionary<string, TValue> DefaultValue = new Dictionary<string, TValue>();
-        private readonly IDictionary<string, (bool IsOptional, IValidator Validator)> schema;
+        private readonly IDictionary<string, (bool IsOptional, IValidator Validator)> fields;
         private readonly bool isPartial;
         private readonly string fieldType;
 
-        public ObjectValidator(IDictionary<string, (bool IsOptional, IValidator Validator)> schema, bool isPartial, string fieldType)
+        public ObjectValidator(IDictionary<string, (bool IsOptional, IValidator Validator)> fields, bool isPartial, string fieldType)
         {
-            this.schema = schema;
+            this.fields = fields;
             this.fieldType = fieldType;
+
             this.isPartial = isPartial;
         }
 
@@ -37,15 +39,15 @@ namespace Squidex.Domain.Apps.Core.ValidateContent.Validators
                 {
                     var name = fieldData.Key;
 
-                    if (!schema.ContainsKey(name))
+                    if (!fields.ContainsKey(name))
                     {
-                        addError(context.Path.Enqueue(name), $"Not a known {fieldType}.");
+                        addError(context.Path.Enqueue(name), T.Get("contents.validation.unknownField", new { fieldType }));
                     }
                 }
 
                 var tasks = new List<Task>();
 
-                foreach (var (fieldName, fieldConfig) in schema)
+                foreach (var (fieldName, fieldConfig) in fields)
                 {
                     var (isOptional, validator) = fieldConfig;
 

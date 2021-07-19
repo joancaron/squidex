@@ -5,7 +5,6 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -13,6 +12,7 @@ using FakeItEasy;
 using FluentAssertions;
 using Squidex.Domain.Apps.Core;
 using Squidex.Domain.Apps.Core.Schemas;
+using Squidex.Domain.Apps.Core.TestHelpers;
 using Squidex.Domain.Apps.Entities.Search;
 using Squidex.Domain.Apps.Entities.TestHelpers;
 using Squidex.Infrastructure;
@@ -22,11 +22,11 @@ using Xunit;
 
 namespace Squidex.Domain.Apps.Entities.Schemas
 {
-    public class SchemasSearchSourceTests
+    public class SchemasSearchSourceTests : IClassFixture<TranslationsFixture>
     {
         private readonly IUrlGenerator urlGenerator = A.Fake<IUrlGenerator>();
         private readonly IAppProvider appProvider = A.Fake<IAppProvider>();
-        private readonly NamedId<Guid> appId = NamedId.Of(Guid.NewGuid(), "my-app");
+        private readonly NamedId<DomainId> appId = NamedId.Of(DomainId.NewGuid(), "my-app");
         private readonly SchemasSearchSource sut;
 
         public SchemasSearchSourceTests()
@@ -35,11 +35,11 @@ namespace Squidex.Domain.Apps.Entities.Schemas
         }
 
         [Fact]
-        public async Task Should_return_result_to_schema_only_if_user_has_no_permission()
+        public async Task Should_not_add_result_to_contents_if_user_has_no_permission()
         {
             var ctx = ContextWithPermission();
 
-            var schema1 = CreateSchema("schemaA1", false);
+            var schema1 = CreateSchema("schemaA1");
 
             A.CallTo(() => appProvider.GetSchemasAsync(appId.Id))
                 .Returns(new List<ISchemaEntity> { schema1 });
@@ -47,7 +47,29 @@ namespace Squidex.Domain.Apps.Entities.Schemas
             A.CallTo(() => urlGenerator.SchemaUI(appId, schema1.NamedId()))
                 .Returns("schemaA1-url");
 
-            var result = await sut.SearchAsync("schema", ctx);
+            var result = await sut.SearchAsync("schema", ctx, default);
+
+            result.Should().BeEquivalentTo(
+                new SearchResults()
+                    .Add("schemaA1 Schema", SearchResultType.Schema, "schemaA1-url"));
+        }
+
+        [Fact]
+        public async Task Should_not_add_result_to_contents_if_schema_is_component()
+        {
+            var permission = Permissions.ForApp(Permissions.AppContentsReadOwn, appId.Name, "schemaA1");
+
+            var ctx = ContextWithPermission();
+
+            var schema1 = CreateSchema("schemaA1", SchemaType.Component);
+
+            A.CallTo(() => appProvider.GetSchemasAsync(appId.Id))
+                .Returns(new List<ISchemaEntity> { schema1 });
+
+            A.CallTo(() => urlGenerator.SchemaUI(appId, schema1.NamedId()))
+                .Returns("schemaA1-url");
+
+            var result = await sut.SearchAsync("schema", ctx, default);
 
             result.Should().BeEquivalentTo(
                 new SearchResults()
@@ -57,13 +79,13 @@ namespace Squidex.Domain.Apps.Entities.Schemas
         [Fact]
         public async Task Should_return_result_to_schema_and_contents_if_matching_and_permission_given()
         {
-            var permission = Permissions.ForApp(Permissions.AppContentsRead, appId.Name, "schemaA2");
+            var permission = Permissions.ForApp(Permissions.AppContentsReadOwn, appId.Name, "schemaA2");
 
             var ctx = ContextWithPermission(permission.Id);
 
-            var schema1 = CreateSchema("schemaA1", false);
-            var schema2 = CreateSchema("schemaA2", false);
-            var schema3 = CreateSchema("schemaB2", false);
+            var schema1 = CreateSchema("schemaA1");
+            var schema2 = CreateSchema("schemaA2");
+            var schema3 = CreateSchema("schemaB2");
 
             A.CallTo(() => appProvider.GetSchemasAsync(appId.Id))
                 .Returns(new List<ISchemaEntity> { schema1, schema2, schema3 });
@@ -77,7 +99,7 @@ namespace Squidex.Domain.Apps.Entities.Schemas
             A.CallTo(() => urlGenerator.ContentsUI(appId, schema2.NamedId()))
                 .Returns("schemaA2-contents-url");
 
-            var result = await sut.SearchAsync("schemaA", ctx);
+            var result = await sut.SearchAsync("schemaA", ctx, default);
 
             result.Should().BeEquivalentTo(
                 new SearchResults()
@@ -89,11 +111,11 @@ namespace Squidex.Domain.Apps.Entities.Schemas
         [Fact]
         public async Task Should_return_result_to_schema_and_contents_if_schema_is_singleton()
         {
-            var permission = Permissions.ForApp(Permissions.AppContentsRead, appId.Name, "schemaA1");
+            var permission = Permissions.ForApp(Permissions.AppContentsReadOwn, appId.Name, "schemaA1");
 
             var ctx = ContextWithPermission(permission.Id);
 
-            var schema1 = CreateSchema("schemaA1", true);
+            var schema1 = CreateSchema("schemaA1", SchemaType.Singleton);
 
             A.CallTo(() => appProvider.GetSchemasAsync(appId.Id))
                 .Returns(new List<ISchemaEntity> { schema1 });
@@ -104,7 +126,7 @@ namespace Squidex.Domain.Apps.Entities.Schemas
             A.CallTo(() => urlGenerator.ContentUI(appId, schema1.NamedId(), schema1.Id))
                 .Returns("schemaA1-content-url");
 
-            var result = await sut.SearchAsync("schemaA", ctx);
+            var result = await sut.SearchAsync("schemaA", ctx, default);
 
             result.Should().BeEquivalentTo(
                 new SearchResults()
@@ -112,9 +134,9 @@ namespace Squidex.Domain.Apps.Entities.Schemas
                     .Add("schemaA1 Content", SearchResultType.Content, "schemaA1-content-url", "schemaA1"));
         }
 
-        private ISchemaEntity CreateSchema(string name, bool isSingleton)
+        private ISchemaEntity CreateSchema(string name, SchemaType type = SchemaType.Default)
         {
-            return Mocks.Schema(appId, NamedId.Of(Guid.NewGuid(), name), new Schema(name, null, isSingleton));
+            return Mocks.Schema(appId, NamedId.Of(DomainId.NewGuid(), name), new Schema(name, type: type));
         }
 
         private Context ContextWithPermission(string? permission = null)

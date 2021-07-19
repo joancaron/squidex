@@ -1,18 +1,18 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
+using Squidex.Infrastructure;
 
 namespace Squidex.Domain.Apps.Core.Rules.Triggers
 {
-    public sealed class ContentChangedTriggerSchemaV2 : Freezable
+    public sealed record ContentChangedTriggerSchemaV2
     {
-        public Guid SchemaId { get; set; }
+        public DomainId SchemaId { get; init; }
 
-        public string? Condition { get; set; }
+        public string? Condition { get; init; }
     }
 }

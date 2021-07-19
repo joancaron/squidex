@@ -28,26 +28,44 @@ namespace Squidex.Domain.Apps.Entities.Rules.UsageTracking
 
         public sealed class Target
         {
-            public NamedId<Guid> AppId { get; set; }
+            public NamedId<DomainId> AppId { get; set; }
 
             public int Limits { get; set; }
 
             public int? NumDays { get; set; }
 
             public DateTime? Triggered { get; set; }
+
+            public Target SetApp(NamedId<DomainId> appId)
+            {
+                AppId = appId;
+
+                return this;
+            }
+
+            public Target SetLimit(int value)
+            {
+                Limits = value;
+
+                return this;
+            }
+
+            public Target SetNumDays(int? value)
+            {
+                NumDays = value;
+
+                return this;
+            }
         }
 
         [CollectionName("UsageTracker")]
         public sealed class State
         {
-            public Dictionary<Guid, Target> Targets { get; set; } = new Dictionary<Guid, Target>();
+            public Dictionary<DomainId, Target> Targets { get; set; } = new Dictionary<DomainId, Target>();
         }
 
         public UsageTrackerGrain(IGrainState<State> state, IApiUsageTracker usageTracker)
         {
-            Guard.NotNull(state, nameof(state));
-            Guard.NotNull(usageTracker, nameof(usageTracker));
-
             this.state = state;
 
             this.usageTracker = usageTracker;
@@ -81,9 +99,9 @@ namespace Squidex.Domain.Apps.Entities.Rules.UsageTracking
             {
                 var from = GetFromDate(today, target.NumDays);
 
-                if (!target.Triggered.HasValue || target.Triggered < from)
+                if (target.Triggered == null || target.Triggered < from)
                 {
-                    var costs = await usageTracker.GetMonthCostsAsync(target.AppId.Id.ToString(), today);
+                    var costs = await usageTracker.GetMonthCallsAsync(target.AppId.Id.ToString(), today, null);
 
                     var limit = target.Limits;
 
@@ -109,7 +127,7 @@ namespace Squidex.Domain.Apps.Entities.Rules.UsageTracking
 
         private static DateTime GetFromDate(DateTime today, int? numDays)
         {
-            if (numDays.HasValue)
+            if (numDays != null)
             {
                 return today.AddDays(-numDays.Value).AddDays(1);
             }
@@ -119,35 +137,35 @@ namespace Squidex.Domain.Apps.Entities.Rules.UsageTracking
             }
         }
 
-        public Task AddTargetAsync(Guid ruleId, NamedId<Guid> appId, int limits, int? numDays)
+        public Task AddTargetAsync(DomainId ruleId, NamedId<DomainId> appId, int limits, int? numDays)
         {
-            UpdateTarget(ruleId, t => { t.Limits = limits; t.AppId = appId; t.NumDays = numDays; });
+            UpdateTarget(ruleId, t => t.SetApp(appId).SetLimit(limits).SetNumDays(numDays));
 
             return state.WriteAsync();
         }
 
-        public Task UpdateTargetAsync(Guid ruleId, int limits, int? numDays)
+        public Task UpdateTargetAsync(DomainId ruleId, int limits, int? numDays)
         {
-            UpdateTarget(ruleId, t => { t.Limits = limits; t.NumDays = numDays; });
+            UpdateTarget(ruleId, t => t.SetLimit(limits).SetNumDays(numDays));
 
             return state.WriteAsync();
         }
 
-        public Task AddTargetAsync(Guid ruleId, int limits)
+        public Task AddTargetAsync(DomainId ruleId, int limits)
         {
-            UpdateTarget(ruleId, t => t.Limits = limits);
+            UpdateTarget(ruleId, t => t.SetLimit(limits));
 
             return state.WriteAsync();
         }
 
-        public Task RemoveTargetAsync(Guid ruleId)
+        public Task RemoveTargetAsync(DomainId ruleId)
         {
             state.Value.Targets.Remove(ruleId);
 
             return state.WriteAsync();
         }
 
-        private void UpdateTarget(Guid ruleId, Action<Target> updater)
+        private void UpdateTarget(DomainId ruleId, Action<Target> updater)
         {
             updater(state.Value.Targets.GetOrAddNew(ruleId));
         }

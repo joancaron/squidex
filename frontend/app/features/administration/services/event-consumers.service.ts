@@ -15,7 +15,7 @@ export class EventConsumersDto {
     public readonly _links: ResourceLinks;
 
     constructor(
-        public readonly items: ReadonlyArray<EventConsumerDto>, links?: ResourceLinks
+        public readonly items: ReadonlyArray<EventConsumerDto>, links?: ResourceLinks,
     ) {
         this._links = links || {};
     }
@@ -30,10 +30,11 @@ export class EventConsumerDto {
 
     constructor(links: ResourceLinks,
         public readonly name: string,
+        public readonly count: number,
         public readonly isStopped?: boolean,
         public readonly isResetting?: boolean,
         public readonly error?: string,
-        public readonly position?: string
+        public readonly position?: string,
     ) {
         this._links = links;
 
@@ -47,7 +48,7 @@ export class EventConsumerDto {
 export class EventConsumersService {
     constructor(
         private readonly http: HttpClient,
-        private readonly apiUrl: ApiUrlConfig
+        private readonly apiUrl: ApiUrlConfig,
     ) {
     }
 
@@ -56,11 +57,11 @@ export class EventConsumersService {
 
         return this.http.get<{ items: any[] } & Resource>(url).pipe(
             map(({ items, _links }) => {
-                const eventConsumers = items.map(item => parseEventConsumer(item));
+                const eventConsumers = items.map(parseEventConsumer);
 
                 return new EventConsumersDto(eventConsumers, _links);
             }),
-            pretifyError('Failed to load event consumers. Please reload.'));
+            pretifyError('i18n:eventConsumers.loadFailed'));
     }
 
     public putStart(eventConsumer: Resource): Observable<EventConsumerDto> {
@@ -72,7 +73,7 @@ export class EventConsumersService {
             map(body => {
                 return parseEventConsumer(body);
             }),
-            pretifyError('Failed to start event consumer. Please reload.'));
+            pretifyError('i18n:eventConsumers.startFailed'));
     }
 
     public putStop(eventConsumer: Resource): Observable<EventConsumerDto> {
@@ -84,7 +85,7 @@ export class EventConsumersService {
             map(body => {
                 return parseEventConsumer(body);
             }),
-            pretifyError('Failed to stop event consumer. Please reload.'));
+            pretifyError('i18n:eventConsumers.stopFailed'));
     }
 
     public putReset(eventConsumer: Resource): Observable<EventConsumerDto> {
@@ -96,7 +97,7 @@ export class EventConsumersService {
             map(body => {
                 return parseEventConsumer(body);
             }),
-            pretifyError('Failed to reset event consumer. Please reload.'));
+            pretifyError('i18n:eventConsumers.resetFailed'));
     }
 }
 
@@ -104,6 +105,7 @@ function parseEventConsumer(response: any): EventConsumerDto {
     return new EventConsumerDto(
         response._links,
         response.name,
+        response.count,
         response.isStopped,
         response.isResetting,
         response.error,

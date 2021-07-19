@@ -14,7 +14,7 @@ import { map } from 'rxjs/operators';
 export class UserDto {
     constructor(
         public readonly id: string,
-        public readonly displayName: string
+        public readonly displayName: string,
     ) {
     }
 }
@@ -31,7 +31,7 @@ export class ResourcesDto {
 export class UsersService {
     constructor(
         private readonly http: HttpClient,
-        private readonly apiUrl: ApiUrlConfig
+        private readonly apiUrl: ApiUrlConfig,
     ) {
     }
 
@@ -47,7 +47,7 @@ export class UsersService {
 
                 return users;
             }),
-            pretifyError('Failed to load users. Please reload.'));
+            pretifyError('i18n:users.loadFailed'));
     }
 
     public getUser(id: string): Observable<UserDto> {
@@ -61,16 +61,16 @@ export class UsersService {
 
                 return user;
             }),
-            pretifyError('Failed to load user. Please reload.'));
+            pretifyError('i18n:users.loadUserFailed'));
     }
 
     public getResources(): Observable<ResourcesDto> {
-        const url = this.apiUrl.buildUrl(`api`);
+        const url = this.apiUrl.buildUrl('api');
 
         return this.http.get<{ _links: {} }>(url).pipe(
             map(({ _links }) => {
                 return new ResourcesDto(_links);
             }),
-            pretifyError('Failed to load user. Please reload.'));
+            pretifyError('i18n:users.loadUserFailed'));
     }
 }

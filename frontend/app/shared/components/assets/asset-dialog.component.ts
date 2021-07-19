@@ -5,20 +5,21 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, Input, OnChanges, Output, QueryList, ViewChildren } from '@angular/core';
+import { ChangeDetectorRef, Component, EventEmitter, Input, OnChanges, Output, QueryList, ViewChildren } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
-import { AnnotateAssetDto, AnnotateAssetForm, AssetDto, AssetsState, AssetUploaderState, AuthService, DialogService, Types, UploadCanceled } from '@app/shared/internal';
+import { AnnotateAssetDto, AnnotateAssetForm, AppsState, AssetDto, AssetsState, AssetUploaderState, AuthService, DialogService, Types, UploadCanceled } from '@app/shared/internal';
+import { AssetsService } from '@app/shared/services/assets.service';
+import { AssetPathItem, ROOT_ITEM } from '@app/shared/state/assets.state';
+import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
+import { AssetTextEditorComponent } from './asset-text-editor.component';
 import { ImageCropperComponent } from './image-cropper.component';
 import { ImageFocusPointComponent } from './image-focus-point.component';
-
-const TABS_IMAGE: ReadonlyArray<string> = ['Metadata', 'Image', 'Focus Point', 'History'];
-const TABS_DEFAULT: ReadonlyArray<string> = ['Metadata', 'History'];
 
 @Component({
     selector: 'sqx-asset-dialog',
     styleUrls: ['./asset-dialog.component.scss'],
     templateUrl: './asset-dialog.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AssetDialogComponent implements OnChanges {
     @Output()
@@ -39,46 +40,64 @@ export class AssetDialogComponent implements OnChanges {
     @ViewChildren(ImageFocusPointComponent)
     public imageFocus: QueryList<ImageFocusPointComponent>;
 
+    @ViewChildren(AssetTextEditorComponent)
+    public textEditor: QueryList<AssetTextEditorComponent>;
+
+    public path: Observable<ReadonlyArray<AssetPathItem>>;
+
     public isEditable = false;
     public isEditableAny = false;
     public isUploadable = false;
 
     public progress = 0;
 
-    public selectableTabs: ReadonlyArray<string>;
-    public selectedTab: string;
+    public selectedTab = 0;
 
     public annotateForm = new AnnotateAssetForm(this.formBuilder);
 
+    public get isImage() {
+        return this.asset.type === 'Image';
+    }
+
+    public get isVideo() {
+        return this.asset.type === 'Video';
+    }
+
+    public get isDocumentLikely() {
+        return this.asset.type === 'Unknown' && this.asset.fileSize < 100_000;
+    }
+
     constructor(
+        private readonly appsState: AppsState,
         private readonly assetsState: AssetsState,
         private readonly assetUploader: AssetUploaderState,
+        private readonly assetsService: AssetsService,
         private readonly changeDetector: ChangeDetectorRef,
         private readonly dialogs: DialogService,
         private readonly formBuilder: FormBuilder,
-        public readonly authService: AuthService
+        public readonly authService: AuthService,
     ) {
     }
 
     public ngOnChanges() {
+        this.selectTab(0);
+
         this.isEditable = this.asset.canUpdate;
         this.isUploadable = this.asset.canUpload;
 
         this.annotateForm.load(this.asset);
         this.annotateForm.setEnabled(this.isEditable);
 
-        if (this.asset.type === 'Image') {
-            this.selectableTabs = TABS_IMAGE;
-        } else {
-            this.selectableTabs = TABS_DEFAULT;
-        }
-
-        if (this.selectableTabs.indexOf(this.selectedTab) < 0) {
-            this.selectTab(this.selectableTabs[0]);
-        }
+        this.path =
+            this.assetsService.getAssetFolders(this.appsState.appName, this.asset.parentId).pipe(
+                map(folders => [ROOT_ITEM, ...folders.path]));
     }
 
-    public selectTab(tab: string) {
+    public navigate(id: string) {
+        this.assetsState.navigate(id);
+    }
+
+    public selectTab(tab: number) {
         this.selectedTab = tab;
     }
 
@@ -95,7 +114,19 @@ export class AssetDialogComponent implements OnChanges {
             return;
         }
 
-        this.imageCropper.first.toFile().then(file => {
+        this.uploadEdited(this.imageCropper.first.toFile());
+    }
+
+    public saveText() {
+        if (!this.isUploadable) {
+            return;
+        }
+
+        this.uploadEdited(this.textEditor.first.toFile());
+    }
+
+    public uploadEdited(fileChange: Promise<Blob | null>) {
+        fileChange.then(file => {
             if (file) {
                 this.setProgress(0);
 
@@ -106,7 +137,7 @@ export class AssetDialogComponent implements OnChanges {
                         } else {
                             this.changed.emit(dto);
 
-                            this.dialogs.notifyInfo('Asset has been updated.');
+                            this.dialogs.notifyInfo('i18n:assets.updated');
                         }
                     }, error => {
                         if (!Types.is(error, UploadCanceled)) {
@@ -116,7 +147,7 @@ export class AssetDialogComponent implements OnChanges {
                         this.setProgress(0);
                     });
             } else {
-                this.dialogs.notifyInfo('Nothing has changed.');
+                this.dialogs.notifyInfo('i18n:common.nothingChanged');
             }
         });
     }
@@ -143,12 +174,12 @@ export class AssetDialogComponent implements OnChanges {
                 .subscribe(() => {
                     this.annotateForm.submitCompleted({ noReset: true });
 
-                    this.dialogs.notifyInfo('Asset has been updated.');
+                    this.dialogs.notifyInfo('i18n:assets.updated');
                 }, error => {
                     this.annotateForm.submitFailed(error);
                 });
         } else {
-            this.dialogs.notifyInfo('Nothing has changed.');
+            this.dialogs.notifyInfo('i18n:common.nothingChanged');
         }
     }
 

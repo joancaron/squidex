@@ -17,7 +17,7 @@ describe('WorkflowsState', () => {
         app,
         appsState,
         newVersion,
-        version
+        version,
     } = TestValues;
 
     const oldWorkflows = createWorkflows('1', '2');
@@ -52,16 +52,16 @@ describe('WorkflowsState', () => {
             dialogs.verify(x => x.notifyInfo(It.isAnyString()), Times.never());
         });
 
-        it('should reset loading when loading failed', () => {
+        it('should reset loading state if loading failed', () => {
             workflowsService.setup(x => x.getWorkflows(app))
-                .returns(() => throwError('error'));
+                .returns(() => throwError(() => 'Service Error'));
 
             workflowsState.load().pipe(onErrorResumeNext()).subscribe();
 
             expect(workflowsState.snapshot.isLoading).toBeFalsy();
         });
 
-        it('should show notification on load when reload is true', () => {
+        it('should show notification on load if reload is true', () => {
             workflowsService.setup(x => x.getWorkflows(app))
                 .returns(() => of(versioned(version, oldWorkflows))).verifiable();
 
@@ -81,18 +81,18 @@ describe('WorkflowsState', () => {
             workflowsState.load().subscribe();
         });
 
-        it('should update workflows when workflow added', () => {
+        it('should update workflows if workflow added', () => {
             const updated = createWorkflows('1', '2', '3');
 
             workflowsService.setup(x => x.postWorkflow(app, { name: 'my-workflow' }, version))
                 .returns(() => of(versioned(newVersion, updated))).verifiable();
 
-            workflowsState.add('my-workflow' ).subscribe();
+            workflowsState.add('my-workflow').subscribe();
 
             expectNewWorkflows(updated);
         });
 
-        it('should update workflows when workflow updated', () => {
+        it('should update workflows if workflow updated', () => {
             const updated = createWorkflows('1', '2', '3');
 
             const request = oldWorkflows.items[0].serialize();
@@ -107,7 +107,7 @@ describe('WorkflowsState', () => {
             dialogs.verify(x => x.notifyInfo(It.isAnyString()), Times.once());
         });
 
-        it('should update workflows when workflow deleted', () => {
+        it('should update workflows if workflow deleted', () => {
             const updated = createWorkflows('1', '2', '3');
 
             workflowsService.setup(x => x.deleteWorkflow(app, oldWorkflows.items[0], version))

@@ -1,19 +1,29 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
-using System.Collections.ObjectModel;
 using Squidex.Domain.Apps.Core.Schemas;
+using Squidex.Infrastructure;
+using Squidex.Infrastructure.Collections;
 using Squidex.Infrastructure.Reflection;
 
 namespace Squidex.Areas.Api.Controllers.Schemas.Models.Fields
 {
     public sealed class ReferencesFieldPropertiesDto : FieldPropertiesDto
     {
+        /// <summary>
+        /// The language specific default value as a list of content ids.
+        /// </summary>
+        public LocalizedValue<ImmutableList<string>?> DefaultValues { get; set; }
+
+        /// <summary>
+        /// The default value as a list of content ids.
+        /// </summary>
+        public ImmutableList<string>? DefaultValue { get; set; }
+
         /// <summary>
         /// The minimum allowed items for the field value.
         /// </summary>
@@ -35,6 +45,11 @@ namespace Squidex.Areas.Api.Controllers.Schemas.Models.Fields
         public bool ResolveReference { get; set; }
 
         /// <summary>
+        /// True when all references must be published.
+        /// </summary>
+        public bool MustBePublished { get; set; }
+
+        /// <summary>
         /// The editor that is used to manage this field.
         /// </summary>
         public ReferencesFieldEditor Editor { get; set; }
@@ -42,7 +57,7 @@ namespace Squidex.Areas.Api.Controllers.Schemas.Models.Fields
         /// <summary>
         /// The id of the referenced schemas.
         /// </summary>
-        public ReadOnlyCollection<Guid>? SchemaIds { get; set; }
+        public ImmutableList<DomainId>? SchemaIds { get; set; }
 
         public override FieldProperties ToProperties()
         {

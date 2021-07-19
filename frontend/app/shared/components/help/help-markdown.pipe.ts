@@ -11,7 +11,7 @@ import marked from 'marked';
 const renderer = new marked.Renderer();
 
 renderer.link = (href, _, text) => {
-    if (!href.startsWith('http')) {
+    if (href && !href.startsWith('http')) {
         href = `https://docs.squidex.io/${href}`;
     }
 
@@ -20,10 +20,10 @@ renderer.link = (href, _, text) => {
 
 @Pipe({
     name: 'sqxHelpMarkdown',
-    pure: true
+    pure: true,
 })
 export class HelpMarkdownPipe implements PipeTransform {
-    public transform(text: string | null | undefined): string {
+    public transform(text: string | undefined | null): string {
         if (text) {
             return marked(text, { renderer });
         } else {

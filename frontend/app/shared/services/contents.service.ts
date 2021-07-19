@@ -7,10 +7,10 @@
 
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { AnalyticsService, ApiUrlConfig, DateTime, hasAnyLink, HTTP, mapVersioned, pretifyError, Resource, ResourceLinks, ResultSet, Version, Versioned } from '@app/framework';
+import { AnalyticsService, ApiUrlConfig, DateTime, ErrorDto, hasAnyLink, HTTP, mapVersioned, pretifyError, Resource, ResourceLinks, ResultSet, Version, Versioned } from '@app/framework';
 import { Observable } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
-import { encodeQuery, Query } from './../state/query';
+import { encodeQuery, Query, StatusInfo } from './../state/query';
 import { parseField, RootFieldDto } from './schemas.service';
 
 export class ScheduleDto {
@@ -18,19 +18,17 @@ export class ScheduleDto {
         public readonly status: string,
         public readonly scheduledBy: string,
         public readonly color: string,
-        public readonly dueTime: DateTime
+        public readonly dueTime: DateTime,
     ) {
     }
 }
-
-export type StatusInfo = { status: string; color: string; };
 
 export class ContentsDto extends ResultSet<ContentDto> {
     constructor(
         public readonly statuses: ReadonlyArray<StatusInfo>,
         total: number,
         items: ReadonlyArray<ContentDto>,
-        links?: ResourceLinks
+        links?: ResourceLinks,
     ) {
         super(total, items, links);
     }
@@ -44,11 +42,6 @@ export class ContentsDto extends ResultSet<ContentDto> {
     }
 }
 
-export type ContentReferencesValue = { [partition: string]: string } | string;
-export type ContentReferences = { [fieldName: string ]: ContentFieldData<ContentReferencesValue> };
-export type ContentFieldData<T = any> = { [partition: string]: T };
-export type ContentData = { [fieldName: string ]: ContentFieldData };
-
 export class ContentDto {
     public readonly _links: ResourceLinks;
 
@@ -59,23 +52,27 @@ export class ContentDto {
     public readonly canDraftCreate: boolean;
     public readonly canUpdate: boolean;
 
+    public get canPublish() {
+        return this.statusUpdates.find(x => x.status === 'Published');
+    }
+
     constructor(links: ResourceLinks,
         public readonly id: string,
-        public readonly status: string,
-        public readonly statusColor: string,
-        public readonly newStatus: string | undefined,
-        public readonly newStatusColor: string | undefined,
         public readonly created: DateTime,
         public readonly createdBy: string,
         public readonly lastModified: DateTime,
         public readonly lastModifiedBy: string,
+        public readonly version: Version,
+        public readonly status: string,
+        public readonly statusColor: string,
+        public readonly newStatus: string | undefined,
+        public readonly newStatusColor: string | undefined,
         public readonly scheduleJob: ScheduleDto | null,
         public readonly data: ContentData,
         public readonly schemaName: string,
         public readonly schemaDisplayName: string,
         public readonly referenceData: ContentReferences,
         public readonly referenceFields: ReadonlyArray<RootFieldDto>,
-        public readonly version: Version
     ) {
         this._links = links;
 
@@ -84,98 +81,95 @@ export class ContentDto {
         this.canDraftDelete = hasAnyLink(links, 'draft/delete');
         this.canUpdate = hasAnyLink(links, 'update');
 
-        this.statusUpdates = Object.keys(links).filter(x => x.startsWith('status/')).map(x => ({ status: x.substr(7), color: links[x].metadata! }));
+        const updates: StatusInfo[] = [];
+
+        for (const link in links) {
+            if (links.hasOwnProperty(link) && link.startsWith('status/')) {
+                const status = link.substr(7);
+
+                updates.push({ status, color: links[link].metadata! });
+            }
+        }
+
+        this.statusUpdates = updates;
     }
 }
 
-export interface ContentQueryDto {
-    readonly ids?: ReadonlyArray<string>;
-    readonly maxLength?: number;
-    readonly query?: Query;
-    readonly skip?: number;
-    readonly take?: number;
+export class BulkResultDto {
+    constructor(
+        public readonly contentId: string,
+        public readonly error?: ErrorDto,
+    ) {
+    }
 }
+
+export type BulkUpdateType = 'Upsert' | 'ChangeStatus' | 'Delete' | 'Validate';
+
+export type ContentReferencesValue =
+    Readonly<{ [partition: string]: string }> | string;
+
+export type ContentReferences =
+    Readonly<{ [fieldName: string ]: ContentFieldData<ContentReferencesValue> }>;
+
+export type ContentFieldData<T = any> =
+    Readonly<{ [partition: string]: T }>;
+
+export type ContentData =
+    Readonly<{ [fieldName: string ]: ContentFieldData }>;
+
+export type BulkUpdateDto =
+    Readonly<{ jobs: ReadonlyArray<BulkUpdateJobDto>; doNotScript?: boolean; checkReferrers?: boolean }>;
+
+export type BulkUpdateJobDto =
+    Readonly<{ id: string; type: BulkUpdateType; status?: string; schema?: string; dueTime?: string | null; expectedVersion?: number }>;
+
+export type ContentQueryDto =
+    Readonly<{ ids?: ReadonlyArray<string>; maxLength?: number; query?: Query; skip?: number; take?: number }>;
 
 @Injectable()
 export class ContentsService {
     constructor(
         private readonly http: HttpClient,
         private readonly apiUrl: ApiUrlConfig,
-        private readonly analytics: AnalyticsService
+        private readonly analytics: AnalyticsService,
     ) {
     }
 
     public getContents(appName: string, schemaName: string, q?: ContentQueryDto): Observable<ContentsDto> {
-        const { ids, maxLength, query, skip, take } = q || {};
+        const { ids, maxLength } = q || {};
 
-        const queryParts: string[] = [];
-        const queryOdataParts: string[] = [];
-
-        let queryObj: Query | undefined;
-
-        if (ids && ids.length > 0) {
-            queryParts.push(`ids=${ids.join(',')}`);
-        } else {
-
-            if (query && query.fullText && query.fullText.indexOf('$') >= 0) {
-                queryOdataParts.push(`${query.fullText.trim()}`);
-
-                if (take && take > 0) {
-                    queryOdataParts.push(`$top=${take}`);
-                }
-
-                if (skip && skip > 0) {
-                    queryOdataParts.push(`$skip=${skip}`);
-                }
-            } else {
-                queryObj = { ...query };
-
-                if (take && take > 0) {
-                    queryObj.take = take;
-                }
-
-                if (skip && skip > 0) {
-                    queryObj.skip = skip;
-                }
-
-                queryParts.push(`q=${encodeQuery(queryObj)}`);
-            }
-        }
-
-        let fullQuery = [...queryParts, ...queryOdataParts].join('&');
+        const { fullQuery, odataParts: queryOdataParts, queryObj } = buildQuery(q);
 
         if (fullQuery.length > (maxLength || 2000)) {
             const body: any = {};
 
             if (ids && ids.length > 0) {
                 body.ids = ids;
-            } else {
-                if (queryOdataParts.length > 0) {
-                    body.odataQuery = queryOdataParts.join('&');
-                } else if (queryObj) {
-                    body.q = queryObj;
-                }
+            } else if (queryOdataParts.length > 0) {
+                body.odataQuery = queryOdataParts.join('&');
+            } else if (queryObj) {
+                body.q = queryObj;
             }
 
             const url = this.apiUrl.buildUrl(`/api/content/${appName}/${schemaName}/query`);
 
-            return this.http.post<{ total: number, items: [], statuses: StatusInfo[] } & Resource>(url, body).pipe(
+            return this.http.post<{ total: number; items: []; statuses: StatusInfo[] } & Resource>(url, body).pipe(
                 map(({ total, items, statuses, _links }) => {
-                    const contents = items.map(x => parseContent(x));
+                    const contents = items.map(parseContent);
 
                     return new ContentsDto(statuses, total, contents, _links);
                 }),
-                pretifyError('Failed to load contents. Please reload.'));
+                pretifyError('i18n:contents.loadFailed'));
         } else {
             const url = this.apiUrl.buildUrl(`/api/content/${appName}/${schemaName}?${fullQuery}`);
 
-            return this.http.get<{ total: number, items: [], statuses: StatusInfo[] } & Resource>(url).pipe(
+            return this.http.get<{ total: number; items: []; statuses: StatusInfo[] } & Resource>(url).pipe(
                 map(({ total, items, statuses, _links }) => {
-                    const contents = items.map(x => parseContent(x));
+                    const contents = items.map(parseContent);
 
                     return new ContentsDto(statuses, total, contents, _links);
                 }),
-                pretifyError('Failed to load contents. Please reload.'));
+                pretifyError('i18n:contents.loadFailed'));
         }
     }
 
@@ -187,24 +181,23 @@ export class ContentsService {
 
             const url = this.apiUrl.buildUrl(`/api/content/${appName}`);
 
-            return this.http.post<{ total: number, items: [], statuses: StatusInfo[] } & Resource>(url, body).pipe(
+            return this.http.post<{ total: number; items: []; statuses: StatusInfo[] } & Resource>(url, body).pipe(
                 map(({ total, items, statuses, _links }) => {
-                    const contents = items.map(x => parseContent(x));
+                    const contents = items.map(parseContent);
 
                     return new ContentsDto(statuses, total, contents, _links);
                 }),
-                pretifyError('Failed to load contents. Please reload.'));
-
+                pretifyError('i18n:contents.loadFailed'));
         } else {
             const url = this.apiUrl.buildUrl(`/api/content/${appName}?${fullQuery}`);
 
-            return this.http.get<{ total: number, items: [], statuses: StatusInfo[] } & Resource>(url).pipe(
+            return this.http.get<{ total: number; items: []; statuses: StatusInfo[] } & Resource>(url).pipe(
                 map(({ total, items, statuses, _links }) => {
-                    const contents = items.map(x => parseContent(x));
+                    const contents = items.map(parseContent);
 
                     return new ContentsDto(statuses, total, contents, _links);
                 }),
-                pretifyError('Failed to load contents. Please reload.'));
+                pretifyError('i18n:contents.loadFailed'));
         }
     }
 
@@ -215,7 +208,35 @@ export class ContentsService {
             map(({ payload }) => {
                 return parseContent(payload.body);
             }),
-            pretifyError('Failed to load content. Please reload.'));
+            pretifyError('i18n:contents.loadContentFailed'));
+    }
+
+    public getContentReferences(appName: string, schemaName: string, id: string, q?: ContentQueryDto): Observable<ContentsDto> {
+        const { fullQuery } = buildQuery(q);
+
+        const url = this.apiUrl.buildUrl(`/api/content/${appName}/${schemaName}/${id}/references?${fullQuery}`);
+
+        return this.http.get<{ total: number; items: []; statuses: StatusInfo[] } & Resource>(url).pipe(
+            map(({ total, items, statuses, _links }) => {
+                const contents = items.map(parseContent);
+
+                return new ContentsDto(statuses, total, contents, _links);
+            }),
+            pretifyError('i18n:contents.loadFailed'));
+    }
+
+    public getContentReferencing(appName: string, schemaName: string, id: string, q?: ContentQueryDto): Observable<ContentsDto> {
+        const { fullQuery } = buildQuery(q);
+
+        const url = this.apiUrl.buildUrl(`/api/content/${appName}/${schemaName}/${id}/referencing?${fullQuery}`);
+
+        return this.http.get<{ total: number; items: []; statuses: StatusInfo[] } & Resource>(url).pipe(
+            map(({ total, items, statuses, _links }) => {
+                const contents = items.map(parseContent);
+
+                return new ContentsDto(statuses, total, contents, _links);
+            }),
+            pretifyError('i18n:contents.loadFailed'));
     }
 
     public getVersionData(appName: string, schemaName: string, id: string, version: Version): Observable<Versioned<any>> {
@@ -225,7 +246,7 @@ export class ContentsService {
             mapVersioned(({ body }) => {
                 return body;
             }),
-            pretifyError('Failed to load data. Please reload.'));
+            pretifyError('i18n:contents.loadDataFailed'));
     }
 
     public postContent(appName: string, schemaName: string, dto: any, publish: boolean): Observable<ContentDto> {
@@ -238,7 +259,7 @@ export class ContentsService {
             tap(() => {
                 this.analytics.trackEvent('Content', 'Created', appName);
             }),
-            pretifyError('Failed to create content. Please reload.'));
+            pretifyError('i18n:contents.createFailed'));
     }
 
     public putContent(appName: string, resource: Resource, dto: any, version: Version): Observable<ContentDto> {
@@ -253,7 +274,7 @@ export class ContentsService {
             tap(() => {
                 this.analytics.trackEvent('Content', 'Updated', appName);
             }),
-            pretifyError('Failed to update content. Please reload.'));
+            pretifyError('i18n:contents.updateFailed'));
     }
 
     public patchContent(appName: string, resource: Resource, dto: any, version: Version): Observable<ContentDto> {
@@ -268,7 +289,7 @@ export class ContentsService {
             tap(() => {
                 this.analytics.trackEvent('Content', 'Updated', appName);
             }),
-            pretifyError('Failed to update content. Please reload.'));
+            pretifyError('i18n:contents.updateFailed'));
     }
 
     public createVersion(appName: string, resource: Resource, version: Version): Observable<ContentDto> {
@@ -283,7 +304,7 @@ export class ContentsService {
             tap(() => {
                 this.analytics.trackEvent('Content', 'VersioNCreated', appName);
             }),
-            pretifyError('Failed to version a new version. Please reload.'));
+            pretifyError('i18n:contents.loadVersionFailed'));
     }
 
     public deleteVersion(appName: string, resource: Resource, version: Version): Observable<ContentDto> {
@@ -298,53 +319,78 @@ export class ContentsService {
             tap(() => {
                 this.analytics.trackEvent('Content', 'VersionDeleted', appName);
             }),
-            pretifyError('Failed to delete version. Please reload.'));
+            pretifyError('i18n:contents.deleteVersionFailed'));
     }
 
-    public putStatus(appName: string, resource: Resource, status: string, dueTime: string | null, version: Version): Observable<ContentDto> {
-        const link = resource._links[`status/${status}`];
+    public bulkUpdate(appName: string, schemaName: string, dto: BulkUpdateDto): Observable<ReadonlyArray<BulkResultDto>> {
+        const url = this.apiUrl.buildUrl(`/api/content/${appName}/${schemaName}/bulk`);
 
-        const url = this.apiUrl.buildUrl(link.href);
-
-        return HTTP.requestVersioned(this.http, link.method, url, version, { status, dueTime }).pipe(
-            map(({ payload }) => {
-                return parseContent(payload.body);
+        return this.http.post<any[]>(url, dto).pipe(
+            map(body => {
+                return body.map(x => new BulkResultDto(x.contentId, parseError(x.error)));
             }),
-            tap(() => {
-                this.analytics.trackEvent('Content', 'Archived', appName);
-            }),
-            pretifyError(`Failed to ${status} content. Please reload.`));
-    }
-
-    public deleteContent(appName: string, resource: Resource, version: Version): Observable<Versioned<any>> {
-        const link = resource._links['delete'];
-
-        const url = this.apiUrl.buildUrl(link.href);
-
-        return HTTP.requestVersioned(this.http, link.method, url, version).pipe(
             tap(() => {
                 this.analytics.trackEvent('Content', 'Deleted', appName);
             }),
-            pretifyError('Failed to delete content. Please reload.'));
+            pretifyError('i18n:contents.bulkFailed'));
     }
+}
+
+function buildQuery(q?: ContentQueryDto) {
+    const { ids, query, skip, take } = q || {};
+
+    const queryParts: string[] = [];
+    const odataParts: string[] = [];
+
+    let queryObj: Query | undefined;
+
+    if (ids && ids.length > 0) {
+        queryParts.push(`ids=${ids.join(',')}`);
+    } else if (query && query.fullText && query.fullText.indexOf('$') >= 0) {
+        odataParts.push(`${query.fullText.trim()}`);
+
+        if (take && take > 0) {
+            odataParts.push(`$top=${take}`);
+        }
+
+        if (skip && skip > 0) {
+            odataParts.push(`$skip=${skip}`);
+        }
+    } else {
+        queryObj = { ...query };
+
+        if (take && take > 0) {
+            queryObj.take = take;
+        }
+
+        if (skip && skip > 0) {
+            queryObj.skip = skip;
+        }
+
+        queryParts.push(`q=${encodeQuery(queryObj)}`);
+    }
+
+    const fullQuery = [...queryParts, ...odataParts].join('&');
+
+    return { fullQuery, odataParts, queryObj };
 }
 
 function parseContent(response: any) {
     return new ContentDto(response._links,
         response.id,
+        DateTime.parseISO(response.created), response.createdBy,
+        DateTime.parseISO(response.lastModified), response.lastModifiedBy,
+        new Version(response.version.toString()),
         response.status,
         response.statusColor,
         response.newStatus,
         response.newStatusColor,
-        DateTime.parseISO(response.created), response.createdBy,
-        DateTime.parseISO(response.lastModified), response.lastModifiedBy,
         parseScheduleJob(response.scheduleJob),
         response.data,
         response.schemaName,
         response.schemaDisplayName,
         response.referenceData,
-        response.referenceFields.map((item: any) => parseField(item)),
-        new Version(response.version.toString()));
+        response.referenceFields.map(parseField));
 }
 
 function parseScheduleJob(response: any) {
@@ -357,4 +403,16 @@ function parseScheduleJob(response: any) {
         response.scheduledBy,
         response.color,
         DateTime.parseISO(response.dueTime));
+}
+
+function parseError(response: any) {
+    if (!response) {
+        return undefined;
+    }
+
+    return new ErrorDto(
+        response.statusCode,
+        response.message,
+        response.errorCode,
+        response.details);
 }

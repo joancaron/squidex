@@ -5,19 +5,19 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { Component, Input, OnInit } from '@angular/core';
-import { FormControl, FormGroup } from '@angular/forms';
-import { BooleanFieldPropertiesDto, FieldDto, hasNoValue$ } from '@app/shared';
+import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
+import { FormGroup } from '@angular/forms';
+import { BooleanFieldPropertiesDto, FieldDto, hasNoValue$, LanguageDto } from '@app/shared';
 import { Observable } from 'rxjs';
 
 @Component({
     selector: 'sqx-boolean-validation',
     styleUrls: ['boolean-validation.component.scss'],
-    templateUrl: 'boolean-validation.component.html'
+    templateUrl: 'boolean-validation.component.html',
 })
-export class BooleanValidationComponent implements OnInit {
+export class BooleanValidationComponent implements OnChanges {
     @Input()
-    public editForm: FormGroup;
+    public fieldForm: FormGroup;
 
     @Input()
     public field: FieldDto;
@@ -25,16 +25,18 @@ export class BooleanValidationComponent implements OnInit {
     @Input()
     public properties: BooleanFieldPropertiesDto;
 
+    @Input()
+    public languages: ReadonlyArray<LanguageDto>;
+
+    @Input()
+    public isLocalizable?: boolean | null;
+
     public showDefaultValue: Observable<boolean>;
 
-    public ngOnInit() {
-        this.editForm.setControl('defaultValue',
-            new FormControl(this.properties.defaultValue));
-
-        this.editForm.setControl('inlineEditable',
-            new FormControl(this.properties.inlineEditable));
-
-        this.showDefaultValue =
-            hasNoValue$(this.editForm.controls['isRequired']);
+    public ngOnChanges(changes: SimpleChanges) {
+        if (changes['fieldForm']) {
+            this.showDefaultValue =
+                hasNoValue$(this.fieldForm.controls['isRequired']);
+        }
     }
 }

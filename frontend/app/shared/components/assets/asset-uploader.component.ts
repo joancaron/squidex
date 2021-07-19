@@ -13,9 +13,9 @@ import { AppsState, AssetsState, AssetUploaderState, fadeAnimation, ModalModel, 
     styleUrls: ['./asset-uploader.component.scss'],
     templateUrl: './asset-uploader.component.html',
     animations: [
-        fadeAnimation
+        fadeAnimation,
     ],
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AssetUploaderComponent {
     public modalMenu = new ModalModel();
@@ -23,7 +23,7 @@ export class AssetUploaderComponent {
     constructor(
         public readonly appsState: AppsState,
         public readonly assetUploader: AssetUploaderState,
-        public readonly assetsState: AssetsState
+        public readonly assetsState: AssetsState,
     ) {
     }
 
@@ -39,7 +39,7 @@ export class AssetUploaderComponent {
         this.assetUploader.stopUpload(upload);
     }
 
-    public trackByUpload(index: number, upload: Upload) {
+    public trackByUpload(_index: number, upload: Upload) {
         return upload.id;
     }
 }

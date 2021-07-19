@@ -1,19 +1,20 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Squidex.Domain.Apps.Core.TestHelpers;
 using Squidex.Domain.Apps.Core.ValidateContent.Validators;
 using Xunit;
 
 namespace Squidex.Domain.Apps.Core.Operations.ValidateContent.Validators
 {
-    public class PatternValidatorTests
+    public class PatternValidatorTests : IClassFixture<TranslationsFixture>
     {
         private readonly List<string> errors = new List<string>();
 
@@ -55,7 +56,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ValidateContent.Validators
             await sut.ValidateAsync("foo", errors);
 
             errors.Should().BeEquivalentTo(
-                new[] { "Does not match to the pattern." });
+                new[] { "Must follow the pattern." });
         }
 
         [Fact]
@@ -70,7 +71,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ValidateContent.Validators
         }
 
         [Fact]
-        public async Task Should_add_timeout_error_when_regex_is_too_slow()
+        public async Task Should_add_timeout_error_if_regex_is_too_slow()
         {
             var sut = new PatternValidator(@"^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$");
 

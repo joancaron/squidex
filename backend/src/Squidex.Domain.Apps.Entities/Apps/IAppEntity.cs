@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -30,11 +30,11 @@ namespace Squidex.Domain.Apps.Entities.Apps
 
         AppClients Clients { get; }
 
-        AppPatterns Patterns { get; }
+        AppSettings Settings { get; }
 
         AppContributors Contributors { get; }
 
-        LanguagesConfig LanguagesConfig { get; }
+        LanguagesConfig Languages { get; }
 
         Workflows Workflows { get; }
 

@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -12,6 +12,11 @@ namespace Squidex.Areas.Api.Controllers.Schemas.Models.Fields
 {
     public sealed class BooleanFieldPropertiesDto : FieldPropertiesDto
     {
+        /// <summary>
+        /// The language specific default value for the field value.
+        /// </summary>
+        public LocalizedValue<bool?> DefaultValues { get; set; }
+
         /// <summary>
         /// The default value for the field value.
         /// </summary>

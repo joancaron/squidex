@@ -1,11 +1,12 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System.Linq;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
 using Squidex.Infrastructure;
@@ -36,7 +37,7 @@ namespace Squidex.Areas.Api.Controllers.Languages
         /// </returns>
         [HttpGet]
         [Route("languages/")]
-        [ProducesResponseType(typeof(LanguageDto[]), 200)]
+        [ProducesResponseType(typeof(LanguageDto[]), StatusCodes.Status200OK)]
         [ApiPermission]
         public IActionResult GetLanguages()
         {

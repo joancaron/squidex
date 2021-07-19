@@ -19,7 +19,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
         {
             var field = Fields.Array(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(null, field);
+            var formatted = StringFormatter.Format(field, null);
 
             Assert.Empty(formatted);
         }
@@ -29,7 +29,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
         {
             var field = Fields.Array(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(JsonValue.Null, field);
+            var formatted = StringFormatter.Format(field, JsonValue.Null);
 
             Assert.Empty(formatted);
         }
@@ -41,7 +41,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.Array(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Equal("0 Items", formatted);
         }
@@ -53,7 +53,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.Array(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Equal("1 Item", formatted);
         }
@@ -65,7 +65,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.Array(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Equal("2 Items", formatted);
         }
@@ -77,7 +77,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.Array(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Equal("0 Items", formatted);
         }
@@ -89,7 +89,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.Assets(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Equal("0 Assets", formatted);
         }
@@ -101,7 +101,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.Assets(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Equal("1 Asset", formatted);
         }
@@ -113,7 +113,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.Assets(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Equal("2 Assets", formatted);
         }
@@ -125,7 +125,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.Assets(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Equal("0 Assets", formatted);
         }
@@ -137,7 +137,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.Boolean(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Equal("Yes", formatted);
         }
@@ -149,7 +149,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.Boolean(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Equal("No", formatted);
         }
@@ -161,9 +161,57 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.Boolean(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Equal("No", formatted);
+        }
+
+        [Fact]
+        public void Should_format_component_field()
+        {
+            var value = JsonValue.Object();
+
+            var field = Fields.Component(1, "field", Partitioning.Invariant);
+
+            var formatted = StringFormatter.Format(field, value);
+
+            Assert.Equal("{ Component }", formatted);
+        }
+
+        [Fact]
+        public void Should_format_components_field_without_items()
+        {
+            var value = JsonValue.Array();
+
+            var field = Fields.Components(1, "field", Partitioning.Invariant);
+
+            var formatted = StringFormatter.Format(field, value);
+
+            Assert.Equal("0 Components", formatted);
+        }
+
+        [Fact]
+        public void Should_format_components_field_with_single_item()
+        {
+            var value = JsonValue.Array(JsonValue.Object());
+
+            var field = Fields.Components(1, "field", Partitioning.Invariant);
+
+            var formatted = StringFormatter.Format(field, value);
+
+            Assert.Equal("1 Component", formatted);
+        }
+
+        [Fact]
+        public void Should_format_components_field_with_multiple_items()
+        {
+            var value = JsonValue.Array(JsonValue.Object(), JsonValue.Object());
+
+            var field = Fields.Components(1, "field", Partitioning.Invariant);
+
+            var formatted = StringFormatter.Format(field, value);
+
+            Assert.Equal("2 Components", formatted);
         }
 
         [Fact]
@@ -173,7 +221,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.DateTime(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Equal("2019-01-19T12:00:00Z", formatted);
         }
@@ -185,7 +233,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.Geolocation(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Equal("18.9, 10.9", formatted);
         }
@@ -197,7 +245,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.Geolocation(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Empty(formatted);
         }
@@ -209,7 +257,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.Geolocation(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Empty(formatted);
         }
@@ -221,7 +269,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.Json(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Equal("<Json />", formatted);
         }
@@ -233,7 +281,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.Number(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Equal("123", formatted);
         }
@@ -245,7 +293,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.References(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Equal("0 References", formatted);
         }
@@ -257,7 +305,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.References(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Equal("1 Reference", formatted);
         }
@@ -269,7 +317,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.References(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Equal("2 References", formatted);
         }
@@ -281,7 +329,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.References(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Equal("0 References", formatted);
         }
@@ -293,7 +341,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.String(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Equal("hello", formatted);
         }
@@ -305,7 +353,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.String(1, "field", Partitioning.Invariant, new StringFieldProperties { Editor = StringFieldEditor.StockPhoto });
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Equal("[Photo]", formatted);
         }
@@ -317,7 +365,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.Tags(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Equal("hello, squidex, and, team", formatted);
         }
@@ -329,7 +377,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ConvertContent
 
             var field = Fields.Tags(1, "field", Partitioning.Invariant);
 
-            var formatted = StringFormatter.Format(value, field);
+            var formatted = StringFormatter.Format(field, value);
 
             Assert.Empty(formatted);
         }

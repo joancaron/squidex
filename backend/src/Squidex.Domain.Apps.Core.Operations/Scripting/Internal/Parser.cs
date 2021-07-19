@@ -15,40 +15,31 @@ namespace Squidex.Domain.Apps.Core.Scripting.Internal
 {
     internal sealed class Parser
     {
-        private static readonly TimeSpan Expiration = TimeSpan.FromMinutes(10);
+        private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(10);
         private static readonly ParserOptions DefaultParserOptions = new ParserOptions
         {
             AdaptRegexp = true, Tolerant = true, Loc = true
         };
 
-        private readonly IMemoryCache memoryCache;
+        private readonly IMemoryCache cache;
 
-        public Parser(IMemoryCache memoryCache)
+        public Parser(IMemoryCache cache)
         {
-            Guard.NotNull(memoryCache, nameof(memoryCache));
-
-            this.memoryCache = memoryCache;
+            this.cache = cache;
         }
 
-        public Program Parse(string script)
+        public Script Parse(string script)
         {
-            var key = Key(script);
+            var cacheKey = $"{typeof(Parser)}_Script_{script}";
 
-            if (!memoryCache.TryGetValue<Program>(key, out var program))
+            return cache.GetOrCreate(cacheKey, entry =>
             {
+                entry.AbsoluteExpirationRelativeToNow = CacheDuration;
+
                 var parser = new JavaScriptParser(script, DefaultParserOptions);
 
-                program = parser.ParseProgram();
-
-                memoryCache.Set(key, program, Expiration);
-            }
-
-            return program;
-        }
-
-        private static string Key(string script)
-        {
-            return $"SCRIPT_{script}";
+                return parser.ParseScript();
+            });
         }
     }
 }

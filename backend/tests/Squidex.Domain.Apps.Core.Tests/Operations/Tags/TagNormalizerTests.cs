@@ -5,7 +5,6 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using FakeItEasy;
@@ -13,6 +12,7 @@ using Squidex.Domain.Apps.Core.Contents;
 using Squidex.Domain.Apps.Core.Schemas;
 using Squidex.Domain.Apps.Core.Tags;
 using Squidex.Domain.Apps.Core.TestHelpers;
+using Squidex.Infrastructure;
 using Squidex.Infrastructure.Json.Objects;
 using Xunit;
 
@@ -21,8 +21,8 @@ namespace Squidex.Domain.Apps.Core.Operations.Tags
     public class TagNormalizerTests
     {
         private readonly ITagService tagService = A.Fake<ITagService>();
-        private readonly Guid appId = Guid.NewGuid();
-        private readonly Guid schemaId = Guid.NewGuid();
+        private readonly DomainId appId = DomainId.NewGuid();
+        private readonly DomainId schemaId = DomainId.NewGuid();
         private readonly Schema schema;
 
         public TagNormalizerTests()
@@ -102,7 +102,7 @@ namespace Squidex.Domain.Apps.Core.Operations.Tags
             Assert.Equal(JsonValue.Array("name4"), GetNestedTags(newData));
         }
 
-        private static IJsonValue GetNestedTags(NamedContentData newData)
+        private static IJsonValue GetNestedTags(ContentData newData)
         {
             var array = (JsonArray)newData["array"]!["iv"];
             var arrayItem = (JsonObject)array[0];
@@ -110,21 +110,21 @@ namespace Squidex.Domain.Apps.Core.Operations.Tags
             return arrayItem["nestedTags2"];
         }
 
-        private static NamedContentData GenerateData(string prefix)
+        private static ContentData GenerateData(string prefix)
         {
-            return new NamedContentData()
+            return new ContentData()
                 .AddField("tags1",
                     new ContentFieldData()
-                        .AddJsonValue(JsonValue.Array($"{prefix}1")))
+                        .AddInvariant(JsonValue.Array($"{prefix}1")))
                 .AddField("tags2",
                     new ContentFieldData()
-                        .AddJsonValue(JsonValue.Array($"{prefix}2_1", $"{prefix}2_2")))
+                        .AddInvariant(JsonValue.Array($"{prefix}2_1", $"{prefix}2_2")))
                 .AddField("string",
                     new ContentFieldData()
-                        .AddValue("iv", $"{prefix}stringValue"))
+                        .AddInvariant($"{prefix}stringValue"))
                 .AddField("array",
                     new ContentFieldData()
-                        .AddJsonValue(
+                        .AddInvariant(
                             JsonValue.Array(
                                 JsonValue.Object()
                                     .Add("nestedTags1", JsonValue.Array($"{prefix}3"))

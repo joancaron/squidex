@@ -5,10 +5,10 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Threading.Tasks;
 using FakeItEasy;
 using Orleans;
+using Squidex.Domain.Apps.Entities.Assets.DomainObject;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Orleans;
 using Xunit;
@@ -19,46 +19,49 @@ namespace Squidex.Domain.Apps.Entities.Assets.Queries
     {
         private readonly IGrainFactory grainFactory = A.Fake<IGrainFactory>();
         private readonly IAssetGrain grain = A.Fake<IAssetGrain>();
-        private readonly Guid id = Guid.NewGuid();
+        private readonly DomainId appId = DomainId.NewGuid();
+        private readonly DomainId id = DomainId.NewGuid();
         private readonly AssetLoader sut;
 
         public AssetLoaderTests()
         {
-            A.CallTo(() => grainFactory.GetGrain<IAssetGrain>(id, null))
+            var key = DomainId.Combine(appId, id).ToString();
+
+            A.CallTo(() => grainFactory.GetGrain<IAssetGrain>(key, null))
                 .Returns(grain);
 
             sut = new AssetLoader(grainFactory);
         }
 
         [Fact]
-        public async Task Should_throw_exception_if_no_state_returned()
+        public async Task Should_return_null_if_no_state_returned()
         {
             A.CallTo(() => grain.GetStateAsync(10))
                 .Returns(J.Of<IAssetEntity>(null!));
 
-            await Assert.ThrowsAsync<DomainObjectNotFoundException>(() => sut.GetAsync(id, 10));
+            Assert.Null(await sut.GetAsync(appId, id, 10));
         }
 
         [Fact]
-        public async Task Should_throw_exception_if_state_empty()
+        public async Task Should_return_null_if_state_empty()
         {
             var content = new AssetEntity { Version = EtagVersion.Empty };
 
             A.CallTo(() => grain.GetStateAsync(10))
                 .Returns(J.Of<IAssetEntity>(content));
 
-            await Assert.ThrowsAsync<DomainObjectNotFoundException>(() => sut.GetAsync(id, 10));
+            Assert.Null(await sut.GetAsync(appId, id, 10));
         }
 
         [Fact]
-        public async Task Should_throw_exception_if_state_has_other_version()
+        public async Task Should_return_null_if_state_has_other_version()
         {
             var content = new AssetEntity { Version = 5 };
 
             A.CallTo(() => grain.GetStateAsync(10))
                 .Returns(J.Of<IAssetEntity>(content));
 
-            await Assert.ThrowsAsync<DomainObjectNotFoundException>(() => sut.GetAsync(id, 10));
+            Assert.Null(await sut.GetAsync(appId, id, 10));
         }
 
         [Fact]
@@ -69,7 +72,7 @@ namespace Squidex.Domain.Apps.Entities.Assets.Queries
             A.CallTo(() => grain.GetStateAsync(10))
                 .Returns(J.Of<IAssetEntity>(content));
 
-            var result = await sut.GetAsync(id, 10);
+            var result = await sut.GetAsync(appId, id, 10);
 
             Assert.Same(content, result);
         }

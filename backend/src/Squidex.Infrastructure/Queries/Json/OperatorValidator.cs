@@ -7,6 +7,7 @@
 
 using System.Linq;
 using NJsonSchema;
+using Squidex.Infrastructure.Json;
 
 namespace Squidex.Infrastructure.Queries.Json
 {
@@ -15,12 +16,14 @@ namespace Squidex.Infrastructure.Queries.Json
         private static readonly CompareOperator[] BooleanOperators =
         {
             CompareOperator.Equals,
+            CompareOperator.Exists,
             CompareOperator.In,
             CompareOperator.NotEquals
         };
         private static readonly CompareOperator[] NumberOperators =
         {
             CompareOperator.Equals,
+            CompareOperator.Exists,
             CompareOperator.LessThan,
             CompareOperator.LessThanOrEqual,
             CompareOperator.GreaterThan,
@@ -32,6 +35,7 @@ namespace Squidex.Infrastructure.Queries.Json
         {
             CompareOperator.Contains,
             CompareOperator.Empty,
+            CompareOperator.Exists,
             CompareOperator.EndsWith,
             CompareOperator.Equals,
             CompareOperator.GreaterThan,
@@ -39,15 +43,22 @@ namespace Squidex.Infrastructure.Queries.Json
             CompareOperator.In,
             CompareOperator.LessThan,
             CompareOperator.LessThanOrEqual,
+            CompareOperator.Matchs,
             CompareOperator.NotEquals,
             CompareOperator.StartsWith
         };
         private static readonly CompareOperator[] ArrayOperators =
         {
             CompareOperator.Empty,
+            CompareOperator.Exists,
             CompareOperator.Equals,
             CompareOperator.In,
             CompareOperator.NotEquals
+        };
+        private static readonly CompareOperator[] GeoOperators =
+        {
+            CompareOperator.LessThan,
+            CompareOperator.Exists,
         };
 
         public static bool IsAllowedOperator(JsonSchema schema, CompareOperator compareOperator)
@@ -59,12 +70,15 @@ namespace Squidex.Infrastructure.Queries.Json
                 case JsonObjectType.Boolean:
                     return BooleanOperators.Contains(compareOperator);
                 case JsonObjectType.Integer:
+                    return NumberOperators.Contains(compareOperator);
                 case JsonObjectType.Number:
                     return NumberOperators.Contains(compareOperator);
                 case JsonObjectType.String:
                     return StringOperators.Contains(compareOperator);
                 case JsonObjectType.Array:
                     return ArrayOperators.Contains(compareOperator);
+                case JsonObjectType.Object when schema.Format == GeoJson.Format:
+                    return GeoOperators.Contains(compareOperator);
             }
 
             return false;

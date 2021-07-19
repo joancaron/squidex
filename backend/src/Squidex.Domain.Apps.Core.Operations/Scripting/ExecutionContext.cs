@@ -9,37 +9,101 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using Jint;
+using Jint.Native;
+using Jint.Native.Object;
+using Squidex.Text;
 
 namespace Squidex.Domain.Apps.Core.Scripting
 {
-    public delegate bool ExceptionHandler(Exception exception);
-
-    public sealed class ExecutionContext : Dictionary<string, object>
+    public sealed class ExecutionContext : ScriptContext
     {
-        private readonly ExceptionHandler? exceptionHandler;
+        private Func<Exception, bool>? completion;
 
         public Engine Engine { get; }
 
-        public CancellationToken CancellationToken { get; }
+        public CancellationToken CancellationToken { get; private set; }
 
-        internal ExecutionContext(Engine engine, CancellationToken cancellationToken, ExceptionHandler? exceptionHandler = null)
-            : base(StringComparer.OrdinalIgnoreCase)
+        public bool IsAsync { get; private set; }
+
+        internal ExecutionContext(Engine engine)
         {
             Engine = engine;
+        }
 
-            CancellationToken = cancellationToken;
-
-            this.exceptionHandler = exceptionHandler;
+        public void MarkAsync()
+        {
+            IsAsync = true;
         }
 
         public void Fail(Exception exception)
         {
-            exceptionHandler?.Invoke(exception);
+            completion?.Invoke(exception);
         }
 
-        public ExecutionContext SetValue(string key, object value)
+        public ExecutionContext ExtendAsync(IEnumerable<IJintExtension> extensions, Func<Exception, bool> completion,
+            CancellationToken ct)
         {
-            this[key] = value;
+            CancellationToken = ct;
+
+            this.completion = completion;
+
+            foreach (var extension in extensions)
+            {
+                extension.ExtendAsync(this);
+            }
+
+            return this;
+        }
+
+        public ExecutionContext Extend(IEnumerable<IJintExtension> extensions)
+        {
+            foreach (var extension in extensions)
+            {
+                extension.Extend(this);
+            }
+
+            return this;
+        }
+
+        public ExecutionContext Extend(ScriptVars vars, ScriptOptions options)
+        {
+            var engine = Engine;
+
+            if (options.AsContext)
+            {
+                var contextInstance = new ObjectInstance(engine);
+
+                foreach (var (key, value) in vars)
+                {
+                    var property = key.ToCamelCase();
+
+                    if (value != null)
+                    {
+                        contextInstance.FastAddProperty(property, JsValue.FromObject(engine, value), true, true, true);
+
+                        this[property] = value;
+                    }
+                }
+
+                engine.SetValue("ctx", contextInstance);
+                engine.SetValue("context", contextInstance);
+            }
+            else
+            {
+                foreach (var (key, value) in vars)
+                {
+                    var property = key.ToCamelCase();
+
+                    if (value != null)
+                    {
+                        engine.SetValue(property, value);
+
+                        this[property] = value;
+                    }
+                }
+            }
+
+            engine.SetValue("async", true);
 
             return this;
         }

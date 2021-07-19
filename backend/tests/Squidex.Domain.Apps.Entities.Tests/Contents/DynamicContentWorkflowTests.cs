@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -17,6 +17,7 @@ using Squidex.Domain.Apps.Core.Scripting;
 using Squidex.Domain.Apps.Entities.Apps;
 using Squidex.Domain.Apps.Entities.TestHelpers;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.Collections;
 using Xunit;
 
 namespace Squidex.Domain.Apps.Entities.Contents
@@ -25,9 +26,9 @@ namespace Squidex.Domain.Apps.Entities.Contents
     {
         private readonly IAppEntity app;
         private readonly IAppProvider appProvider = A.Fake<IAppProvider>();
-        private readonly NamedId<Guid> appId = NamedId.Of(Guid.NewGuid(), "my-app");
-        private readonly NamedId<Guid> schemaId = NamedId.Of(Guid.NewGuid(), "my-schema");
-        private readonly NamedId<Guid> simpleSchemaId = NamedId.Of(Guid.NewGuid(), "my-simple-schema");
+        private readonly NamedId<DomainId> appId = NamedId.Of(DomainId.NewGuid(), "my-app");
+        private readonly NamedId<DomainId> schemaId = NamedId.Of(DomainId.NewGuid(), "my-schema");
+        private readonly NamedId<DomainId> simpleSchemaId = NamedId.Of(DomainId.NewGuid(), "my-simple-schema");
         private readonly DynamicContentWorkflow sut;
 
         private readonly Workflow workflow = new Workflow(
@@ -39,7 +40,7 @@ namespace Squidex.Domain.Apps.Entities.Contents
                         new Dictionary<Status, WorkflowTransition>
                         {
                             [Status.Draft] = WorkflowTransition.Always
-                        },
+                        }.ToImmutableDictionary(),
                         StatusColors.Archived, NoUpdate.Always),
                 [Status.Draft] =
                     new WorkflowStep(
@@ -47,7 +48,7 @@ namespace Squidex.Domain.Apps.Entities.Contents
                         {
                             [Status.Archived] = WorkflowTransition.Always,
                             [Status.Published] = WorkflowTransition.When("data.field.iv === 2", "Editor")
-                        },
+                        }.ToImmutableDictionary(),
                         StatusColors.Draft),
                 [Status.Published] =
                     new WorkflowStep(
@@ -55,9 +56,9 @@ namespace Squidex.Domain.Apps.Entities.Contents
                         {
                             [Status.Archived] = WorkflowTransition.Always,
                             [Status.Draft] = WorkflowTransition.Always
-                        },
+                        }.ToImmutableDictionary(),
                         StatusColors.Published, NoUpdate.When("data.field.iv === 2", "Owner", "Editor"))
-            });
+            }.ToImmutableDictionary());
 
         public DynamicContentWorkflowTests()
         {
@@ -72,29 +73,53 @@ namespace Squidex.Domain.Apps.Entities.Contents
                             new Dictionary<Status, WorkflowTransition>
                             {
                                 [Status.Published] = WorkflowTransition.Always
-                            },
+                            }.ToImmutableDictionary(),
                             StatusColors.Draft),
                     [Status.Published] =
                         new WorkflowStep(
                             new Dictionary<Status, WorkflowTransition>
                             {
                                 [Status.Draft] = WorkflowTransition.Always
-                            },
+                            }.ToImmutableDictionary(),
                             StatusColors.Published)
-                },
-                new List<Guid> { simpleSchemaId.Id });
+                }.ToImmutableDictionary(),
+                ImmutableList.Create(simpleSchemaId.Id));
 
-            var workflows = Workflows.Empty.Set(workflow).Set(Guid.NewGuid(), simpleWorkflow);
+            var workflows = Workflows.Empty.Set(workflow).Set(DomainId.NewGuid(), simpleWorkflow);
 
-            A.CallTo(() => appProvider.GetAppAsync(appId.Id))
+            A.CallTo(() => appProvider.GetAppAsync(appId.Id, false))
                 .Returns(app);
 
             A.CallTo(() => app.Workflows)
                 .Returns(workflows);
 
-            var memoryCache = new MemoryCache(Options.Create(new MemoryCacheOptions()));
+            var scriptEngine = new JintScriptEngine(new MemoryCache(Options.Create(new MemoryCacheOptions())))
+            {
+                TimeoutScript = TimeSpan.FromSeconds(2),
+                TimeoutExecution = TimeSpan.FromSeconds(10)
+            };
 
-            sut = new DynamicContentWorkflow(new JintScriptEngine(memoryCache), appProvider);
+            sut = new DynamicContentWorkflow(scriptEngine, appProvider);
+        }
+
+        [Fact]
+        public async Task Should_return_info_for_valid_status()
+        {
+            var content = CreateContent(Status.Draft, 2);
+
+            var info = await sut.GetInfoAsync(content, Status.Draft);
+
+            Assert.Equal(new StatusInfo(Status.Draft, StatusColors.Draft), info);
+        }
+
+        [Fact]
+        public async Task Should_return_info_as_null_for_invalid_status()
+        {
+            var content = CreateContent(Status.Draft, 2);
+
+            var info = await sut.GetInfoAsync(content, new Status("Invalid"));
+
+            Assert.Null(info);
         }
 
         [Fact]
@@ -136,7 +161,17 @@ namespace Squidex.Domain.Apps.Entities.Contents
         }
 
         [Fact]
-        public async Task Should_check_is_valid_next()
+        public async Task Should_allow_if_transition_is_valid()
+        {
+            var content = CreateContent(Status.Draft, 2);
+
+            var result = await sut.CanMoveToAsync(Mocks.Schema(appId, schemaId), content.Status, Status.Published, content.Data, Mocks.FrontendUser("Editor"));
+
+            Assert.True(result);
+        }
+
+        [Fact]
+        public async Task Should_allow_if_transition_is_valid_for_content()
         {
             var content = CreateContent(Status.Draft, 2);
 
@@ -352,7 +387,7 @@ namespace Squidex.Domain.Apps.Entities.Contents
         }
 
         [Fact]
-        public async Task Should_return_all_statuses_for_default_workflow_when_no_workflow_configured()
+        public async Task Should_return_all_statuses_for_default_workflow_if_no_workflow_configured()
         {
             A.CallTo(() => app.Workflows).Returns(Workflows.Empty);
 
@@ -382,10 +417,10 @@ namespace Squidex.Domain.Apps.Entities.Contents
             }
 
             content.Data =
-                new NamedContentData()
+                new ContentData()
                     .AddField("field",
                         new ContentFieldData()
-                            .AddValue("iv", value));
+                            .AddInvariant(value));
 
             return content;
         }

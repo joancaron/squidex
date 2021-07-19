@@ -13,6 +13,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Squidex.Domain.Apps.Core.HandleRules;
 using Squidex.Domain.Apps.Core.Rules.EnrichedEvents;
+using Squidex.Domain.Apps.Core.Scripting;
 
 #pragma warning disable IDE0059 // Value assigned to symbol is never used
 
@@ -21,8 +22,9 @@ namespace Squidex.Extensions.Actions.Algolia
     public sealed class AlgoliaActionHandler : RuleActionHandler<AlgoliaAction, AlgoliaJob>
     {
         private readonly ClientPool<(string AppId, string ApiKey, string IndexName), ISearchIndex> clients;
+        private readonly IScriptEngine scriptEngine;
 
-        public AlgoliaActionHandler(RuleEventFormatter formatter)
+        public AlgoliaActionHandler(RuleEventFormatter formatter, IScriptEngine scriptEngine)
             : base(formatter)
         {
             clients = new ClientPool<(string AppId, string ApiKey, string IndexName), ISearchIndex>(key =>
@@ -31,13 +33,17 @@ namespace Squidex.Extensions.Actions.Algolia
 
                 return client.InitIndex(key.IndexName);
             });
+
+            this.scriptEngine = scriptEngine;
         }
 
-        protected override (string Description, AlgoliaJob Data) CreateJob(EnrichedEvent @event, AlgoliaAction action)
+        protected override async Task<(string Description, AlgoliaJob Data)> CreateJobAsync(EnrichedEvent @event, AlgoliaAction action)
         {
-            if (@event is EnrichedContentEvent contentEvent)
+            if (@event is IEnrichedEntityEvent entityEvent)
             {
-                var contentId = contentEvent.Id.ToString();
+                var delete = @event.ShouldDelete(scriptEngine, action.Delete);
+
+                var contentId = entityEvent.Id.ToString();
 
                 var ruleDescription = string.Empty;
                 var ruleJob = new AlgoliaJob
@@ -45,11 +51,10 @@ namespace Squidex.Extensions.Actions.Algolia
                     AppId = action.AppId,
                     ApiKey = action.ApiKey,
                     ContentId = contentId,
-                    IndexName = Format(action.IndexName, @event)
+                    IndexName = await FormatAsync(action.IndexName, @event)
                 };
 
-                if (contentEvent.Type == EnrichedContentEventType.Deleted ||
-                    contentEvent.Type == EnrichedContentEventType.Unpublished)
+                if (delete)
                 {
                     ruleDescription = $"Delete entry from Algolia index: {action.IndexName}";
                 }
@@ -64,11 +69,12 @@ namespace Squidex.Extensions.Actions.Algolia
 
                         if (!string.IsNullOrEmpty(action.Document))
                         {
-                            jsonString = Format(action.Document, @event)?.Trim();
+                            jsonString = await FormatAsync(action.Document, @event);
+                            jsonString = jsonString?.Trim();
                         }
                         else
                         {
-                            jsonString = ToJson(contentEvent);
+                            jsonString = ToJson(@event);
                         }
 
                         json = JObject.Parse(jsonString);
@@ -78,8 +84,9 @@ namespace Squidex.Extensions.Actions.Algolia
                         json = new JObject(new JProperty("error", $"Invalid JSON: {ex.Message}"));
                     }
 
-                    ruleJob.Content = json;
-                    ruleJob.Content["objectID"] = contentId;
+                    json["objectID"] = contentId;
+
+                    ruleJob.Content = json.ToString();
                 }
 
                 return (ruleDescription, ruleJob);
@@ -95,13 +102,13 @@ namespace Squidex.Extensions.Actions.Algolia
                 return Result.Ignored();
             }
 
-            var index = clients.GetClient((job.AppId, job.ApiKey, job.IndexName));
+            var index = await clients.GetClientAsync((job.AppId, job.ApiKey, job.IndexName));
 
             try
             {
                 if (job.Content != null)
                 {
-                    var response = await index.PartialUpdateObjectAsync(job.Content, null, ct, true);
+                    var response = await index.SaveObjectAsync(job.Content, null, ct, true);
 
                     return Result.Success(JsonConvert.SerializeObject(response, Formatting.Indented));
                 }
@@ -129,6 +136,6 @@ namespace Squidex.Extensions.Actions.Algolia
 
         public string IndexName { get; set; }
 
-        public JObject Content { get; set; }
+        public string Content { get; set; }
     }
 }

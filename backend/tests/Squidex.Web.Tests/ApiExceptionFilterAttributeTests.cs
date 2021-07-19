@@ -17,8 +17,8 @@ using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Routing;
 using Squidex.Infrastructure;
-using Squidex.Infrastructure.Log;
 using Squidex.Infrastructure.Validation;
+using Squidex.Log;
 using Xunit;
 
 namespace Squidex.Web
@@ -31,10 +31,16 @@ namespace Squidex.Web
         [Fact]
         public void Should_generate_400_for_ValidationException()
         {
-            var ex = new ValidationException("NotAllowed",
+            var errors = new List<ValidationError>
+            {
                 new ValidationError("Error1"),
-                new ValidationError("Error2", "P"),
-                new ValidationError("Error3", "P1", "P2"));
+                new ValidationError("Error2", "Property0"),
+                new ValidationError("Error3", "Property1", "Property2"),
+                new ValidationError("Error4", "Property3.Property4"),
+                new ValidationError("Error5", "Property5[0].Property6")
+            };
+
+            var ex = new ValidationException(errors);
 
             var context = Error(ex);
 
@@ -45,9 +51,14 @@ namespace Squidex.Web
             Assert.Equal(400, result.StatusCode);
             Assert.Equal(400, (result.Value as ErrorDto)?.StatusCode);
 
-            Assert.Equal(ex.Summary, ((ErrorDto)result.Value).Message);
-
-            Assert.Equal(new[] { "Error1", "P: Error2", "P1, P2: Error3" }, ((ErrorDto)result.Value).Details);
+            Assert.Equal(new[]
+            {
+                "Error1",
+                "property0: Error2",
+                "property1, property2: Error3",
+                "property3.property4: Error4",
+                "property5[0].property6: Error5"
+            }, ((ErrorDto)result.Value).Details);
 
             A.CallTo(() => log.Log(A<SemanticLogLevel>._, A<Exception?>._, A<LogFormatter>._!))
                 .MustNotHaveHappened();
@@ -56,7 +67,7 @@ namespace Squidex.Web
         [Fact]
         public void Should_generate_404_for_DomainObjectNotFoundException()
         {
-            var context = Error(new DomainObjectNotFoundException("1", typeof(object)));
+            var context = Error(new DomainObjectNotFoundException("1"));
 
             sut.OnException(context);
 
@@ -93,6 +104,19 @@ namespace Squidex.Web
         }
 
         [Fact]
+        public void Should_generate_400_for_DomainException_with_error_code()
+        {
+            var context = Error(new DomainException("NotAllowed", "ERROR_CODE_XYZ"));
+
+            sut.OnException(context);
+
+            Validate(400, context.Result, context.Exception, "ERROR_CODE_XYZ");
+
+            A.CallTo(() => log.Log(A<SemanticLogLevel>._, A<Exception?>._, A<LogFormatter>._!))
+                .MustNotHaveHappened();
+        }
+
+        [Fact]
         public void Should_generate_400_for_DecoderFallbackException()
         {
             var context = Error(new DecoderFallbackException("Decoder"));
@@ -106,13 +130,39 @@ namespace Squidex.Web
         }
 
         [Fact]
-        public void Should_generate_412_for_DomainObjectVersionException()
+        public void Should_generate_409_for_DomainObjectConflictException()
         {
-            var context = Error(new DomainObjectVersionException("1", typeof(object), 1, 2));
+            var context = Error(new DomainObjectConflictException("1"));
 
             sut.OnException(context);
 
-            Validate(412, context.Result, context.Exception);
+            Validate(409, context.Result, context.Exception, "OBJECT_CONFLICT");
+
+            A.CallTo(() => log.Log(A<SemanticLogLevel>._, A<Exception?>._, A<LogFormatter>._!))
+                .MustNotHaveHappened();
+        }
+
+        [Fact]
+        public void Should_generate_410_for_DomainObjectDeletedException()
+        {
+            var context = Error(new DomainObjectDeletedException("1"));
+
+            sut.OnException(context);
+
+            Validate(410, context.Result, context.Exception, "OBJECT_DELETED");
+
+            A.CallTo(() => log.Log(A<SemanticLogLevel>._, A<Exception?>._, A<LogFormatter>._!))
+                .MustNotHaveHappened();
+        }
+
+        [Fact]
+        public void Should_generate_412_for_DomainObjectVersionException()
+        {
+            var context = Error(new DomainObjectVersionException("1", 1, 2));
+
+            sut.OnException(context);
+
+            Validate(412, context.Result, context.Exception, "OBJECT_VERSION_CONFLICT");
 
             A.CallTo(() => log.Log(A<SemanticLogLevel>._, A<Exception?>._, A<LogFormatter>._!))
                 .MustNotHaveHappened();
@@ -125,7 +175,7 @@ namespace Squidex.Web
 
             sut.OnException(context);
 
-            Validate(403, context.Result, context.Exception);
+            Validate(403, context.Result, context.Exception, "FORBIDDEN");
 
             A.CallTo(() => log.Log(A<SemanticLogLevel>._, A<Exception?>._, A<LogFormatter>._!))
                 .MustNotHaveHappened();
@@ -172,7 +222,7 @@ namespace Squidex.Web
 
             var result = new ObjectResult(problem) { StatusCode = problem.Status };
 
-            return new ResultExecutingContext(actionContext, new List<IFilterMetadata>(), result, null);
+            return new ResultExecutingContext(actionContext, new List<IFilterMetadata>(), result, null!);
         }
 
         private ExceptionContext Error(Exception exception)
@@ -205,20 +255,21 @@ namespace Squidex.Web
             return actionContext;
         }
 
-        private static void Validate(int statusCode, IActionResult actionResult, Exception? exception)
+        private static void Validate(int statusCode, IActionResult? actionResult, Exception? exception, string? errorCode = null)
         {
-            var result = (ObjectResult)actionResult;
+            var result = actionResult as ObjectResult;
 
-            var error = (ErrorDto)result.Value;
+            var error = result?.Value as ErrorDto;
 
-            Assert.NotNull(error.Type);
+            Assert.NotNull(error?.Type);
 
-            Assert.Equal(statusCode, result.StatusCode);
-            Assert.Equal(statusCode, error.StatusCode);
+            Assert.Equal(statusCode, result?.StatusCode);
+            Assert.Equal(statusCode, error?.StatusCode);
+            Assert.Equal(errorCode, error?.ErrorCode);
 
             if (exception != null)
             {
-                Assert.Equal(exception.Message, error.Message);
+                Assert.Equal(exception.Message, error?.Message);
             }
         }
     }

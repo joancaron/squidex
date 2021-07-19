@@ -66,46 +66,50 @@ export class PlansState extends State<Snapshot> {
 
     public window = window;
 
+    public get appId() {
+        return this.appsState.appId;
+    }
+
     constructor(
         private readonly appsState: AppsState,
         private readonly authState: AuthService,
         private readonly dialogs: DialogService,
-        private readonly plansService: PlansService
+        private readonly plansService: PlansService,
     ) {
-        super({ plans: [], version: Version.EMPTY });
+        super({ plans: [], version: Version.EMPTY }, 'Plans');
     }
 
     public load(isReload = false, overridePlanId?: string): Observable<any> {
         if (!isReload) {
-            this.resetState();
+            this.resetState('Loading Initial');
         }
 
         return this.loadInternal(isReload, overridePlanId);
     }
 
     private loadInternal(isReload: boolean, overridePlanId?: string): Observable<any> {
-        this.next({ isLoading: true });
+        this.next({ isLoading: true }, 'Loading Started');
 
         return this.plansService.getPlans(this.appName).pipe(
             tap(({ version, payload }) => {
                 if (isReload) {
-                    this.dialogs.notifyInfo('Plans reloaded.');
+                    this.dialogs.notifyInfo('i18n:plans.reloaded');
                 }
 
                 const planId = overridePlanId || payload.currentPlanId;
-                const plans = payload.plans.map(x => this.createPlan(x, planId));
+                const plans = payload.plans.map(x => createPlan(x, planId));
 
                 this.next({
                     hasPortal: payload.hasPortal,
                     isLoaded: true,
                     isLoading: false,
                     isOwner: !payload.planOwner || payload.planOwner === this.userId,
-                    plans: plans,
-                    version
-                });
+                    plans,
+                    version,
+                }, 'Loading Success');
             }),
             finalize(() => {
-                this.next({ isLoading: false });
+                this.next({ isLoading: false }, 'Loading Done');
             }),
             shareSubscribed(this.dialogs));
     }
@@ -117,21 +121,13 @@ export class PlansState extends State<Snapshot> {
                     this.window.location.href = payload.redirectUri;
                 } else {
                     this.next(s => {
-                        const plans = s.plans.map(x => this.createPlan(x.plan, planId));
+                        const plans = s.plans.map(x => createPlan(x.plan, planId));
 
                         return { ...s, plans, isOwner: true, version };
-                    });
+                    }, 'Change');
                 }
             }),
             shareSubscribed(this.dialogs));
-    }
-
-    private createPlan(plan: PlanDto, id: string) {
-        return {
-            plan,
-            isSelected: plan.id === id,
-            isYearlySelected: plan.yearlyId === id
-        };
     }
 
     private get appName() {
@@ -145,4 +141,12 @@ export class PlansState extends State<Snapshot> {
     private get version() {
         return this.snapshot.version;
     }
+}
+
+function createPlan(plan: PlanDto, id: string) {
+    return {
+        plan,
+        isSelected: plan.id === id,
+        isYearlySelected: plan.yearlyId === id,
+    };
 }

@@ -5,114 +5,14 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { AbstractControl } from '@angular/forms';
 import { BehaviorSubject, combineLatest, Observable } from 'rxjs';
 import { distinctUntilChanged, map, shareReplay } from 'rxjs/operators';
-import { getRawValue } from './angular/forms/forms-helper';
-import { ErrorDto } from './utils/error';
 import { ResourceLinks } from './utils/hateos';
 import { Types } from './utils/types';
 
 export type Mutable<T> = {
     -readonly [P in keyof T ]: T[P]
 };
-
-export interface FormState {
-    submitted: boolean;
-
-    error?: ErrorDto | null;
-}
-
-export class Form<T extends AbstractControl, TOut, TIn = TOut> {
-    private readonly state = new State<FormState>({ submitted: false });
-
-    public submitted =
-        this.state.project(s => s.submitted);
-
-    public error =
-        this.state.project(s => s.error);
-
-    constructor(
-        public readonly form: T
-    ) {
-    }
-
-    public setEnabled(isEnabled: boolean) {
-        if (isEnabled) {
-            this.enable();
-        } else {
-            this.disable();
-        }
-    }
-
-    protected enable() {
-        this.form.enable();
-    }
-
-    protected disable() {
-        this.form.disable();
-    }
-
-    protected setValue(value?: Partial<TIn>) {
-        if (value) {
-            this.form.reset(this.transformLoad(value));
-        } else {
-            this.form.reset();
-        }
-    }
-
-    protected transformLoad(value: Partial<TIn>): any {
-        return value;
-    }
-
-    protected transformSubmit(value: any): TOut {
-        return value;
-    }
-
-    public load(value: Partial<TIn> | undefined) {
-        this.state.next({ submitted: false, error: null });
-
-        this.setValue(value);
-    }
-
-    public submit(): TOut | null {
-        this.state.next({ submitted: true, error: null });
-
-        if (this.form.valid) {
-            const value = this.transformSubmit(getRawValue(this.form));
-
-            if (value) {
-                this.disable();
-            }
-
-            return value;
-        } else {
-            return null;
-        }
-    }
-
-    public submitCompleted(options?: { newValue?: TOut, noReset?: boolean }) {
-        this.state.next({ submitted: false, error: null });
-
-        this.enable();
-
-        if (options && options.noReset) {
-            this.form.markAsPristine();
-        } else {
-            this.setValue(options?.newValue);
-        }
-    }
-
-    public submitFailed(error?: string | ErrorDto) {
-        if (Types.isString(error)) {
-            error = new ErrorDto(500, error);
-        }
-
-        this.state.next({ submitted: false, error });
-
-        this.enable();
-    }
-}
 
 export class Model<T> {
     public with(value: Partial<T>, validOnly = false): T {
@@ -123,7 +23,7 @@ export class Model<T> {
         let values: Partial<V>;
 
         if (Types.isFunction(update)) {
-            values = update(<any>this);
+            values = update(this as any);
         } else {
             values = update;
         }
@@ -132,7 +32,7 @@ export class Model<T> {
 
         for (const key in values) {
             if (values.hasOwnProperty(key)) {
-                let value = values[key];
+                const value = values[key];
 
                 if (value || !validOnly) {
                     clone[key] = value;
@@ -154,15 +54,57 @@ export class ResultSet<T> {
     constructor(
         public readonly total: number,
         public readonly items: ReadonlyArray<T>,
-        links?: ResourceLinks
+        links?: ResourceLinks,
     ) {
         this._links = links || {};
     }
 }
 
+export interface PagingInfo {
+    // The current page.
+    page: number;
+
+    // The current page size.
+    pageSize: number;
+
+    // The total number of items.
+    total: number;
+
+    // The current number of items.
+    count: number;
+}
+
+export function getPagingInfo<T>(state: ListState<T>, count: number) {
+    const { page, pageSize, total } = state;
+
+    return { page, pageSize, total, count };
+}
+
+export interface ListState<TQuery = any> {
+    // The total number of items.
+    total: number;
+
+    // True if currently loading.
+    isLoading?: boolean;
+
+    // True if already loaded.
+    isLoaded?: boolean;
+
+    // The current page.
+    page: number;
+
+    // The current page size.
+    pageSize: number;
+
+    // The query.
+    query?: TQuery;
+}
+
+const devToolsExtension = window['__REDUX_DEVTOOLS_EXTENSION__'];
+
 export class State<T extends {}> {
     private readonly state: BehaviorSubject<Readonly<T>>;
-    private readonly initialState: Readonly<T>;
+    private readonly devTools?: any;
 
     public get changes(): Observable<Readonly<T>> {
         return this.state;
@@ -174,48 +116,81 @@ export class State<T extends {}> {
 
     public project<M>(project: (value: T) => M, compare?: (x: M, y: M) => boolean) {
         return this.changes.pipe(
-            map(x => project(x)), distinctUntilChanged(compare), shareReplay(1));
+            map(project), distinctUntilChanged(compare), shareReplay(1));
     }
 
     public projectFrom<M, N>(source: Observable<M>, project: (value: M) => N, compare?: (x: N, y: N) => boolean) {
         return source.pipe(
-            map(x => project(x)), distinctUntilChanged(compare), shareReplay(1));
+            map(project), distinctUntilChanged(compare), shareReplay(1));
     }
 
     public projectFrom2<M, N, O>(lhs: Observable<M>, rhs: Observable<N>, project: (l: M, r: N) => O, compare?: (x: O, y: O) => boolean) {
-        return combineLatest(lhs, rhs, (x, y) => project(x, y)).pipe(
-            distinctUntilChanged(compare), shareReplay(1));
+        return combineLatest([lhs, rhs]).pipe(
+            map(([x, y]) => project(x, y)), distinctUntilChanged(compare), shareReplay(1));
     }
 
-    constructor(state: Readonly<T>) {
-        this.initialState = state;
+    constructor(
+        private readonly initialState: Readonly<T>,
+        private readonly debugName?: string,
+    ) {
+        this.state = new BehaviorSubject(initialState);
 
-        this.state = new BehaviorSubject(state);
+        if (debugName && devToolsExtension) {
+            const name = `[Squidex] ${debugName}`;
+
+            this.devTools = devToolsExtension.connect({ name, features: {} });
+            this.devTools.init(initialState);
+        }
     }
 
-    public resetState(update?: ((v: T) => Readonly<T>) | Partial<T>) {
-        let newState = this.initialState;
+    public resetState(update?: ((v: T) => Readonly<T>) | Partial<T> | string, action = 'Reset') {
+        if (Types.isString(update)) {
+            return this.updateState(this.initialState, {}, update);
+        } else {
+            return this.updateState(this.initialState, update, action);
+        }
+    }
+
+    public next(update: ((v: T) => Readonly<T>) | Partial<T>, action = 'Update') {
+        return this.updateState(this.state.value, update, action);
+    }
+
+    private updateState(state: T, update?: ((v: T) => Readonly<T>) | Partial<T>, action?: string) {
+        let newState = state;
 
         if (update) {
             if (Types.isFunction(update)) {
-                newState = update(this.initialState);
+                newState = update(state);
             } else {
-                newState = { ...this.initialState, ...update };
+                newState = { ...state, ...update };
             }
         }
 
-        this.state.next(newState);
-    }
+        let isChanged = false;
 
-    public next(update: ((v: T) => Readonly<T>) | Partial<T>) {
-        let newState: T;
+        const newKeys = Object.keys(newState);
 
-        if (Types.isFunction(update)) {
-            newState = update(this.state.value);
+        if (newKeys.length !== Object.keys(this.snapshot).length) {
+            isChanged = true;
         } else {
-            newState = { ...this.state.value, ...update };
+            for (const key of newKeys) {
+                if (newState[key] !== this.snapshot[key]) {
+                    isChanged = true;
+                    break;
+                }
+            }
         }
 
-        this.state.next(newState);
+        if (isChanged) {
+            if (action && this.devTools) {
+                const name = `[${this.debugName}] ${action}`;
+
+                this.devTools?.send(name, newState);
+            }
+
+            this.state.next(newState);
+        }
+
+        return isChanged;
     }
 }

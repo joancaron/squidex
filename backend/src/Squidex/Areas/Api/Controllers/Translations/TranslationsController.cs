@@ -6,11 +6,12 @@
 // ==========================================================================
 
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Squidex.Areas.Api.Controllers.Translations.Models;
 using Squidex.Infrastructure.Commands;
-using Squidex.Infrastructure.Translations;
 using Squidex.Shared;
+using Squidex.Text.Translations;
 using Squidex.Web;
 
 namespace Squidex.Areas.Api.Controllers.Translations
@@ -39,12 +40,12 @@ namespace Squidex.Areas.Api.Controllers.Translations
         /// </returns>
         [HttpPost]
         [Route("apps/{app}/translations/")]
-        [ProducesResponseType(typeof(TranslationDto), 200)]
-        [ApiPermission(Permissions.AppCommon)]
+        [ProducesResponseType(typeof(TranslationDto), StatusCodes.Status200OK)]
+        [ApiPermissionOrAnonymous(Permissions.AppTranslate)]
         [ApiCosts(0)]
-        public async Task<IActionResult> GetLanguages(string app, [FromBody] TranslateDto request)
+        public async Task<IActionResult> PostTranslation(string app, [FromBody] TranslateDto request)
         {
-            var result = await translator.Translate(request.Text, request.TargetLanguage, request.SourceLanguage, HttpContext.RequestAborted);
+            var result = await translator.TranslateAsync(request.Text, request.TargetLanguage, request.SourceLanguage, HttpContext.RequestAborted);
             var response = TranslationDto.FromTranslation(result);
 
             return Ok(response);

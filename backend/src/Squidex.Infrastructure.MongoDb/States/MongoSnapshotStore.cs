@@ -1,23 +1,24 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using Newtonsoft.Json;
-using Squidex.Infrastructure.Log;
 using Squidex.Infrastructure.MongoDb;
+using Squidex.Log;
 
 namespace Squidex.Infrastructure.States
 {
-    public class MongoSnapshotStore<T, TKey> : MongoRepositoryBase<MongoState<T, TKey>>, ISnapshotStore<T, TKey> where TKey : notnull
+    public class MongoSnapshotStore<T> : MongoRepositoryBase<MongoState<T>>, ISnapshotStore<T>
     {
         public MongoSnapshotStore(IMongoDatabase database, JsonSerializer jsonSerializer)
             : base(database, Register(jsonSerializer))
@@ -42,44 +43,64 @@ namespace Squidex.Infrastructure.States
             return $"States_{name}";
         }
 
-        public async Task<(T Value, long Version)> ReadAsync(TKey key)
+        public async Task<(T Value, bool Valid, long Version)> ReadAsync(DomainId key)
         {
-            using (Profiler.TraceMethod<MongoSnapshotStore<T, TKey>>())
+            using (Profiler.TraceMethod<MongoSnapshotStore<T>>())
             {
                 var existing =
-                    await Collection.Find(x => x.Id.Equals(key))
+                    await Collection.Find(x => x.DocumentId.Equals(key))
                         .FirstOrDefaultAsync();
 
                 if (existing != null)
                 {
-                    return (existing.Doc, existing.Version);
+                    return (existing.Doc, true, existing.Version);
                 }
 
-                return (default, EtagVersion.NotFound);
+                return (default!, true, EtagVersion.Empty);
             }
         }
 
-        public async Task WriteAsync(TKey key, T value, long oldVersion, long newVersion)
+        public async Task WriteAsync(DomainId key, T value, long oldVersion, long newVersion)
         {
-            using (Profiler.TraceMethod<MongoSnapshotStore<T, TKey>>())
+            using (Profiler.TraceMethod<MongoSnapshotStore<T>>())
             {
                 await Collection.UpsertVersionedAsync(key, oldVersion, newVersion, u => u.Set(x => x.Doc, value));
             }
         }
 
-        public async Task ReadAllAsync(Func<T, long, Task> callback, CancellationToken ct = default)
+        public Task WriteManyAsync(IEnumerable<(DomainId Key, T Value, long Version)> snapshots)
         {
-            using (Profiler.TraceMethod<MongoSnapshotStore<T, TKey>>())
+            using (Profiler.TraceMethod<MongoSnapshotStore<T>>())
             {
-                await Collection.Find(new BsonDocument(), options: Batching.Options).ForEachPipelineAsync(x => callback(x.Doc, x.Version), ct);
+                var writes = snapshots.Select(x => new InsertOneModel<MongoState<T>>(new MongoState<T>
+                {
+                    Doc = x.Value,
+                    DocumentId = x.Key,
+                    Version = x.Version
+                })).ToList();
+
+                if (writes.Count == 0)
+                {
+                    return Task.CompletedTask;
+                }
+
+                return Collection.BulkWriteAsync(writes, BulkUnordered);
             }
         }
 
-        public async Task RemoveAsync(TKey key)
+        public async Task ReadAllAsync(Func<T, long, Task> callback, CancellationToken ct = default)
         {
-            using (Profiler.TraceMethod<MongoSnapshotStore<T, TKey>>())
+            using (Profiler.TraceMethod<MongoSnapshotStore<T>>())
             {
-                await Collection.DeleteOneAsync(x => x.Id.Equals(key));
+                await Collection.Find(new BsonDocument(), options: Batching.Options).ForEachPipedAsync(x => callback(x.Doc, x.Version), ct);
+            }
+        }
+
+        public async Task RemoveAsync(DomainId key)
+        {
+            using (Profiler.TraceMethod<MongoSnapshotStore<T>>())
+            {
+                await Collection.DeleteOneAsync(x => x.DocumentId.Equals(key));
             }
         }
     }

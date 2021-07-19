@@ -1,43 +1,56 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System.Collections.ObjectModel;
+using Squidex.Infrastructure.Collections;
 
 namespace Squidex.Domain.Apps.Core.Schemas
 {
-    [Equals(DoNotAddEqualityOperators = true)]
-    public sealed class StringFieldProperties : FieldProperties
+    public sealed record StringFieldProperties : FieldProperties
     {
-        public ReadOnlyCollection<string>? AllowedValues { get; set; }
+        public ImmutableList<string>? AllowedValues { get; init; }
 
-        public int? MinLength { get; set; }
+        public LocalizedValue<string?> DefaultValues { get; init; }
 
-        public int? MaxLength { get; set; }
+        public string? DefaultValue { get; init; }
 
-        public bool IsUnique { get; set; }
+        public string? Pattern { get; init; }
 
-        public bool InlineEditable { get; set; }
+        public string? PatternMessage { get; init; }
 
-        public string? DefaultValue { get; set; }
+        public string? FolderId { get; init; }
 
-        public string? Pattern { get; set; }
+        public int? MinLength { get; init; }
 
-        public string? PatternMessage { get; set; }
+        public int? MaxLength { get; init; }
 
-        public StringFieldEditor Editor { get; set; }
+        public int? MinCharacters { get; init; }
 
-        public override T Accept<T>(IFieldPropertiesVisitor<T> visitor)
+        public int? MaxCharacters { get; init; }
+
+        public int? MinWords { get; init; }
+
+        public int? MaxWords { get; init; }
+
+        public bool IsUnique { get; init; }
+
+        public bool InlineEditable { get; init; }
+
+        public StringContentType ContentType { get; init; }
+
+        public StringFieldEditor Editor { get; init; }
+
+        public override T Accept<T, TArgs>(IFieldPropertiesVisitor<T, TArgs> visitor, TArgs args)
         {
-            return visitor.Visit(this);
+            return visitor.Visit(this, args);
         }
 
-        public override T Accept<T>(IFieldVisitor<T> visitor, IField field)
+        public override T Accept<T, TArgs>(IFieldVisitor<T, TArgs> visitor, IField field, TArgs args)
         {
-            return visitor.Visit((IField<StringFieldProperties>)field);
+            return visitor.Visit((IField<StringFieldProperties>)field, args);
         }
 
         public override RootField CreateRootField(long id, string name, Partitioning partitioning, IFieldSettings? settings = null)

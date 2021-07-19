@@ -5,6 +5,8 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
+/* eslint-disable no-inner-declarations */
+
 import { HttpClient, HttpErrorResponse, HttpEvent, HttpHeaders, HttpRequest, HttpResponse } from '@angular/common/http';
 import { ErrorDto, Types, Version, Versioned } from '@app/framework/internal';
 import { Observable, throwError } from 'rxjs';
@@ -82,10 +84,14 @@ export const pretifyError = (message: string) => <T>(source: Observable<T>) =>
     source.pipe(catchError((response: HttpErrorResponse) => {
         const error = parseError(response, message);
 
-        return throwError(error);
+        return throwError(() => error);
     }));
 
 export function parseError(response: HttpErrorResponse, fallback: string) {
+    if (!response) {
+        return response;
+    }
+
     if (Types.is(response, ErrorDto)) {
         return response;
     }
@@ -93,11 +99,11 @@ export function parseError(response: HttpErrorResponse, fallback: string) {
     const { error, status } = response;
 
     if (status === 412) {
-        return new ErrorDto(412, 'Failed to make the update. Another user has made a change. Please reload.', [], response);
+        return new ErrorDto(412, 'i18n:common.httpConflict', null, [], response);
     }
 
     if (status === 429) {
-        return new ErrorDto(429, 'You have exceeded the maximum limit of API calls.', [], response);
+        return new ErrorDto(429, 'i18n:common.httpLimit', null, [], response);
     }
 
     let parsed: any;
@@ -113,8 +119,8 @@ export function parseError(response: HttpErrorResponse, fallback: string) {
     }
 
     if (parsed && Types.isString(parsed.message)) {
-        return new ErrorDto(status, parsed.message, parsed.details, response);
+        return new ErrorDto(status, parsed.message, parsed.errorCode, parsed.details, response);
     }
 
-    return new ErrorDto(500, fallback, [], response);
+    return new ErrorDto(500, fallback, null, [], response);
 }

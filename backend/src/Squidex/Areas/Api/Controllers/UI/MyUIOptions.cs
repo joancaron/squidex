@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -28,6 +28,8 @@ namespace Squidex.Areas.Api.Controllers.UI
         public bool HideOnboarding { get; set; }
 
         public bool HideDateButtons { get; set; }
+
+        public bool HideDateTimeModeButton { get; set; }
 
         public bool DisableScheduledChanges { get; set; }
 

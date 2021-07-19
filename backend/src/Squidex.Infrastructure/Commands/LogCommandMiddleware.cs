@@ -1,13 +1,13 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
 using System.Threading.Tasks;
-using Squidex.Infrastructure.Log;
+using Squidex.Log;
 
 namespace Squidex.Infrastructure.Commands
 {
@@ -17,8 +17,6 @@ namespace Squidex.Infrastructure.Commands
 
         public LogCommandMiddleware(ISemanticLog log)
         {
-            Guard.NotNull(log, nameof(log));
-
             this.log = log;
         }
 

@@ -1,45 +1,42 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using MongoDB.Driver;
-using Squidex.Infrastructure.Json.Objects;
-using Squidex.Infrastructure.Log;
+using NodaTime;
 using Squidex.Infrastructure.MongoDb;
+using Squidex.Log;
 using EventFilter = MongoDB.Driver.FilterDefinition<Squidex.Infrastructure.EventSourcing.MongoEventCommit>;
 
 namespace Squidex.Infrastructure.EventSourcing
 {
-    public delegate bool EventPredicate(EventData data);
+    public delegate bool EventPredicate(MongoEvent data);
 
     public partial class MongoEventStore : MongoRepositoryBase<MongoEventCommit>, IEventStore
     {
         private static readonly List<StoredEvent> EmptyEvents = new List<StoredEvent>();
 
-        public Task CreateIndexAsync(string property)
-        {
-            Guard.NotNullOrEmpty(property, nameof(property));
-
-            return Collection.Indexes.CreateOneAsync(
-                new CreateIndexModel<MongoEventCommit>(
-                    Index
-                        .Ascending(CreateIndexPath(property))
-                        .Ascending(TimestampField)));
-        }
-
         public IEventSubscription CreateSubscription(IEventSubscriber subscriber, string? streamFilter = null, string? position = null)
         {
             Guard.NotNull(subscriber, nameof(subscriber));
 
-            return new PollingSubscription(this, subscriber, streamFilter, position);
+            if (CanUseChangeStreams)
+            {
+                return new MongoEventStoreSubscription(this, subscriber, streamFilter, position);
+            }
+            else
+            {
+                return new PollingSubscription(this, subscriber, streamFilter, position);
+            }
         }
 
         public async Task<IReadOnlyList<StoredEvent>> QueryLatestAsync(string streamName, int count)
@@ -58,34 +55,9 @@ namespace Squidex.Infrastructure.EventSourcing
                             Filter.Eq(EventStreamField, streamName))
                         .Sort(Sort.Descending(TimestampField)).Limit(count).ToListAsync();
 
-                var result = new List<StoredEvent>();
+                var result = commits.Select(x => x.Filtered()).Reverse().SelectMany(x => x).TakeLast(count).ToList();
 
-                foreach (var commit in commits)
-                {
-                    var eventStreamOffset = (int)commit.EventStreamOffset;
-
-                    var commitTimestamp = commit.Timestamp;
-                    var commitOffset = 0;
-
-                    foreach (var @event in commit.Events)
-                    {
-                        eventStreamOffset++;
-
-                        var eventData = @event.ToEventData();
-                        var eventToken = new StreamPosition(commitTimestamp, commitOffset, commit.Events.Length);
-
-                        result.Add(new StoredEvent(streamName, eventToken, eventStreamOffset, eventData));
-                    }
-                }
-
-                IEnumerable<StoredEvent> ordered = result.OrderBy(x => x.EventStreamNumber);
-
-                if (result.Count > count)
-                {
-                    ordered = ordered.Skip(result.Count - count);
-                }
-
-                return ordered.ToList();
+                return result;
             }
         }
 
@@ -102,161 +74,132 @@ namespace Squidex.Infrastructure.EventSourcing
                             Filter.Gte(EventStreamOffsetField, streamPosition - MaxCommitSize)))
                         .Sort(Sort.Ascending(TimestampField)).ToListAsync();
 
-                var result = new List<StoredEvent>();
-
-                foreach (var commit in commits)
-                {
-                    var eventStreamOffset = (int)commit.EventStreamOffset;
-
-                    var commitTimestamp = commit.Timestamp;
-                    var commitOffset = 0;
-
-                    foreach (var @event in commit.Events)
-                    {
-                        eventStreamOffset++;
-
-                        if (eventStreamOffset >= streamPosition)
-                        {
-                            var eventData = @event.ToEventData();
-                            var eventToken = new StreamPosition(commitTimestamp, commitOffset, commit.Events.Length);
-
-                            result.Add(new StoredEvent(streamName, eventToken, eventStreamOffset, eventData));
-                        }
-                    }
-                }
+                var result = commits.SelectMany(x => x.Filtered(streamPosition)).ToList();
 
                 return result;
             }
         }
 
-        public Task QueryAsync(Func<StoredEvent, Task> callback, string property, object value, string? position = null, CancellationToken ct = default)
+        public async Task<IReadOnlyDictionary<string, IReadOnlyList<StoredEvent>>> QueryManyAsync(IEnumerable<string> streamNames)
         {
-            Guard.NotNull(callback, nameof(callback));
-            Guard.NotNullOrEmpty(property, nameof(property));
-            Guard.NotNull(value, nameof(value));
+            Guard.NotNull(streamNames, nameof(streamNames));
 
-            StreamPosition lastPosition = position;
-
-            var filterDefinition = CreateFilter(property, value, lastPosition);
-            var filterExpression = CreateFilterExpression(property, value);
-
-            return QueryAsync(callback, lastPosition, filterDefinition, filterExpression, ct);
-        }
-
-        public Task QueryAsync(Func<StoredEvent, Task> callback, string? streamFilter = null, string? position = null, CancellationToken ct = default)
-        {
-            Guard.NotNull(callback, nameof(callback));
-
-            StreamPosition lastPosition = position;
-
-            var filterDefinition = CreateFilter(streamFilter, lastPosition);
-            var filterExpression = CreateFilterExpression(null, null);
-
-            return QueryAsync(callback, lastPosition, filterDefinition, filterExpression, ct);
-        }
-
-        private async Task QueryAsync(Func<StoredEvent, Task> callback, StreamPosition lastPosition, EventFilter filterDefinition, EventPredicate filterExpression, CancellationToken ct = default)
-        {
             using (Profiler.TraceMethod<MongoEventStore>())
             {
-                await Collection.Find(filterDefinition, options: Batching.Options).Sort(Sort.Ascending(TimestampField)).ForEachPipelineAsync(async commit =>
-                {
-                    var eventStreamOffset = (int)commit.EventStreamOffset;
+                var position = EtagVersion.Empty;
 
-                    var commitTimestamp = commit.Timestamp;
-                    var commitOffset = 0;
+                var commits =
+                    await Collection.Find(
+                        Filter.And(
+                            Filter.In(EventStreamField, streamNames),
+                            Filter.Gte(EventStreamOffsetField, position)))
+                        .Sort(Sort.Ascending(TimestampField)).ToListAsync();
 
-                    foreach (var @event in commit.Events)
-                    {
-                        eventStreamOffset++;
+                var result = commits.GroupBy(x => x.EventStream)
+                    .ToDictionary(
+                        x => x.Key,
+                        x => (IReadOnlyList<StoredEvent>)x.SelectMany(y => y.Filtered(position)).ToList());
 
-                        if (commitOffset > lastPosition.CommitOffset || commitTimestamp > lastPosition.Timestamp)
-                        {
-                            var eventData = @event.ToEventData();
-
-                            if (filterExpression(eventData))
-                            {
-                                var eventToken = new StreamPosition(commitTimestamp, commitOffset, commit.Events.Length);
-
-                                await callback(new StoredEvent(commit.EventStream, eventToken, eventStreamOffset, eventData));
-                            }
-                        }
-
-                        commitOffset++;
-                    }
-                }, ct);
+                return result;
             }
         }
 
-        private static EventFilter CreateFilter(string property, object value, StreamPosition streamPosition)
+        public async IAsyncEnumerable<StoredEvent> QueryAllReverseAsync(string? streamFilter = null, Instant timestamp = default, int take = int.MaxValue,
+            [EnumeratorCancellation] CancellationToken ct = default)
         {
-            var filters = new List<EventFilter>();
+            if (take <= 0)
+            {
+                yield break;
+            }
 
-            AppendByPosition(streamPosition, filters);
-            AppendByProperty(property, value, filters);
+            StreamPosition lastPosition = timestamp;
 
-            return Filter.And(filters);
+            var filterDefinition = CreateFilter(streamFilter, lastPosition);
+
+            var find =
+                Collection.Find(filterDefinition, options: Batching.Options)
+                    .Limit(take).Sort(Sort.Descending(TimestampField).Ascending(EventStreamField));
+
+            var taken = 0;
+
+            using (var cursor = await find.ToCursorAsync(ct))
+            {
+                while (taken < take && await cursor.MoveNextAsync(ct))
+                {
+                    foreach (var current in cursor.Current)
+                    {
+                        foreach (var @event in current.Filtered(lastPosition).Reverse())
+                        {
+                            yield return @event;
+
+                            taken++;
+
+                            if (taken == take)
+                            {
+                                break;
+                            }
+                        }
+
+                        if (taken == take)
+                        {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        public async IAsyncEnumerable<StoredEvent> QueryAllAsync(string? streamFilter = null, string? position = null, int take = int.MaxValue,
+            [EnumeratorCancellation] CancellationToken ct = default)
+        {
+            StreamPosition lastPosition = position;
+
+            var filterDefinition = CreateFilter(streamFilter, lastPosition);
+
+            var find =
+                Collection.Find(filterDefinition)
+                    .Limit(take).Sort(Sort.Ascending(TimestampField).Ascending(EventStreamField));
+
+            var taken = 0;
+
+            using (var cursor = await find.ToCursorAsync(ct))
+            {
+                while (taken < take && await cursor.MoveNextAsync(ct))
+                {
+                    foreach (var current in cursor.Current)
+                    {
+                        foreach (var @event in current.Filtered(lastPosition))
+                        {
+                            yield return @event;
+
+                            taken++;
+
+                            if (taken == take)
+                            {
+                                break;
+                            }
+                        }
+
+                        if (taken == take)
+                        {
+                            break;
+                        }
+                    }
+                }
+            }
         }
 
         private static EventFilter CreateFilter(string? streamFilter, StreamPosition streamPosition)
         {
-            var filters = new List<EventFilter>();
+            var byPosition = FilterExtensions.ByPosition(streamPosition);
+            var byStream = FilterExtensions.ByStream(streamFilter);
 
-            AppendByPosition(streamPosition, filters);
-            AppendByStream(streamFilter, filters);
-
-            return Filter.And(filters);
-        }
-
-        private static void AppendByProperty(string property, object value, List<EventFilter> filters)
-        {
-            filters.Add(Filter.Eq(CreateIndexPath(property), value));
-        }
-
-        private static void AppendByStream(string? streamFilter, List<EventFilter> filters)
-        {
-            if (!StreamFilter.IsAll(streamFilter))
+            if (byStream != null)
             {
-                if (streamFilter.Contains("^"))
-                {
-                    filters.Add(Filter.Regex(EventStreamField, streamFilter));
-                }
-                else
-                {
-                    filters.Add(Filter.Eq(EventStreamField, streamFilter));
-                }
+                return Filter.And(byPosition, byStream);
             }
-        }
 
-        private static void AppendByPosition(StreamPosition streamPosition, List<EventFilter> filters)
-        {
-            if (streamPosition.IsEndOfCommit)
-            {
-                filters.Add(Filter.Gt(TimestampField, streamPosition.Timestamp));
-            }
-            else
-            {
-                filters.Add(Filter.Gte(TimestampField, streamPosition.Timestamp));
-            }
-        }
-
-        private static EventPredicate CreateFilterExpression(string? property, object? value)
-        {
-            if (!string.IsNullOrWhiteSpace(property))
-            {
-                var jsonValue = JsonValue.Create(value);
-
-                return x => x.Headers.TryGetValue(property, out var p) && p.Equals(jsonValue);
-            }
-            else
-            {
-                return x => true;
-            }
-        }
-
-        private static string CreateIndexPath(string property)
-        {
-            return $"Events.Metadata.{property}";
+            return byPosition;
         }
     }
 }

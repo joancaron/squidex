@@ -1,19 +1,13 @@
-﻿/*
+/*
  * Squidex Headless CMS
  *
  * @license
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { LocalStoreService, LocalStoreServiceFactory } from './local-store.service';
+import { LocalStoreService } from './local-store.service';
 
 describe('LocalStore', () => {
-    it('should instantiate from factory', () => {
-        const localStoreService = LocalStoreServiceFactory();
-
-        expect(localStoreService).toBeDefined();
-    });
-
     it('should instantiate', () => {
         const localStoreService = new LocalStoreService();
 
@@ -23,13 +17,14 @@ describe('LocalStore', () => {
     it('should call local store for set function', () => {
         const localStoreService = new LocalStoreService();
 
-        let passedKey = '', passedVal = '';
+        let passedKey = '';
+        let passedVal = '';
 
         localStoreService.configureStore({
             setItem: (k: string, v: string) => {
                 passedKey = k;
                 passedVal = v;
-            }
+            },
         });
 
         localStoreService.set('mykey', 'myval');
@@ -48,7 +43,7 @@ describe('LocalStore', () => {
                 passedKey = key;
 
                 return 'myval';
-            }
+            },
         });
 
         const returnedVal = localStoreService.get('mykey');
@@ -57,16 +52,16 @@ describe('LocalStore', () => {
         expect(returnedVal).toBe('myval');
     });
 
-    it('should set and get from fallback value when local store failed', () => {
+    it('should set and get from fallback value if local store failed', () => {
         const localStoreService = new LocalStoreService();
 
         localStoreService.configureStore({
-            setItem: (k: string, v: string) => {
-                throw 'Not supported';
+            setItem: () => {
+                throw new Error('Not supported');
             },
-            getItem: (k: string) => {
-                throw 'Not supported';
-            }
+            getItem: () => {
+                throw new Error('Not supported');
+            },
         });
 
         localStoreService.set('mykey', 'myval');

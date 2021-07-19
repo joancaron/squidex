@@ -5,31 +5,35 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { ChangeDetectionStrategy, Component, Input, OnChanges } from '@angular/core';
-import { CommentDto, CommentsState, ContributorDto, DialogService, Keys } from '@app/shared/internal';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, OnChanges } from '@angular/core';
+import { CommentDto, CommentsState, ContributorDto, DialogService, Keys, StatefulComponent } from '@app/shared/internal';
 import { MentionConfig } from 'angular-mentions';
+
+interface State {
+    isEditing: boolean;
+}
 
 @Component({
     selector: 'sqx-comment',
     styleUrls: ['./comment.component.scss'],
     templateUrl: './comment.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CommentComponent implements OnChanges {
+export class CommentComponent extends StatefulComponent<State> implements OnChanges {
     @Input()
-    public canFollow = false;
+    public canFollow?: boolean | null;
 
     @Input()
-    public canDelete = false;
+    public canDelete?: boolean | null;
 
     @Input()
-    public canEdit = false;
+    public canEdit?: boolean | null;
 
     @Input()
     public commentsState: CommentsState;
 
     @Input()
-    public confirmDelete = true;
+    public confirmDelete?: boolean | null = true;
 
     @Input()
     public comment: CommentDto;
@@ -45,13 +49,14 @@ export class CommentComponent implements OnChanges {
     public isDeletable = false;
     public isEditable = false;
 
-    public isEditing = false;
-
     public editingText: string;
 
-    constructor(
-        private readonly dialogs: DialogService
+    constructor(changeDetector: ChangeDetectorRef,
+        private readonly dialogs: DialogService,
     ) {
+        super(changeDetector, {
+            isEditing: false,
+        });
     }
 
     public ngOnChanges() {
@@ -64,15 +69,15 @@ export class CommentComponent implements OnChanges {
     public startEdit() {
         this.editingText = this.comment.text;
 
-        this.isEditing = true;
+        this.next({ isEditing: true });
     }
 
     public cancelEdit() {
-        this.isEditing = false;
+        this.next({ isEditing: false });
     }
 
     public delete() {
-        if (!this.isDeletable) {
+        if (!this.isDeletable && !this.canDelete) {
             return;
         }
 
@@ -80,7 +85,7 @@ export class CommentComponent implements OnChanges {
     }
 
     public updateWhenEnter(event: KeyboardEvent) {
-        if (event.keyCode === Keys.ENTER && !event.altKey && !event.shiftKey && !event.defaultPrevented) {
+        if (Keys.isEnter(event) && !event.altKey && !event.shiftKey && !event.defaultPrevented) {
             event.preventDefault();
             event.stopImmediatePropagation();
             event.stopPropagation();
@@ -97,7 +102,7 @@ export class CommentComponent implements OnChanges {
         const text = this.editingText;
 
         if (!text || text.length === 0) {
-            this.dialogs.confirm('Delete comment', 'Do you really want to delete the comment?')
+            this.dialogs.confirm('i18n:comments.deleteConfirmTitle', 'i18n:comments.deleteConfirmText')
                 .subscribe(confirmed => {
                     if (confirmed) {
                         this.delete();

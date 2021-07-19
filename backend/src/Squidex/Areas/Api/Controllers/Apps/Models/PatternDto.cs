@@ -1,64 +1,46 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
-using System.ComponentModel.DataAnnotations;
 using Squidex.Domain.Apps.Core.Apps;
 using Squidex.Infrastructure.Reflection;
-using Squidex.Web;
+using Squidex.Infrastructure.Validation;
 
 namespace Squidex.Areas.Api.Controllers.Apps.Models
 {
-    public sealed class PatternDto : Resource
+    public sealed class PatternDto
     {
-        /// <summary>
-        /// Unique id of the pattern.
-        /// </summary>
-        public Guid Id { get; set; }
-
         /// <summary>
         /// The name of the suggestion.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public string Name { get; set; }
 
         /// <summary>
         /// The regex pattern.
         /// </summary>
-        [Required]
-        public string Pattern { get; set; }
+        [LocalizedRequired]
+        public string Regex { get; set; }
 
         /// <summary>
         /// The regex message.
         /// </summary>
         public string? Message { get; set; }
 
-        public static PatternDto FromPattern(Guid id, AppPattern pattern, Resources resources)
+        public static PatternDto FromPattern(Pattern pattern)
         {
-            var result = SimpleMapper.Map(pattern, new PatternDto { Id = id });
-
-            return result.CreateLinks(resources);
+            return SimpleMapper.Map(pattern, new PatternDto());
         }
 
-        private PatternDto CreateLinks(Resources resources)
+        public Pattern ToPattern()
         {
-            var values = new { app = resources.App, id = Id };
-
-            if (resources.CanUpdatePattern)
+            return new Pattern(Name, Regex)
             {
-                AddPutLink("update", resources.Url<AppPatternsController>(x => nameof(x.PutPattern), values));
-            }
-
-            if (resources.CanDeletePattern)
-            {
-                AddDeleteLink("delete", resources.Url<AppPatternsController>(x => nameof(x.DeletePattern), values));
-            }
-
-            return this;
+                Message = Message
+            };
         }
     }
 }

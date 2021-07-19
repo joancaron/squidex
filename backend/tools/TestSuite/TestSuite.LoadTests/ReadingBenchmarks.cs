@@ -9,18 +9,22 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using TestSuite.Fixtures;
 using Xunit;
+using Xunit.Abstractions;
 
 #pragma warning disable SA1300 // Element should begin with upper-case letter
-#pragma warning disable SA1507 // Code should not contain multiple blank lines in a row
 
 namespace TestSuite.LoadTests
 {
     public class ReadingBenchmarks : IClassFixture<CreatedAppFixture>
     {
+        private readonly ITestOutputHelper testOutput;
+
         public CreatedAppFixture _ { get; }
 
-        public ReadingBenchmarks(CreatedAppFixture fixture)
+        public ReadingBenchmarks(CreatedAppFixture fixture, ITestOutputHelper testOutput)
         {
+            this.testOutput = testOutput;
+
             _ = fixture;
         }
 
@@ -65,7 +69,7 @@ namespace TestSuite.LoadTests
             await Run.Parallel(numUsers, numIterationsPerUser, async () =>
             {
                 await _.Apps.GetClientsAsync(_.AppName);
-            });
+            }, 100, testOutput);
         }
     }
 }

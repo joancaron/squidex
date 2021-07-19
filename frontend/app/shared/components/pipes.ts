@@ -5,14 +5,12 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable: no-pipe-impure
-
 import { ChangeDetectorRef, OnDestroy, Pipe, PipeTransform } from '@angular/core';
 import { ApiUrlConfig, UserDto, UsersProviderService } from '@app/shared/internal';
 import { Observable, of, Subscription } from 'rxjs';
 import { map } from 'rxjs/operators';
 
-class UserAsyncPipe implements OnDestroy {
+class UserAsyncPipe {
     private lastUserId: string;
     private lastValue: string | undefined = undefined;
     private subscription: Subscription;
@@ -20,12 +18,12 @@ class UserAsyncPipe implements OnDestroy {
 
     constructor(loading: string,
         private readonly users: UsersProviderService,
-        private readonly changeDetector: ChangeDetectorRef
+        private readonly changeDetector: ChangeDetectorRef,
     ) {
         this.lastValue = loading;
     }
 
-    public ngOnDestroy() {
+    public destroy() {
         if (this.subscription) {
             this.subscription.unsubscribe();
         }
@@ -58,11 +56,15 @@ class UserAsyncPipe implements OnDestroy {
 
 @Pipe({
     name: 'sqxUserName',
-    pure: false
+    pure: false,
 })
-export class UserNamePipe extends UserAsyncPipe implements PipeTransform {
+export class UserNamePipe extends UserAsyncPipe implements OnDestroy, PipeTransform {
     constructor(users: UsersProviderService, changeDetector: ChangeDetectorRef) {
         super('Loading...', users, changeDetector);
+    }
+
+    public ngOnDestroy() {
+        super.destroy();
     }
 
     public transform(userId: string, placeholder = 'Me') {
@@ -72,11 +74,15 @@ export class UserNamePipe extends UserAsyncPipe implements PipeTransform {
 
 @Pipe({
     name: 'sqxUserNameRef',
-    pure: false
+    pure: false,
 })
-export class UserNameRefPipe extends UserAsyncPipe implements PipeTransform {
+export class UserNameRefPipe extends UserAsyncPipe implements OnDestroy, PipeTransform {
     constructor(users: UsersProviderService, changeDetector: ChangeDetectorRef) {
         super('Loading...', users, changeDetector);
+    }
+
+    public ngOnDestroy() {
+        super.destroy();
     }
 
     public transform(userId: string, placeholder: string | null = 'Me') {
@@ -85,12 +91,10 @@ export class UserNameRefPipe extends UserAsyncPipe implements PipeTransform {
 
             if (type === 'subject') {
                 return users.getUser(id, placeholder).pipe(map(u => u.displayName));
+            } else if (id.endsWith('client')) {
+                return of(id);
             } else {
-                if (id.endsWith('client')) {
-                    return of(id);
-                } else {
-                    return of(`${id} client`);
-                }
+                return of(`${id} client`);
             }
         });
     }
@@ -98,11 +102,11 @@ export class UserNameRefPipe extends UserAsyncPipe implements PipeTransform {
 
 @Pipe({
     name: 'sqxUserDtoPicture',
-    pure: false
+    pure: false,
 })
 export class UserDtoPicture implements PipeTransform {
     constructor(
-        private readonly apiUrl: ApiUrlConfig
+        private readonly apiUrl: ApiUrlConfig,
     ) {
     }
 
@@ -113,11 +117,11 @@ export class UserDtoPicture implements PipeTransform {
 
 @Pipe({
     name: 'sqxUserIdPicture',
-    pure: false
+    pure: false,
 })
 export class UserIdPicturePipe implements PipeTransform {
     constructor(
-        private readonly apiUrl: ApiUrlConfig
+        private readonly apiUrl: ApiUrlConfig,
     ) {
     }
 
@@ -128,13 +132,17 @@ export class UserIdPicturePipe implements PipeTransform {
 
 @Pipe({
     name: 'sqxUserPicture',
-    pure: false
+    pure: false,
 })
-export class UserPicturePipe extends UserAsyncPipe implements PipeTransform {
+export class UserPicturePipe extends UserAsyncPipe implements OnDestroy, PipeTransform {
     constructor(users: UsersProviderService, changeDetector: ChangeDetectorRef,
-        private readonly apiUrl: ApiUrlConfig
+        private readonly apiUrl: ApiUrlConfig,
     ) {
         super('', users, changeDetector);
+    }
+
+    public ngOnDestroy() {
+        super.destroy();
     }
 
     public transform(userId: string) {
@@ -144,13 +152,17 @@ export class UserPicturePipe extends UserAsyncPipe implements PipeTransform {
 
 @Pipe({
     name: 'sqxUserPictureRef',
-    pure: false
+    pure: false,
 })
-export class UserPictureRefPipe extends UserAsyncPipe implements PipeTransform {
+export class UserPictureRefPipe extends UserAsyncPipe implements OnDestroy, PipeTransform {
     constructor(users: UsersProviderService, changeDetector: ChangeDetectorRef,
-        private readonly apiUrl: ApiUrlConfig
+        private readonly apiUrl: ApiUrlConfig,
     ) {
         super('', users, changeDetector);
+    }
+
+    public ngOnDestroy() {
+        super.destroy();
     }
 
     public transform(userId: string) {

@@ -1,20 +1,20 @@
-﻿// ==========================================================================
+// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System.ComponentModel.DataAnnotations;
+using Squidex.Infrastructure.Validation;
 
 namespace Squidex.Areas.IdentityServer.Controllers.Profile
 {
     public class SetPasswordModel
     {
-        [Required(ErrorMessage = "Password is required.")]
+        [LocalizedRequired]
         public string Password { get; set; }
 
-        [Compare(nameof(Password), ErrorMessage = "Passwords must be identitical.")]
+        [LocalizedRequiredAttribute]
         public string PasswordConfirm { get; set; }
     }
 }

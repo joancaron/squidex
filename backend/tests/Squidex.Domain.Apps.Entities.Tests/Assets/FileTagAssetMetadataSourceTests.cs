@@ -8,9 +8,9 @@
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Squidex.Assets;
 using Squidex.Domain.Apps.Core.Assets;
 using Squidex.Domain.Apps.Entities.Assets.Commands;
-using Squidex.Infrastructure.Assets;
 using Squidex.Infrastructure.Json.Objects;
 using Xunit;
 
@@ -25,7 +25,7 @@ namespace Squidex.Domain.Apps.Entities.Assets
         {
             var command = FakeCommand("NoExtension");
 
-            await sut.EnhanceAsync(command, null);
+            await sut.EnhanceAsync(command);
 
             Assert.Equal(AssetType.Unknown, command.Type);
         }
@@ -35,7 +35,7 @@ namespace Squidex.Domain.Apps.Entities.Assets
         {
             var command = Command("SamplePNGImage_100kbmb.png");
 
-            await sut.EnhanceAsync(command, null);
+            await sut.EnhanceAsync(command);
 
             Assert.Equal(AssetType.Image, command.Type);
 
@@ -48,7 +48,7 @@ namespace Squidex.Domain.Apps.Entities.Assets
         {
             var command = Command("SampleAudio_0.4mb.mp3");
 
-            await sut.EnhanceAsync(command, null);
+            await sut.EnhanceAsync(command);
 
             Assert.Equal(AssetType.Audio, command.Type);
 
@@ -63,7 +63,7 @@ namespace Squidex.Domain.Apps.Entities.Assets
         {
             var command = Command("SampleVideo_1280x720_1mb.mp4");
 
-            await sut.EnhanceAsync(command, null);
+            await sut.EnhanceAsync(command);
 
             Assert.Equal(AssetType.Video, command.Type);
 
@@ -84,7 +84,7 @@ namespace Squidex.Domain.Apps.Entities.Assets
                 {
                     ["videoWidth"] = JsonValue.Create(128),
                     ["videoHeight"] = JsonValue.Create(55),
-                    ["duration"] = JsonValue.Create("00:10:12"),
+                    ["duration"] = JsonValue.Create("00:10:12")
                 },
                 Type = AssetType.Video
             };
@@ -101,7 +101,7 @@ namespace Squidex.Domain.Apps.Entities.Assets
             {
                 Metadata = new AssetMetadata
                 {
-                    ["duration"] = JsonValue.Create("00:10:12"),
+                    ["duration"] = JsonValue.Create("00:10:12")
                 },
                 Type = AssetType.Audio
             };
@@ -121,23 +121,23 @@ namespace Squidex.Domain.Apps.Entities.Assets
             Assert.Empty(formatted);
         }
 
-        private UploadAssetCommand Command(string path)
+        private static UploadAssetCommand Command(string path)
         {
             var file = new FileInfo(Path.Combine("Assets", "TestFiles", path));
 
             return new CreateAsset
             {
-                File = new AssetFile(file.Name, "mime", file.Length, file.OpenRead)
+                File = new DelegateAssetFile(file.Name, "mime", file.Length, file.OpenRead)
             };
         }
 
-        private UploadAssetCommand FakeCommand(string name)
+        private static UploadAssetCommand FakeCommand(string name)
         {
             var stream = new MemoryStream();
 
             return new CreateAsset
             {
-                File = new AssetFile(name, "mime", stream.Length, () => stream)
+                File = new DelegateAssetFile(name, "mime", stream.Length, () => stream)
             };
         }
     }

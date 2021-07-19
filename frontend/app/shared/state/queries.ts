@@ -5,10 +5,10 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { compareStrings } from '@app/framework';
+import { compareStrings, Types } from '@app/framework';
 import { Observable } from 'rxjs';
 import { map, shareReplay } from 'rxjs/operators';
-import { decodeQuery, equalsQuery, Query } from './query';
+import { deserializeQuery, equalsQuery, Query } from './query';
 import { UIState } from './ui.state';
 
 export interface SavedQuery {
@@ -24,8 +24,8 @@ export interface SavedQuery {
 
 const OLDEST_FIRST: Query = {
     sort: [
-        { path: 'lastModified', order: 'descending' }
-    ]
+        { path: 'lastModified', order: 'descending' },
+    ],
 };
 
 export class Queries {
@@ -34,43 +34,51 @@ export class Queries {
     public queriesUser: Observable<ReadonlyArray<SavedQuery>>;
 
     public defaultQueries: ReadonlyArray<SavedQuery> = [
-        { name: 'All (newest first)' },
-        { name: 'All (oldest first)', query: OLDEST_FIRST }
+        { name: 'i18n:search.queryAllNewestFirst' },
+        { name: 'i18n:search.queryAllOldestFirst', query: OLDEST_FIRST },
     ];
 
     constructor(
         private readonly uiState: UIState,
-        private readonly prefix: string
+        private readonly prefix: string,
     ) {
         const path = `${prefix}.queries`;
 
         this.queries = this.uiState.get(path, {}).pipe(
-            map(settings => parseQueries(settings)), shareReplay(1));
+            map(parseQueries), shareReplay(1));
 
         this.queriesShared = this.uiState.getShared(path, {}).pipe(
-            map(settings => parseQueries(settings)), shareReplay(1));
+            map(parseQueries), shareReplay(1));
 
         this.queriesUser = this.uiState.getUser(path, {}).pipe(
-            map(settings => parseQueries(settings)), shareReplay(1));
+            map(parseQueries), shareReplay(1));
     }
 
     public add(key: string, query: Query, user = false) {
         this.uiState.set(this.getPath(key), JSON.stringify(query), user);
     }
 
-    public removeShared(saved: SavedQuery) {
-        this.uiState.removeShared(this.getPath(saved.name));
+    public removeShared(saved: SavedQuery | string) {
+        this.uiState.removeShared(this.getPath(saved));
     }
 
-    public removeUser(saved: SavedQuery) {
-        this.uiState.removeUser(this.getPath(saved.name));
+    public removeUser(saved: SavedQuery | string) {
+        this.uiState.removeUser(this.getPath(saved));
     }
 
-    public remove(saved: SavedQuery) {
-        this.uiState.remove(this.getPath(saved.name));
+    public remove(saved: SavedQuery | string) {
+        this.uiState.remove(this.getPath(saved));
     }
 
-    private getPath(key: string): string {
+    private getPath(saved: SavedQuery | string): string {
+        let key: string;
+
+        if (Types.isString(saved)) {
+            key = saved;
+        } else {
+            key = saved.name;
+        }
+
         return `${this.prefix}.queries.${key}`;
     }
 
@@ -89,13 +97,13 @@ export class Queries {
 }
 
 function parseQueries(settings: {}) {
-    let queries = Object.keys(settings).map(name => parseStored(name, settings[name]));
+    const queries = Object.keys(settings).map(name => parseStored(name, settings[name]));
 
     return queries.sort((a, b) => compareStrings(a.name, b.name));
 }
 
 export function parseStored(name: string, raw?: string) {
-    const query = decodeQuery(raw);
+    const query = deserializeQuery(raw);
 
     return { name, query };
 }

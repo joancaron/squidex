@@ -5,34 +5,26 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { Component, Input, OnInit } from '@angular/core';
-import { FormControl, FormGroup, Validators } from '@angular/forms';
-import { FieldDto, FloatConverter, NumberFieldPropertiesDto } from '@app/shared';
-import { Observable } from 'rxjs';
+import { Component, Input } from '@angular/core';
+import { FormGroup } from '@angular/forms';
+import { DateTimeFieldPropertiesDto, DATETIME_FIELD_EDITORS, FieldDto, FloatConverter } from '@app/shared';
 
 @Component({
     selector: 'sqx-date-time-ui',
     styleUrls: ['date-time-ui.component.scss'],
-    templateUrl: 'date-time-ui.component.html'
+    templateUrl: 'date-time-ui.component.html',
 })
-export class DateTimeUIComponent implements OnInit {
+export class DateTimeUIComponent {
     public readonly converter = FloatConverter.INSTANCE;
 
     @Input()
-    public editForm: FormGroup;
+    public fieldForm: FormGroup;
 
     @Input()
     public field: FieldDto;
 
     @Input()
-    public properties: NumberFieldPropertiesDto;
+    public properties: DateTimeFieldPropertiesDto;
 
-    public hideAllowedValues: Observable<boolean>;
-
-    public ngOnInit() {
-        this.editForm.setControl('editor',
-            new FormControl(this.properties.editor, [
-                Validators.required
-            ]));
-    }
+    public editors = DATETIME_FIELD_EDITORS;
 }

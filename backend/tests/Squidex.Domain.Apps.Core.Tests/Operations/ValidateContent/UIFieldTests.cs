@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Squidex.Domain.Apps.Core.Contents;
 using Squidex.Domain.Apps.Core.Schemas;
+using Squidex.Domain.Apps.Core.TestHelpers;
 using Squidex.Domain.Apps.Core.ValidateContent;
 using Squidex.Infrastructure.Json.Objects;
 using Squidex.Infrastructure.Validation;
@@ -17,7 +18,7 @@ using Xunit;
 
 namespace Squidex.Domain.Apps.Core.Operations.ValidateContent
 {
-    public class UIFieldTests
+    public class UIFieldTests : IClassFixture<TranslationsFixture>
     {
         private readonly List<string> errors = new List<string>();
 
@@ -70,10 +71,10 @@ namespace Squidex.Domain.Apps.Core.Operations.ValidateContent
                     .AddUI(2, "my-ui2", Partitioning.Invariant);
 
             var data =
-                new NamedContentData()
+                new ContentData()
                     .AddField("my-ui1", new ContentFieldData())
                     .AddField("my-ui2", new ContentFieldData()
-                        .AddValue("iv", null));
+                        .AddInvariant(null));
 
             var dataErrors = new List<ValidationError>();
 
@@ -96,9 +97,9 @@ namespace Squidex.Domain.Apps.Core.Operations.ValidateContent
                         .AddUI(101, "my-ui"));
 
             var data =
-                new NamedContentData()
+                new ContentData()
                     .AddField("my-array", new ContentFieldData()
-                        .AddJsonValue(
+                        .AddInvariant(
                             JsonValue.Array(
                                 JsonValue.Object()
                                     .Add("my-ui", null))));
@@ -110,7 +111,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ValidateContent
             dataErrors.Should().BeEquivalentTo(
                 new[]
                 {
-                    new ValidationError("Value must not be defined.", "my-array[1].my-ui")
+                    new ValidationError("Value must not be defined.", "my-array.iv[1].my-ui")
                 });
         }
 

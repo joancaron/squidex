@@ -5,16 +5,16 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { Component, OnInit } from '@angular/core';
+import { Component } from '@angular/core';
 import { FormControl } from '@angular/forms';
-import { LocalStoreService, SchemaCategory, SchemasState } from '@app/shared';
+import { LocalStoreService, SchemaCategory, SchemasState, Settings } from '@app/shared';
 
 @Component({
     selector: 'sqx-schemas-page',
     styleUrls: ['./schemas-page.component.scss'],
-    templateUrl: './schemas-page.component.html'
+    templateUrl: './schemas-page.component.html',
 })
-export class SchemasPageComponent implements OnInit {
+export class SchemasPageComponent {
     public schemasFilter = new FormControl();
 
     public isCollapsed: boolean;
@@ -25,22 +25,18 @@ export class SchemasPageComponent implements OnInit {
 
     constructor(
         public readonly schemasState: SchemasState,
-        private readonly localStore: LocalStoreService
+        private readonly localStore: LocalStoreService,
     ) {
-        this.isCollapsed = localStore.getBoolean('content.schemas.collapsed');
-    }
-
-    public ngOnInit() {
-        this.schemasState.load();
+        this.isCollapsed = localStore.getBoolean(Settings.Local.SCHEMAS_COLLAPSED);
     }
 
     public toggle() {
         this.isCollapsed = !this.isCollapsed;
 
-        this.localStore.setBoolean('content.schemas.collapsed', this.isCollapsed);
+        this.localStore.setBoolean(Settings.Local.SCHEMAS_COLLAPSED, this.isCollapsed);
     }
 
-    public trackByCategory(index: number, category: SchemaCategory) {
+    public trackByCategory(_index: number, category: SchemaCategory) {
         return category.name;
     }
 }

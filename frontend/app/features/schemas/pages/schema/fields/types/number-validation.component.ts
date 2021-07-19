@@ -5,19 +5,18 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { Component, Input, OnInit } from '@angular/core';
-import { FormControl, FormGroup } from '@angular/forms';
-import { FieldDto, hasNoValue$, NumberFieldPropertiesDto, RootFieldDto, Types } from '@app/shared';
-import { Observable } from 'rxjs';
+import { Component, Input } from '@angular/core';
+import { FormGroup } from '@angular/forms';
+import { FieldDto, LanguageDto, NumberFieldPropertiesDto, RootFieldDto, Types } from '@app/shared';
 
 @Component({
     selector: 'sqx-number-validation',
     styleUrls: ['number-validation.component.scss'],
-    templateUrl: 'number-validation.component.html'
+    templateUrl: 'number-validation.component.html',
 })
-export class NumberValidationComponent implements OnInit {
+export class NumberValidationComponent {
     @Input()
-    public editForm: FormGroup;
+    public fieldForm: FormGroup;
 
     @Input()
     public field: FieldDto;
@@ -25,28 +24,13 @@ export class NumberValidationComponent implements OnInit {
     @Input()
     public properties: NumberFieldPropertiesDto;
 
-    public showUnique: boolean;
+    @Input()
+    public languages: ReadonlyArray<LanguageDto>;
 
-    public showDefaultValue: Observable<boolean>;
+    @Input()
+    public isLocalizable?: boolean | null;
 
-    public ngOnInit() {
-        this.showUnique = Types.is(this.field, RootFieldDto) && !this.field.isLocalizable;
-
-        if (this.showUnique) {
-            this.editForm.setControl('isUnique',
-                new FormControl(this.properties.isUnique));
-        }
-
-        this.editForm.setControl('maxValue',
-            new FormControl(this.properties.maxValue));
-
-        this.editForm.setControl('minValue',
-            new FormControl(this.properties.minValue));
-
-        this.editForm.setControl('defaultValue',
-            new FormControl(this.properties.defaultValue));
-
-        this.showDefaultValue =
-            hasNoValue$(this.editForm.controls['isRequired']);
+    public get showUnique() {
+        return Types.is(this.field, RootFieldDto) && !this.field.isLocalizable;
     }
 }

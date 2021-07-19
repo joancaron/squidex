@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -9,11 +9,14 @@ using System;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using EventStore.ClientAPI;
 using EventStore.ClientAPI.Exceptions;
 using EventStore.ClientAPI.Projections;
+using Squidex.Hosting.Configuration;
+using Squidex.Text;
 
 namespace Squidex.Infrastructure.EventSourcing
 {
@@ -21,45 +24,21 @@ namespace Squidex.Infrastructure.EventSourcing
     {
         private readonly ConcurrentDictionary<string, bool> projections = new ConcurrentDictionary<string, bool>();
         private readonly IEventStoreConnection connection;
-        private readonly string prefix;
+        private readonly string projectionPrefix;
         private readonly string projectionHost;
         private ProjectionsManager projectionsManager;
 
-        public ProjectionClient(IEventStoreConnection connection, string prefix, string projectionHost)
+        public ProjectionClient(IEventStoreConnection connection, string projectionPrefix, string projectionHost)
         {
             this.connection = connection;
 
-            this.prefix = prefix;
+            this.projectionPrefix = projectionPrefix;
             this.projectionHost = projectionHost;
         }
 
         private string CreateFilterProjectionName(string filter)
         {
-            return $"by-{prefix.Slugify()}-{filter.Slugify()}";
-        }
-
-        private string CreatePropertyProjectionName(string property)
-        {
-            return $"by-{prefix.Slugify()}-{property.Slugify()}-property";
-        }
-
-        public async Task<string> CreateProjectionAsync(string property, object value)
-        {
-            var name = CreatePropertyProjectionName(property);
-
-            var query =
-                $@"fromAll()
-                    .when({{
-                        $any: function (s, e) {{
-                            if (e.streamId.indexOf('{prefix}') === 0 && e.metadata.{property}) {{
-                                linkTo('{name}-' + e.metadata.{property}, e);
-                            }}
-                        }}
-                    }});";
-
-            await CreateProjectionAsync(name, query);
-
-            return $"{name}-{value}";
+            return $"by-{projectionPrefix.Slugify()}-{filter.Slugify()}";
         }
 
         public async Task<string> CreateProjectionAsync(string? streamFilter = null)
@@ -72,7 +51,7 @@ namespace Squidex.Infrastructure.EventSourcing
                 $@"fromAll()
                     .when({{
                         $any: function (s, e) {{
-                            if (e.streamId.indexOf('{prefix}') === 0 && /{streamFilter}/.test(e.streamId.substring({prefix.Length + 1}))) {{
+                            if (e.streamId.indexOf('{projectionPrefix}') === 0 && /{streamFilter}/.test(e.streamId.substring({projectionPrefix.Length + 1}))) {{
                                 linkTo('{name}', e);
                             }}
                         }}
@@ -115,26 +94,47 @@ namespace Squidex.Infrastructure.EventSourcing
             var endpoints = await Dns.GetHostAddressesAsync(addressParts[0]);
             var endpoint = new IPEndPoint(endpoints.First(x => x.AddressFamily == AddressFamily.InterNetwork), port);
 
-            projectionsManager =
-                new ProjectionsManager(
-                    connection.Settings.Log, endpoint,
-                    connection.Settings.OperationTimeout);
+            async Task ConnectToSchemaAsync(string schema)
+            {
+                projectionsManager =
+                    new ProjectionsManager(
+                        connection.Settings.Log, endpoint,
+                        connection.Settings.OperationTimeout,
+                        null,
+                        schema);
+
+                await projectionsManager.ListAllAsync(connection.Settings.DefaultUserCredentials);
+            }
+
             try
             {
-                await projectionsManager.ListAllAsync(connection.Settings.DefaultUserCredentials);
+                try
+                {
+                    await ConnectToSchemaAsync("https");
+                }
+                catch (HttpRequestException)
+                {
+                    await ConnectToSchemaAsync("http");
+                }
+                catch (AggregateException ex) when (ex.Flatten().InnerException is HttpRequestException)
+                {
+                    await ConnectToSchemaAsync("http");
+                }
             }
             catch (Exception ex)
             {
-                throw new ConfigurationException($"Cannot connect to event store projections: {projectionHost}.", ex);
+                var error = new ConfigurationError($"GetEventStore cannot connect to event store projections: {projectionHost}.");
+
+                throw new ConfigurationException(error, ex);
             }
         }
 
-        public long? ParsePositionOrNull(string? position)
+        public static long? ParsePositionOrNull(string? position)
         {
             return long.TryParse(position, out var parsedPosition) ? (long?)parsedPosition : null;
         }
 
-        public long ParsePosition(string? position)
+        public static long ParsePosition(string? position)
         {
             return long.TryParse(position, out var parsedPosition) ? parsedPosition + 1 : StreamPosition.Start;
         }

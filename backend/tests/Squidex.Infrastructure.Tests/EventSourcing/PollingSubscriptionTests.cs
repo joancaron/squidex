@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -26,8 +26,8 @@ namespace Squidex.Infrastructure.EventSourcing
 
             await WaitAndStopAsync(sut);
 
-            A.CallTo(() => eventStore.QueryAsync(A<Func<StoredEvent, Task>>._, "^my-stream", position, A<CancellationToken>._))
-                .MustHaveHappened(1, Times.Exactly);
+            A.CallTo(() => eventStore.QueryAllAsync("^my-stream", position, A<int>._, A<CancellationToken>._))
+                .MustHaveHappenedOnceExactly();
         }
 
         [Fact]
@@ -35,7 +35,7 @@ namespace Squidex.Infrastructure.EventSourcing
         {
             var ex = new InvalidOperationException();
 
-            A.CallTo(() => eventStore.QueryAsync(A<Func<StoredEvent, Task>>._, "^my-stream", position, A<CancellationToken>._))
+            A.CallTo(() => eventStore.QueryAllAsync("^my-stream", position, A<int>._, A<CancellationToken>._))
                 .Throws(ex);
 
             var sut = new PollingSubscription(eventStore, eventSubscriber, "^my-stream", position);
@@ -51,7 +51,7 @@ namespace Squidex.Infrastructure.EventSourcing
         {
             var ex = new OperationCanceledException();
 
-            A.CallTo(() => eventStore.QueryAsync(A<Func<StoredEvent, Task>>._, "^my-stream", position, A<CancellationToken>._))
+            A.CallTo(() => eventStore.QueryAllAsync("^my-stream", position, A<int>._, A<CancellationToken>._))
                 .Throws(ex);
 
             var sut = new PollingSubscription(eventStore, eventSubscriber, "^my-stream", position);
@@ -59,7 +59,7 @@ namespace Squidex.Infrastructure.EventSourcing
             await WaitAndStopAsync(sut);
 
             A.CallTo(() => eventSubscriber.OnErrorAsync(sut, ex))
-                .MustNotHaveHappened();
+                .MustHaveHappened();
         }
 
         [Fact]
@@ -67,7 +67,7 @@ namespace Squidex.Infrastructure.EventSourcing
         {
             var ex = new AggregateException(new OperationCanceledException());
 
-            A.CallTo(() => eventStore.QueryAsync(A<Func<StoredEvent, Task>>._, "^my-stream", position, A<CancellationToken>._))
+            A.CallTo(() => eventStore.QueryAllAsync("^my-stream", position, A<int>._, A<CancellationToken>._))
                 .Throws(ex);
 
             var sut = new PollingSubscription(eventStore, eventSubscriber, "^my-stream", position);
@@ -75,7 +75,7 @@ namespace Squidex.Infrastructure.EventSourcing
             await WaitAndStopAsync(sut);
 
             A.CallTo(() => eventSubscriber.OnErrorAsync(sut, ex))
-                .MustNotHaveHappened();
+                .MustHaveHappened();
         }
 
         [Fact]
@@ -87,7 +87,7 @@ namespace Squidex.Infrastructure.EventSourcing
 
             await WaitAndStopAsync(sut);
 
-            A.CallTo(() => eventStore.QueryAsync(A<Func<StoredEvent, Task>>._, "^my-stream", position, A<CancellationToken>._))
+            A.CallTo(() => eventStore.QueryAllAsync("^my-stream", position, A<int>._, A<CancellationToken>._))
                 .MustHaveHappened(2, Times.Exactly);
         }
 
@@ -95,7 +95,7 @@ namespace Squidex.Infrastructure.EventSourcing
         {
             await Task.Delay(200);
 
-            await sut.StopAsync();
+            sut.Unsubscribe();
         }
     }
 }

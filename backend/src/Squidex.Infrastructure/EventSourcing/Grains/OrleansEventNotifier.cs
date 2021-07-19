@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -17,8 +17,6 @@ namespace Squidex.Infrastructure.EventSourcing.Grains
 
         public OrleansEventNotifier(IGrainFactory factory)
         {
-            Guard.NotNull(factory, nameof(factory));
-
             eventConsumerManagerGrain = new Lazy<IEventConsumerManagerGrain>(() =>
             {
                 return factory.GetGrain<IEventConsumerManagerGrain>(SingleGrain.Id);

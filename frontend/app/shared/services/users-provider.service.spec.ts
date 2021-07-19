@@ -7,6 +7,7 @@
 
 import { AuthService, Profile, UserDto, UsersProviderService, UsersService } from '@app/shared/internal';
 import { of, throwError } from 'rxjs';
+import { onErrorResumeNext } from 'rxjs/operators';
 import { IMock, Mock, Times } from 'typemoq';
 
 describe('UsersProviderService', () => {
@@ -20,7 +21,7 @@ describe('UsersProviderService', () => {
         usersProviderService = new UsersProviderService(usersService.object, authService.object);
     });
 
-    it('should return users service when user not cached', () => {
+    it('should return users service if user not cached', () => {
         const user = new UserDto('123', 'User1');
 
         usersService.setup(x => x.getUser('123'))
@@ -56,11 +57,11 @@ describe('UsersProviderService', () => {
         usersService.verifyAll();
     });
 
-    it('should return me when user is current user', () => {
+    it('should return me if user is current user', () => {
         const user = new UserDto('123', 'User1');
 
         authService.setup(x => x.user)
-            .returns(() => new Profile(<any>{ profile: { sub: '123'}}));
+            .returns(() => new Profile(<any>{ profile: { sub: '123' } }));
 
         usersService.setup(x => x.getUser('123'))
             .returns(() => of(user)).verifiable(Times.once());
@@ -76,16 +77,16 @@ describe('UsersProviderService', () => {
         usersService.verifyAll();
     });
 
-    it('should return invalid user when not found', () => {
+    it('should return invalid user if not found', () => {
         authService.setup(x => x.user)
-            .returns(() => new Profile(<any>{ profile: { sub: '123'}}));
+            .returns(() => new Profile(<any>{ profile: { sub: '123' } }));
 
         usersService.setup(x => x.getUser('123'))
-            .returns(() => throwError('NOT FOUND')).verifiable(Times.once());
+            .returns(() => throwError(() => 'Service Error')).verifiable(Times.once());
 
         let resultingUser: UserDto;
 
-        usersProviderService.getUser('123').subscribe(result => {
+        usersProviderService.getUser('123').pipe(onErrorResumeNext()).subscribe(result => {
             resultingUser = result;
         }).unsubscribe();
 

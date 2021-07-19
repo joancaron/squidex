@@ -5,28 +5,29 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, Input, OnChanges, OnDestroy, Output, QueryList, SimpleChanges, ViewChildren } from '@angular/core';
-import { AbstractControl, FormGroup } from '@angular/forms';
-import { AppLanguageDto, EditContentForm, FieldDto, FieldFormatter, invalid$, RootFieldDto, value$ } from '@app/shared';
-import { Observable, Subscription } from 'rxjs';
-import { FieldEditorComponent } from './field-editor.component';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, Input, OnChanges, Output, QueryList, SimpleChanges, ViewChildren } from '@angular/core';
+import { AppLanguageDto, ComponentForm, EditContentForm, FieldDto, FieldFormatter, FieldSection, invalid$, ObjectForm, RootFieldDto, StatefulComponent, Types, value$ } from '@app/shared';
+import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
+import { ComponentSectionComponent } from './component-section.component';
 
-type FieldControl = { field: FieldDto, control: AbstractControl };
+interface State {
+    // The when the section is collapsed.
+    isCollapsed: boolean;
+}
 
 @Component({
     selector: 'sqx-array-item',
     styleUrls: ['./array-item.component.scss'],
     templateUrl: './array-item.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ArrayItemComponent implements OnChanges, OnDestroy {
-    private subscription: Subscription;
+export class ArrayItemComponent extends StatefulComponent<State> implements OnChanges {
+    @Output()
+    public itemRemove = new EventEmitter();
 
     @Output()
-    public remove = new EventEmitter();
-
-    @Output()
-    public move = new EventEmitter<number>();
+    public itemMove = new EventEmitter<number>();
 
     @Output()
     public clone = new EventEmitter();
@@ -38,22 +39,22 @@ export class ArrayItemComponent implements OnChanges, OnDestroy {
     public formContext: any;
 
     @Input()
-    public field: RootFieldDto;
+    public formModel: ObjectForm;
 
     @Input()
-    public isFirst = false;
+    public canUnset?: boolean | null;
 
     @Input()
-    public isLast = false;
+    public isFirst?: boolean | null;
 
     @Input()
-    public isDisabled = false;
+    public isLast?: boolean | null;
+
+    @Input()
+    public isDisabled?: boolean | null;
 
     @Input()
     public index: number;
-
-    @Input()
-    public itemForm: FormGroup;
 
     @Input()
     public language: AppLanguageDto;
@@ -61,113 +62,84 @@ export class ArrayItemComponent implements OnChanges, OnDestroy {
     @Input()
     public languages: ReadonlyArray<AppLanguageDto>;
 
-    @ViewChildren(FieldEditorComponent)
-    public editors: QueryList<FieldEditorComponent>;
+    @ViewChildren(ComponentSectionComponent)
+    public sections: QueryList<ComponentSectionComponent>;
 
-    public isHidden = false;
+    public isCollapsed = false;
     public isInvalid: Observable<boolean>;
 
-    public title: string;
+    public title: Observable<string>;
 
-    public fieldControls: ReadonlyArray<FieldControl> = [];
-
-    constructor(
-        private readonly changeDetector: ChangeDetectorRef
+    constructor(changeDetector: ChangeDetectorRef,
     ) {
-    }
-
-    public ngOnDestroy() {
-        this.unsubscribeFromForm();
-    }
-
-    private unsubscribeFromForm() {
-        if (this.subscription) {
-            this.subscription.unsubscribe();
-        }
-    }
-
-    public ngOnChanges(changes: SimpleChanges) {
-        if (changes['itemForm']) {
-            this.isInvalid = invalid$(this.itemForm);
-
-            this.unsubscribeFromForm();
-
-            this.subscription =
-                value$(this.itemForm)
-                    .subscribe(() => {
-                        this.updateTitle();
-                    });
-        }
-
-        if (changes['itemForm'] || changes['field']) {
-            this.updateFields();
-            this.updateTitle();
-        }
-    }
-
-    private updateFields() {
-        const fields: FieldControl[] = [];
-
-        for (let field of this.field.nested) {
-            const control = this.itemForm.get(field.name)!;
-
-            if (control || this.field.properties.isContentField) {
-                fields.push({ field, control });
-            }
-        }
-
-        this.fieldControls = fields;
-    }
-
-    private updateTitle() {
-        const values: string[] = [];
-
-        for (let { control, field } of this.fieldControls) {
-            const formatted = FieldFormatter.format(field, control.value);
-
-            if (formatted) {
-                values.push(formatted);
-            }
-        }
-
-        this.title = values.join(', ');
-    }
-
-    public collapse() {
-        this.isHidden = true;
-
-        this.changeDetector.markForCheck();
-    }
-
-    public expand() {
-        this.isHidden = false;
-
-        this.changeDetector.markForCheck();
-    }
-
-    public moveTop() {
-        this.move.emit(0);
-    }
-
-    public moveUp() {
-        this.move.emit(this.index - 1);
-    }
-
-    public moveDown() {
-        this.move.emit(this.index + 1);
-    }
-
-    public moveBottom() {
-        this.move.emit(99999);
-    }
-
-    public reset() {
-        this.editors.forEach(editor => {
-            editor.reset();
+        super(changeDetector, {
+            isCollapsed: false,
         });
     }
 
-    public trackByField(index: number, control: FieldControl) {
-        return control.field.name;
+    public ngOnChanges(changes: SimpleChanges) {
+        if (changes['formModel']) {
+            this.isInvalid = invalid$(this.formModel.form);
+
+            this.title = value$(this.formModel.form).pipe(map(x => this.getTitle(x)));
+        }
+    }
+
+    private getTitle(value: any) {
+        const values: string[] = [];
+
+        if (Types.is(this.formModel, ComponentForm) && this.formModel.schema) {
+            values.push(this.formModel.schema.displayName);
+        }
+
+        if (Types.is(this.formModel.field, RootFieldDto)) {
+            for (const field of this.formModel.field.nested) {
+                const fieldValue = value[field.name];
+
+                if (fieldValue) {
+                    const formatted = FieldFormatter.format(field, fieldValue);
+
+                    if (formatted) {
+                        values.push(formatted);
+                    }
+                }
+            }
+        }
+
+        return values.join(', ');
+    }
+
+    public collapse() {
+        this.next({ isCollapsed: true });
+    }
+
+    public expand() {
+        this.next({ isCollapsed: false });
+    }
+
+    public moveTop() {
+        this.itemMove.emit(0);
+    }
+
+    public moveUp() {
+        this.itemMove.emit(this.index - 1);
+    }
+
+    public moveDown() {
+        this.itemMove.emit(this.index + 1);
+    }
+
+    public moveBottom() {
+        this.itemMove.emit(99999);
+    }
+
+    public reset() {
+        this.sections.forEach(section => {
+            section.reset();
+        });
+    }
+
+    public trackBySection(_index: number, section: FieldSection<FieldDto, any>) {
+        return section.separator?.fieldId;
     }
 }

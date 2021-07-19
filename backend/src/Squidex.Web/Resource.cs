@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -9,14 +9,15 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using Newtonsoft.Json;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.Validation;
 
 namespace Squidex.Web
 {
     public abstract class Resource
     {
-        [JsonProperty("_links")]
-        [Required]
+        [LocalizedRequired]
         [Display(Description = "The links.")]
+        [JsonProperty("_links")]
         public Dictionary<string, ResourceLink> Links { get; } = new Dictionary<string, ResourceLink>();
 
         public void AddSelfLink(string href)

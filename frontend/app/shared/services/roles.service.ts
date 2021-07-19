@@ -11,13 +11,6 @@ import { AnalyticsService, ApiUrlConfig, hasAnyLink, HTTP, mapVersioned, pretify
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 
-export type RolesDto = Versioned<RolesPayload>;
-export type RolesPayload = {
-    readonly items: ReadonlyArray<RoleDto>;
-
-    readonly canCreate: boolean;
-} & Resource;
-
 export class RoleDto {
     public readonly _links: ResourceLinks;
 
@@ -30,7 +23,8 @@ export class RoleDto {
         public readonly numClients: number,
         public readonly numContributors: number,
         public readonly permissions: ReadonlyArray<string>,
-        public readonly isDefaultRole: boolean
+        public readonly properties: {},
+        public readonly isDefaultRole: boolean,
     ) {
         this._links = links;
 
@@ -39,20 +33,26 @@ export class RoleDto {
     }
 }
 
-export interface CreateRoleDto {
-    readonly name: string;
-}
+type Permissions = readonly string[];
 
-export interface UpdateRoleDto {
-    readonly permissions: ReadonlyArray<string>;
-}
+export type RolesDto =
+    Versioned<RolesPayload>;
+
+export type RolesPayload =
+    Readonly<{ items: ReadonlyArray<RoleDto>; canCreate: boolean } & Resource>;
+
+export type CreateRoleDto =
+    Readonly<{ name: string }>;
+
+export type UpdateRoleDto =
+    Readonly<{ permissions: Permissions; properties: {} }>;
 
 @Injectable()
 export class RolesService {
     constructor(
         private readonly http: HttpClient,
         private readonly apiUrl: ApiUrlConfig,
-        private readonly analytics: AnalyticsService
+        private readonly analytics: AnalyticsService,
     ) {
     }
 
@@ -63,7 +63,7 @@ export class RolesService {
             mapVersioned(({ body }) => {
                 return parseRoles(body);
             }),
-            pretifyError('Failed to load roles. Please reload.'));
+            pretifyError('i18n:roles.loadFailed'));
     }
 
     public postRole(appName: string, dto: CreateRoleDto, version: Version): Observable<RolesDto> {
@@ -76,7 +76,7 @@ export class RolesService {
             tap(() => {
                 this.analytics.trackEvent('Role', 'Created', appName);
             }),
-            pretifyError('Failed to add role. Please reload.'));
+            pretifyError('i18n:roles.addFailed'));
     }
 
     public putRole(appName: string, resource: Resource, dto: UpdateRoleDto, version: Version): Observable<RolesDto> {
@@ -91,7 +91,7 @@ export class RolesService {
             tap(() => {
                 this.analytics.trackEvent('Role', 'Updated', appName);
             }),
-            pretifyError('Failed to revoke role. Please reload.'));
+            pretifyError('i18n:roles.updateFailed'));
     }
 
     public deleteRole(appName: string, resource: Resource, version: Version): Observable<RolesDto> {
@@ -106,14 +106,14 @@ export class RolesService {
             tap(() => {
                 this.analytics.trackEvent('Role', 'Deleted', appName);
             }),
-            pretifyError('Failed to revoke role. Please reload.'));
+            pretifyError('i18n:roles.revokeFailed'));
     }
 
     public getPermissions(appName: string): Observable<ReadonlyArray<string>> {
         const url = this.apiUrl.buildUrl(`api/apps/${appName}/roles/permissions`);
 
         return this.http.get<string[]>(url).pipe(
-            pretifyError('Failed to load permissions. Please reload.'));
+            pretifyError('i18n:roles.loadPermissionsFailed'));
     }
 }
 
@@ -126,6 +126,7 @@ export function parseRoles(response: any) {
             item.numClients,
             item.numContributors,
             item.permissions,
+            item.properties,
             item.isDefaultRole));
 
     const _links = response._links;

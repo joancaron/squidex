@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -13,13 +13,10 @@ namespace Squidex.Infrastructure
     [Serializable]
     public class DomainForbiddenException : DomainException
     {
-        public DomainForbiddenException(string message)
-            : base(message)
-        {
-        }
+        private const string ValidationError = "FORBIDDEN";
 
-        public DomainForbiddenException(string message, Exception inner)
-            : base(message, inner)
+        public DomainForbiddenException(string message, Exception? inner = null)
+            : base(message, ValidationError, inner)
         {
         }
 

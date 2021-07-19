@@ -5,230 +5,119 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { Component, OnInit } from '@angular/core';
-import { AppsState, AuthService, DateTime, fadeAnimation, HistoryEventDto, HistoryService, LocalStoreService, ResourceOwner, UsagesService } from '@app/shared';
-import { switchMap } from 'rxjs/operators';
-
-const COLORS: ReadonlyArray<string> = [
-    ' 51, 137, 213',
-    '211,  50,  50',
-    '131, 211,  50',
-    ' 50, 211, 131',
-    ' 50, 211, 211',
-    ' 50, 131, 211',
-    ' 50,  50, 211',
-    ' 50, 211,  50',
-    '131,  50, 211',
-    '211,  50, 211',
-    '211,  50, 131'
-];
+import { AfterViewInit, Component, NgZone, OnInit, Renderer2, ViewChild } from '@angular/core';
+import { AppsState, AuthService, CallsUsageDto, CurrentStorageDto, DateTime, defined, fadeAnimation, LocalStoreService, ResourceOwner, Settings, StorageUsagePerDateDto, switchSafe, UsagesService } from '@app/shared';
+import { GridsterComponent, GridsterConfig, GridsterItem, GridType } from 'angular-gridster2';
 
 @Component({
     selector: 'sqx-dashboard-page',
     styleUrls: ['./dashboard-page.component.scss'],
     templateUrl: './dashboard-page.component.html',
     animations: [
-        fadeAnimation
-    ]
+        fadeAnimation,
+    ],
 })
-export class DashboardPageComponent extends ResourceOwner implements OnInit {
-    private isStackedValue: boolean;
+export class DashboardPageComponent extends ResourceOwner implements AfterViewInit, OnInit {
+    @ViewChild('grid')
+    public grid: GridsterComponent;
 
-    public chartOptions = {
-        responsive: true,
-        scales: {
-            xAxes: [{
-                display: true,
-                stacked: false
-            }],
-            yAxes: [{
-                ticks: {
-                    beginAtZero: true
-                },
-                stacked: false
-            }]
-        },
-        maintainAspectRatio: false
-    };
+    public selectedApp = this.appsState.selectedApp.pipe(defined());
 
-    public stackedChartOptions = {
-        responsive: true,
-        scales: {
-            xAxes: [{
-                display: true,
-                stacked: true
-            }],
-            yAxes: [{
-                ticks: {
-                    beginAtZero: true
-                },
-                stacked: true
-            }]
-        },
-        maintainAspectRatio: false
-    };
+    public isStacked: boolean;
 
-    public history: ReadonlyArray<HistoryEventDto> = [];
+    public storageCurrent: CurrentStorageDto;
+    public storageUsage: ReadonlyArray<StorageUsagePerDateDto>;
 
-    public profileDisplayName = '';
+    public callsUsage: CallsUsageDto;
 
-    public chartStorageCount: any;
-    public chartStorageSize: any;
-    public chartCallsCount: any;
-    public chartCallsBytes: any;
-    public chartCallsPerformance: any;
+    public gridConfig: GridsterItem[];
+    public gridOptions = DEFAULT_OPTIONS;
 
-    public storageCurrent = 0;
-    public storageAllowed = 0;
+    public isScrolled = false;
 
-    public callsPerformance = 0;
-    public callsCurrent = 0;
-    public callsAllowed = 0;
-    public callsBytes = 0;
-
-    public get isStacked() {
-        return this.isStackedValue;
-    }
-
-    public set isStacked(value: boolean) {
-        this.localStore.setBoolean('dashboard.charts.stacked', value);
-
-        this.isStackedValue = value;
-    }
+    public user = this.authState.user?.displayName;
 
     constructor(
-        public readonly appsState: AppsState,
-        public readonly authState: AuthService,
-        private readonly historyService: HistoryService,
+        private readonly appsState: AppsState,
+        private readonly authState: AuthService,
+        private readonly localStore: LocalStoreService,
+        private readonly renderer: Renderer2,
         private readonly usagesService: UsagesService,
-        private readonly localStore: LocalStoreService
+        private readonly zone: NgZone,
     ) {
         super();
 
-        this.isStackedValue = localStore.getBoolean('dashboard.charts.stacked');
+        this.isStacked = localStore.getBoolean(Settings.Local.DASHBOARD_CHART_STACKED);
     }
 
     public ngOnInit() {
-        this.own(
-            this.appsState.selectedApp.pipe(
-                    switchMap(app => this.usagesService.getTodayStorage(app.name)))
-                .subscribe(dto => {
-                    this.storageCurrent = dto.size;
-                    this.storageAllowed = dto.maxAllowed;
-                }));
-
-        this.own(
-            this.appsState.selectedApp.pipe(
-                    switchMap(app => this.historyService.getHistory(app.name, '')))
-                .subscribe(dto => {
-                    this.history = dto;
-                }));
-
         const dateTo = DateTime.today().toStringFormat('yyyy-MM-dd');
         const dateFrom = DateTime.today().addDays(-20).toStringFormat('yyyy-MM-dd');
 
         this.own(
-            this.appsState.selectedApp.pipe(
-                    switchMap(app => this.usagesService.getStorageUsages(app.name, dateFrom, dateTo)))
-                .subscribe(dtos => {
-                    const labels = createLabels(dtos);
-
-                    this.chartStorageCount = {
-                        labels,
-                        datasets: [
-                            {
-                                label: 'All',
-                                lineTension: 0,
-                                fill: false,
-                                backgroundColor: `rgba(${COLORS[0]}, 0.6)`,
-                                borderColor: `rgba(${COLORS[0]}, 1)`,
-                                borderWidth: 1,
-                                data: dtos.map(x => x.totalCount)
-                            }
-                        ]
-                    };
-
-                    this.chartStorageSize = {
-                        labels,
-                        datasets: [
-                            {
-                                label: 'All',
-                                lineTension: 0,
-                                fill: false,
-                                backgroundColor: `rgba(${COLORS[0]}, 0.6)`,
-                                borderColor: `rgba(${COLORS[0]}, 1)`,
-                                borderWidth: 1,
-                                data: dtos.map(x => Math.round(100 * (x.totalSize / (1024 * 1024))) / 100)
-                            }
-                        ]
-                    };
+            this.selectedApp.pipe(switchSafe(app => this.usagesService.getTodayStorage(app.name)))
+                .subscribe(dto => {
+                    this.storageCurrent = dto;
                 }));
 
         this.own(
-            this.appsState.selectedApp.pipe(
-                    switchMap(app => this.usagesService.getCallsUsages(app.name, dateFrom, dateTo)))
-                .subscribe(({ details, totalBytes, totalCalls, allowedCalls, averageElapsedMs }) => {
-                    const labels = createLabelsFromSet(details);
+            this.selectedApp.pipe(switchSafe(app => this.usagesService.getStorageUsages(app.name, dateFrom, dateTo)))
+                .subscribe(dtos => {
+                    this.storageUsage = dtos;
+                }));
 
-                    this.chartCallsCount = {
-                        labels,
-                        datasets: Object.keys(details).map((k, i) => (
-                            {
-                                label: label(k),
-                                backgroundColor: `rgba(${COLORS[i]}, 0.6)`,
-                                borderColor: `rgba(${COLORS[i]}, 1)`,
-                                borderWidth: 1,
-                                data: details[k].map(x => x.totalCalls)
-                            }))
-                    };
-
-                    this.chartCallsBytes = {
-                        labels,
-                        datasets: Object.keys(details).map((k, i) => (
-                            {
-                                label: label(k),
-                                backgroundColor: `rgba(${COLORS[i]}, 0.6)`,
-                                borderColor: `rgba(${COLORS[i]}, 1)`,
-                                borderWidth: 1,
-                                data: details[k].map(x => Math.round(100 * (x.totalBytes / (1024 * 1024))) / 100)
-                            }))
-                    };
-
-                    this.chartCallsPerformance = {
-                        labels,
-                        datasets: Object.keys(details).map((k, i) => (
-                            {
-                                label: label(k),
-                                backgroundColor: `rgba(${COLORS[i]}, 0.6)`,
-                                borderColor: `rgba(${COLORS[i]}, 1)`,
-                                borderWidth: 1,
-                                data: details[k].map(x => x.averageElapsedMs)
-                            }))
-                    };
-
-                    this.callsPerformance = averageElapsedMs;
-                    this.callsBytes = totalBytes;
-                    this.callsCurrent = totalCalls;
-                    this.callsAllowed = allowedCalls;
+        this.own(
+            this.selectedApp.pipe(switchSafe(app => this.usagesService.getCallsUsages(app.name, dateFrom, dateTo)))
+                .subscribe(dto => {
+                    this.callsUsage = dto;
                 }));
     }
 
-    public downloadLog() {
-        this.usagesService.getLog(this.appsState.appName)
-            .subscribe(url => {
-                window.open(url, '_blank');
+    public ngAfterViewInit() {
+        this.zone.runOutsideAngular(() => {
+            const gridElement = this.grid.el;
+
+            this.renderer.listen(gridElement, 'scroll', () => {
+                const isScrolled = gridElement.scrollTop > 0;
+
+                if (isScrolled !== this.isScrolled) {
+                    this.zone.run(() => {
+                        this.isScrolled = isScrolled;
+                    });
+                }
             });
+        });
+    }
+
+    public changeIsStacked(value: boolean) {
+        this.localStore.setBoolean(Settings.Local.DASHBOARD_CHART_STACKED, value);
+
+        this.isStacked = value;
+    }
+
+    public changeConfig(config: GridsterItem[]) {
+        this.gridConfig = config;
+
+        this.grid?.updateGrid();
     }
 }
 
-function label(category: string) {
-    return category === '*' ? 'anonymous' : category;
-}
-
-function createLabels(dtos: ReadonlyArray<{ date: DateTime }>): ReadonlyArray<string> {
-    return dtos.map(d => d.date.toStringFormat('M-dd'));
-}
-
-function createLabelsFromSet(dtos: { [category: string]: ReadonlyArray<{ date: DateTime }> }): ReadonlyArray<string> {
-    return createLabels(dtos[Object.keys(dtos)[0]]);
-}
+const DEFAULT_OPTIONS: GridsterConfig = {
+    displayGrid: 'onDrag&Resize',
+    draggable: {
+        enabled: true,
+    },
+    fixedColWidth: 254,
+    fixedRowHeight: 254,
+    gridType: GridType.Fixed,
+    maxItemCols: 3,
+    maxItemRows: 2,
+    outerMargin: true,
+    outerMarginBottom: 16,
+    outerMarginLeft: 16,
+    outerMarginRight: 16,
+    outerMarginTop: 120,
+    resizable: {
+        enabled: true,
+    },
+};

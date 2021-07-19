@@ -12,7 +12,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.ChangeFeedProcessor.FeedProcessing;
-using Newtonsoft.Json;
 using Builder = Microsoft.Azure.Documents.ChangeFeedProcessor.ChangeFeedProcessorBuilder;
 using Collection = Microsoft.Azure.Documents.ChangeFeedProcessor.DocumentCollectionInfo;
 using Options = Microsoft.Azure.Documents.ChangeFeedProcessor.ChangeFeedProcessorOptions;
@@ -24,10 +23,9 @@ namespace Squidex.Infrastructure.EventSourcing
     internal sealed class CosmosDbSubscription : IEventSubscription, IChangeFeedObserverFactory, IChangeFeedObserver
     {
         private readonly TaskCompletionSource<bool> processorStopRequested = new TaskCompletionSource<bool>();
-        private readonly Task processorTask;
         private readonly CosmosDbEventStore store;
         private readonly Regex regex;
-        private readonly string? hostName;
+        private readonly string hostName;
         private readonly IEventSubscriber subscriber;
 
         public CosmosDbSubscription(CosmosDbEventStore store, IEventSubscriber subscriber, string? streamFilter, string? position = null)
@@ -38,11 +36,11 @@ namespace Squidex.Infrastructure.EventSourcing
 
             if (fromBeginning)
             {
-                hostName = $"squidex.{DateTime.UtcNow.Ticks.ToString()}";
+                hostName = $"squidex.{DateTime.UtcNow.Ticks}";
             }
             else
             {
-                hostName = position;
+                hostName = position ?? "none";
             }
 
             if (!StreamFilter.IsAll(streamFilter))
@@ -52,7 +50,7 @@ namespace Squidex.Infrastructure.EventSourcing
 
             this.subscriber = subscriber;
 
-            processorTask = Task.Run(async () =>
+            Task.Run(async () =>
             {
                 try
                 {
@@ -118,7 +116,7 @@ namespace Squidex.Infrastructure.EventSourcing
 
                         if (regex == null || regex.IsMatch(streamName))
                         {
-                            var commit = JsonConvert.DeserializeObject<CosmosDbEventCommit>(document.ToString(), store.SerializerSettings)!;
+                            var commit = store.JsonSerializer.Deserialize<CosmosDbEventCommit>(document.ToString());
 
                             var eventStreamOffset = (int)commit.EventStreamOffset;
 
@@ -128,7 +126,7 @@ namespace Squidex.Infrastructure.EventSourcing
 
                                 var eventData = @event.ToEventData();
 
-                                await subscriber.OnEventAsync(this, new StoredEvent(commit.EventStream, hostName ?? "None", eventStreamOffset, eventData));
+                                await subscriber.OnEventAsync(this, new StoredEvent(commit.EventStream, hostName, eventStreamOffset, eventData));
                             }
                         }
                     }
@@ -136,15 +134,9 @@ namespace Squidex.Infrastructure.EventSourcing
             }
         }
 
-        public void WakeUp()
-        {
-        }
-
-        public Task StopAsync()
+        public void Unsubscribe()
         {
             processorStopRequested.SetResult(true);
-
-            return processorTask;
         }
     }
 }

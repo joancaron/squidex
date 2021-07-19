@@ -5,22 +5,11 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable: readonly-array
-
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { AnalyticsService, ApiUrlConfig, compareStrings, hasAnyLink, HTTP, mapVersioned, Model, pretifyError, Resource, ResourceLinks, StringHelper, Version, Versioned } from '@app/framework';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
-
-export type WorkflowsDto = Versioned<WorkflowsPayload>;
-export type WorkflowsPayload = {
-    readonly items: WorkflowDto[];
-
-    readonly errors: string[];
-
-    readonly canCreate: boolean;
-} & Resource;
 
 export class WorkflowDto extends Model<WorkflowDto> {
     public readonly _links: ResourceLinks;
@@ -37,7 +26,7 @@ export class WorkflowDto extends Model<WorkflowDto> {
         public readonly initial: string | null = null,
         public readonly schemaIds: string[] = [],
         public readonly steps: WorkflowStep[] = [],
-        public readonly transitions: WorkflowTransition[] = []
+        public readonly transitions: WorkflowTransition[] = [],
     ) {
         super();
 
@@ -48,7 +37,7 @@ export class WorkflowDto extends Model<WorkflowDto> {
         this.canUpdate = hasAnyLink(links, 'update');
         this.canDelete = hasAnyLink(links, 'delete');
 
-        this.displayName = StringHelper.firstNonEmpty(name, 'Unnamed Workflow');
+        this.displayName = StringHelper.firstNonEmpty(name, 'i18n:workflows.notNamed');
     }
 
     protected onCloned() {
@@ -142,7 +131,7 @@ export class WorkflowDto extends Model<WorkflowDto> {
 
         const transitions = this.transitions.map(transition => {
             if (transition.from === name || transition.to === name) {
-                let newTransition = { ...transition };
+                const newTransition = { ...transition };
 
                 if (newTransition.from === name) {
                     newTransition.from = newName;
@@ -178,13 +167,14 @@ export class WorkflowDto extends Model<WorkflowDto> {
     public serialize(): any {
         const result = { steps: {}, schemaIds: this.schemaIds, initial: this.initial, name: this.name };
 
-        for (let step of this.steps) {
+        for (const step of this.steps) {
             const { name, ...values } = step;
 
             const s = { ...values, transitions: {} };
 
-            for (let transition of this.getTransitions(step)) {
-                const { from, to, step: _, ...t } = transition;
+            for (const transition of this.getTransitions(step)) {
+                // eslint-disable-next-line @typescript-eslint/naming-convention
+                const { to, step: _, from: __, ...t } = transition;
 
                 s.transitions[to] = t;
             }
@@ -196,24 +186,36 @@ export class WorkflowDto extends Model<WorkflowDto> {
     }
 }
 
-export type WorkflowStepValues = { color?: string; isLocked?: boolean; noUpdate?: boolean; noUpdateExpression?: string; noUpdateRoles?: ReadonlyArray<string> };
-export type WorkflowStep = { name: string } & WorkflowStepValues;
+export type WorkflowStepValues =
+    Readonly<{ color?: string; isLocked?: boolean; noUpdate?: boolean; noUpdateExpression?: string; noUpdateRoles?: ReadonlyArray<string> }>;
 
-export type WorkflowTransitionValues = { expression?: string; roles?: string[]; };
-export type WorkflowTransition = { from: string; to: string } & WorkflowTransitionValues;
+export type WorkflowStep =
+    Readonly<{ name: string } & WorkflowStepValues>;
 
-export type WorkflowTransitionView = { step: WorkflowStep } & WorkflowTransition;
+export type WorkflowTransitionValues =
+    Readonly<{ expression?: string; roles?: string[] }>;
 
-export interface CreateWorkflowDto {
-    readonly name: string;
-}
+export type WorkflowTransition =
+    Readonly<{ from: string; to: string } & WorkflowTransitionValues>;
+
+export type WorkflowTransitionView =
+    Readonly<{ step: WorkflowStep } & WorkflowTransition>;
+
+export type WorkflowsDto =
+    Versioned<WorkflowsPayload>;
+
+export type WorkflowsPayload =
+    Readonly<{ items: WorkflowDto[]; errors: string[]; canCreate: boolean } & Resource>;
+
+export type CreateWorkflowDto =
+    Readonly<{ name: string }>;
 
 @Injectable()
 export class WorkflowsService {
     constructor(
         private readonly http: HttpClient,
         private readonly apiUrl: ApiUrlConfig,
-        private readonly analytics: AnalyticsService
+        private readonly analytics: AnalyticsService,
     ) {
     }
 
@@ -224,7 +226,7 @@ export class WorkflowsService {
             mapVersioned(({ body }) => {
                 return parseWorkflows(body);
             }),
-            pretifyError('Failed to load workflows. Please reload.'));
+            pretifyError('i18n:workflows.loadFailed'));
     }
 
     public postWorkflow(appName: string, dto: CreateWorkflowDto, version: Version): Observable<WorkflowsDto> {
@@ -237,7 +239,7 @@ export class WorkflowsService {
             tap(() => {
                 this.analytics.trackEvent('Workflow', 'Created', appName);
             }),
-            pretifyError('Failed to create workflow. Please reload.'));
+            pretifyError('i18n:workflows.createFailed'));
     }
 
     public putWorkflow(appName: string, resource: Resource, dto: any, version: Version): Observable<WorkflowsDto> {
@@ -252,7 +254,7 @@ export class WorkflowsService {
             tap(() => {
                 this.analytics.trackEvent('Workflow', 'Updated', appName);
             }),
-            pretifyError('Failed to update Workflow. Please reload.'));
+            pretifyError('i18n:workflows.updateFailed'));
     }
 
     public deleteWorkflow(appName: string, resource: Resource, version: Version): Observable<WorkflowsDto> {
@@ -267,15 +269,14 @@ export class WorkflowsService {
             tap(() => {
                 this.analytics.trackEvent('Workflow', 'Deleted', appName);
             }),
-            pretifyError('Failed to delete Workflow. Please reload.'));
+            pretifyError('i18n:workflows.deleteFailed'));
     }
 }
 
 function parseWorkflows(response: any) {
     const raw: any[] = response.items;
 
-    const items = raw.map(item =>
-        parseWorkflow(item));
+    const items = raw.map(parseWorkflow);
 
     const { errors, _links } = response;
 
@@ -288,13 +289,13 @@ function parseWorkflow(workflow: any) {
     const steps: WorkflowStep[] = [];
     const transitions: WorkflowTransition[] = [];
 
-    for (let stepName in workflow.steps) {
+    for (const stepName in workflow.steps) {
         if (workflow.steps.hasOwnProperty(stepName)) {
             const { transitions: srcTransitions, ...step } = workflow.steps[stepName];
 
             steps.push({ name: stepName, isLocked: stepName === 'Published', ...step });
 
-            for (let to in srcTransitions) {
+            for (const to in srcTransitions) {
                 if (srcTransitions.hasOwnProperty(to)) {
                     const transition = srcTransitions[to];
 

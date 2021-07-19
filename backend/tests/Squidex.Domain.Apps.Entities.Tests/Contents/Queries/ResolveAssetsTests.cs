@@ -7,6 +7,7 @@
 
 using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using FakeItEasy;
 using Squidex.Domain.Apps.Core;
@@ -15,7 +16,6 @@ using Squidex.Domain.Apps.Core.Contents;
 using Squidex.Domain.Apps.Core.Schemas;
 using Squidex.Domain.Apps.Entities.Assets;
 using Squidex.Domain.Apps.Entities.Contents.Queries.Steps;
-using Squidex.Domain.Apps.Entities.Schemas;
 using Squidex.Domain.Apps.Entities.TestHelpers;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Caching;
@@ -29,8 +29,8 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
         private readonly IAssetQueryService assetQuery = A.Fake<IAssetQueryService>();
         private readonly IUrlGenerator urlGenerator = A.Fake<IUrlGenerator>();
         private readonly IRequestCache requestCache = A.Fake<IRequestCache>();
-        private readonly NamedId<Guid> appId = NamedId.Of(Guid.NewGuid(), "my-app");
-        private readonly NamedId<Guid> schemaId = NamedId.Of(Guid.NewGuid(), "my-schema");
+        private readonly NamedId<DomainId> appId = NamedId.Of(DomainId.NewGuid(), "my-app");
+        private readonly NamedId<DomainId> schemaId = NamedId.Of(DomainId.NewGuid(), "my-schema");
         private readonly ProvideSchema schemaProvider;
         private readonly Context requestContext;
         private readonly ResolveAssets sut;
@@ -55,18 +55,18 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
                     })
                     .SetFieldsInLists("asset1", "asset2");
 
-            A.CallTo(() => urlGenerator.AssetContent(A<Guid>._))
-                .ReturnsLazily(ctx => $"url/to/{ctx.GetArgument<Guid>(0)}");
+            A.CallTo(() => urlGenerator.AssetContent(appId, A<string>._))
+                .ReturnsLazily(ctx => $"url/to/{ctx.GetArgument<string>(1)}");
 
             schemaProvider = x =>
             {
                 if (x == schemaId.Id)
                 {
-                    return Task.FromResult(Mocks.Schema(appId, schemaId, schemaDef));
+                    return Task.FromResult((Mocks.Schema(appId, schemaId, schemaDef), ResolvedComponents.Empty));
                 }
                 else
                 {
-                    throw new DomainObjectNotFoundException(x.ToString(), typeof(ISchemaEntity));
+                    throw new DomainObjectNotFoundException(x.ToString());
                 }
             };
 
@@ -76,73 +76,75 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
         [Fact]
         public async Task Should_add_assets_id_and_versions_as_dependency()
         {
-            var document1 = CreateAsset(Guid.NewGuid(), 3, AssetType.Unknown, "Document1.docx");
-            var document2 = CreateAsset(Guid.NewGuid(), 4, AssetType.Unknown, "Document2.docx");
+            var doc1 = CreateAsset(DomainId.NewGuid(), 3, AssetType.Unknown, "Document1.docx");
+            var doc2 = CreateAsset(DomainId.NewGuid(), 4, AssetType.Unknown, "Document2.docx");
 
             var contents = new[]
             {
                 CreateContent(
-                    new[] { document1.Id },
-                    new[] { document1.Id }),
+                    new[] { doc1.Id },
+                    new[] { doc1.Id }),
                 CreateContent(
-                    new[] { document2.Id },
-                    new[] { document2.Id }),
+                    new[] { doc2.Id },
+                    new[] { doc2.Id })
             };
 
-            A.CallTo(() => assetQuery.QueryAsync(A<Context>.That.Matches(x => !x.ShouldEnrichAsset()), null, A<Q>.That.Matches(x => x.Ids.Count == 2)))
-                .Returns(ResultList.CreateFrom(4, document1, document2));
+            A.CallTo(() => assetQuery.QueryAsync(
+                    A<Context>.That.Matches(x => x.ShouldSkipAssetEnrichment() && x.ShouldSkipTotal()), null, A<Q>.That.HasIds(doc1.Id, doc2.Id), A<CancellationToken>._))
+                .Returns(ResultList.CreateFrom(4, doc1, doc2));
 
-            await sut.EnrichAsync(requestContext, contents, schemaProvider);
+            await sut.EnrichAsync(requestContext, contents, schemaProvider, default);
 
-            A.CallTo(() => requestCache.AddDependency(document1.Id, document1.Version))
+            A.CallTo(() => requestCache.AddDependency(doc1.UniqueId, doc1.Version))
                 .MustHaveHappened();
 
-            A.CallTo(() => requestCache.AddDependency(document2.Id, document2.Version))
+            A.CallTo(() => requestCache.AddDependency(doc2.UniqueId, doc2.Version))
                 .MustHaveHappened();
         }
 
         [Fact]
         public async Task Should_enrich_with_asset_urls()
         {
-            var image1 = CreateAsset(Guid.NewGuid(), 1, AssetType.Image, "Image1.png");
-            var image2 = CreateAsset(Guid.NewGuid(), 2, AssetType.Image, "Image2.png");
+            var img1 = CreateAsset(DomainId.NewGuid(), 1, AssetType.Image, "Image1.png");
+            var img2 = CreateAsset(DomainId.NewGuid(), 2, AssetType.Unknown, "Image2.png", "image/svg+xml");
 
-            var document1 = CreateAsset(Guid.NewGuid(), 3, AssetType.Unknown, "Document1.png");
-            var document2 = CreateAsset(Guid.NewGuid(), 4, AssetType.Unknown, "Document2.png");
+            var doc1 = CreateAsset(DomainId.NewGuid(), 3, AssetType.Unknown, "Document1.png");
+            var doc2 = CreateAsset(DomainId.NewGuid(), 4, AssetType.Unknown, "Document2.png", "image/svg+xml", 20_000);
 
             var contents = new[]
             {
                 CreateContent(
-                    new[] { image1.Id },
-                    new[] { image2.Id, image1.Id }),
+                    new[] { img1.Id },
+                    new[] { img2.Id, img1.Id }),
                 CreateContent(
-                    new[] { document1.Id },
-                    new[] { document2.Id, document1.Id })
+                    new[] { doc1.Id },
+                    new[] { doc2.Id, doc1.Id })
             };
 
-            A.CallTo(() => assetQuery.QueryAsync(A<Context>.That.Matches(x => !x.ShouldEnrichAsset()), null, A<Q>.That.Matches(x => x.Ids.Count == 4)))
-                .Returns(ResultList.CreateFrom(4, image1, image2, document1, document2));
+            A.CallTo(() => assetQuery.QueryAsync(
+                    A<Context>.That.Matches(x => x.ShouldSkipAssetEnrichment() && x.ShouldSkipTotal()), null, A<Q>.That.HasIds(doc1.Id, doc2.Id, img1.Id, img2.Id), A<CancellationToken>._))
+                .Returns(ResultList.CreateFrom(4, img1, img2, doc1, doc2));
 
-            await sut.EnrichAsync(requestContext, contents, schemaProvider);
+            await sut.EnrichAsync(requestContext, contents, schemaProvider, default);
 
             Assert.Equal(
-                new NamedContentData()
+                new ContentData()
                     .AddField("asset1",
                         new ContentFieldData()
-                            .AddValue("iv", JsonValue.Array($"url/to/{image1.Id}", image1.FileName)))
+                            .AddLocalized("iv", JsonValue.Array($"url/to/{img1.Id}", img1.FileName)))
                     .AddField("asset2",
                         new ContentFieldData()
-                            .AddValue("en", JsonValue.Array($"url/to/{image2.Id}", image2.FileName))),
+                            .AddLocalized("en", JsonValue.Array($"url/to/{img2.Id}", img2.FileName))),
                 contents[0].ReferenceData);
 
             Assert.Equal(
-                new NamedContentData()
+                new ContentData()
                     .AddField("asset1",
                         new ContentFieldData()
-                            .AddValue("iv", JsonValue.Array(document1.FileName)))
+                            .AddLocalized("iv", JsonValue.Array(doc1.FileName)))
                     .AddField("asset2",
                         new ContentFieldData()
-                            .AddValue("en", JsonValue.Array(document2.FileName))),
+                            .AddLocalized("en", JsonValue.Array(doc2.FileName))),
                 contents[1].ReferenceData);
         }
 
@@ -151,16 +153,16 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
         {
             var contents = new[]
             {
-                CreateContent(new[] { Guid.NewGuid() }, new Guid[0])
+                CreateContent(new[] { DomainId.NewGuid() }, Array.Empty<DomainId>())
             };
 
             var ctx = new Context(Mocks.ApiUser(), Mocks.App(appId));
 
-            await sut.EnrichAsync(ctx, contents, schemaProvider);
+            await sut.EnrichAsync(ctx, contents, schemaProvider, default);
 
             Assert.Null(contents[0].ReferenceData);
 
-            A.CallTo(() => assetQuery.QueryAsync(A<Context>._, null, A<Q>._))
+            A.CallTo(() => assetQuery.QueryAsync(A<Context>._, null, A<Q>._, A<CancellationToken>._))
                 .MustNotHaveHappened();
         }
 
@@ -169,16 +171,16 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
         {
             var contents = new[]
             {
-                CreateContent(new[] { Guid.NewGuid() }, new Guid[0])
+                CreateContent(new[] { DomainId.NewGuid() }, Array.Empty<DomainId>())
             };
 
-            var ctx = new Context(Mocks.FrontendUser(), Mocks.App(appId)).WithoutContentEnrichment(true);
+            var ctx = new Context(Mocks.FrontendUser(), Mocks.App(appId)).Clone(b => b.WithoutContentEnrichment(true));
 
-            await sut.EnrichAsync(ctx, contents, schemaProvider);
+            await sut.EnrichAsync(ctx, contents, schemaProvider, default);
 
             Assert.Null(contents[0].ReferenceData);
 
-            A.CallTo(() => assetQuery.QueryAsync(A<Context>._, null, A<Q>._))
+            A.CallTo(() => assetQuery.QueryAsync(A<Context>._, null, A<Q>._, A<CancellationToken>._))
                 .MustNotHaveHappened();
         }
 
@@ -187,55 +189,65 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
         {
             var contents = new[]
             {
-                CreateContent(new Guid[0], new Guid[0])
+                CreateContent(Array.Empty<DomainId>(), Array.Empty<DomainId>())
             };
 
-            await sut.EnrichAsync(requestContext, contents, schemaProvider);
+            await sut.EnrichAsync(requestContext, contents, schemaProvider, default);
 
             Assert.NotNull(contents[0].ReferenceData);
 
-            A.CallTo(() => assetQuery.QueryAsync(A<Context>._, null, A<Q>._))
+            A.CallTo(() => assetQuery.QueryAsync(A<Context>._, null, A<Q>._, A<CancellationToken>._))
                 .MustNotHaveHappened();
         }
 
         [Fact]
         public async Task Should_only_query_first_assets()
         {
-            var id1 = Guid.NewGuid();
-            var id2 = Guid.NewGuid();
+            var id1 = DomainId.NewGuid();
+            var id2 = DomainId.NewGuid();
 
             var contents = new[]
             {
-                CreateContent(new[] { id1, id2 }, new Guid[0])
+                CreateContent(new[] { id1, id2 }, Array.Empty<DomainId>())
             };
 
-            await sut.EnrichAsync(requestContext, contents, schemaProvider);
+            await sut.EnrichAsync(requestContext, contents, schemaProvider, default);
 
             Assert.NotNull(contents[0].ReferenceData);
 
-            A.CallTo(() => assetQuery.QueryAsync(A<Context>.That.Matches(x => !x.ShouldEnrichAsset()), null, A<Q>.That.Matches(x => x.Ids.Count == 1)))
+            A.CallTo(() => assetQuery.QueryAsync(
+                    A<Context>.That.Matches(x => x.ShouldSkipAssetEnrichment() && x.ShouldSkipTotal()), null, A<Q>.That.HasIds(id1), A<CancellationToken>._))
                 .MustHaveHappened();
         }
 
-        private ContentEntity CreateContent(Guid[] assets1, Guid[] assets2)
+        private ContentEntity CreateContent(DomainId[] assets1, DomainId[] assets2)
         {
             return new ContentEntity
             {
                 Data =
-                    new NamedContentData()
+                    new ContentData()
                         .AddField("asset1",
                             new ContentFieldData()
-                                .AddJsonValue("iv", JsonValue.Array(assets1.Select(x => x.ToString()).ToArray())))
+                                .AddLocalized("iv", JsonValue.Array(assets1.Select(x => x.ToString()))))
                         .AddField("asset2",
                             new ContentFieldData()
-                                .AddJsonValue("en", JsonValue.Array(assets2.Select(x => x.ToString()).ToArray()))),
+                                .AddLocalized("en", JsonValue.Array(assets2.Select(x => x.ToString())))),
                 SchemaId = schemaId
             };
         }
 
-        private static IEnrichedAssetEntity CreateAsset(Guid id, int version, AssetType type, string fileName)
+        private IEnrichedAssetEntity CreateAsset(DomainId id, int version, AssetType type, string fileName, string? fileType = null, int fileSize = 100)
         {
-            return new AssetEntity { Id = id, Type = type, Version = version, FileName = fileName };
+            return new AssetEntity
+            {
+                AppId = appId,
+                Id = id,
+                Type = type,
+                FileName = fileName,
+                FileSize = fileSize,
+                MimeType = fileType!,
+                Version = version,
+            };
         }
     }
 }

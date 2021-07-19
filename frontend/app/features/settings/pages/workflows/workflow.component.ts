@@ -5,15 +5,13 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable: readonly-array
-
 import { Component, Input, OnChanges } from '@angular/core';
 import { ErrorDto, MathHelper, SchemaTagSource, WorkflowDto, WorkflowsState, WorkflowStep, WorkflowStepValues, WorkflowTransition, WorkflowTransitionValues } from '@app/shared';
 
 @Component({
     selector: 'sqx-workflow',
     styleUrls: ['./workflow.component.scss'],
-    templateUrl: './workflow.component.html'
+    templateUrl: './workflow.component.html',
 })
 export class WorkflowComponent implements OnChanges {
     public readonly onBlur: { updateOn: 'blur' } = { updateOn: 'blur' };
@@ -27,13 +25,15 @@ export class WorkflowComponent implements OnChanges {
     @Input()
     public schemasSource: SchemaTagSource;
 
-    public error: string | null;
+    public error: ErrorDto | null;
 
     public isEditing = false;
     public isEditable = false;
 
+    public selectedTab = 0;
+
     constructor(
-        private readonly workflowsState: WorkflowsState
+        private readonly workflowsState: WorkflowsState,
     ) {
     }
 
@@ -58,7 +58,7 @@ export class WorkflowComponent implements OnChanges {
             .subscribe(() => {
                 this.error = null;
             }, (error: ErrorDto) => {
-                this.error = error.displayMessage;
+                this.error = error;
             });
     }
 
@@ -95,7 +95,7 @@ export class WorkflowComponent implements OnChanges {
         this.workflow = this.workflow.removeTransition(from.name, transition.to);
     }
 
-    public updateTransition(update: { transition: WorkflowTransition, values: WorkflowTransitionValues }) {
+    public updateTransition(update: { transition: WorkflowTransition; values: WorkflowTransitionValues }) {
         this.workflow = this.workflow.setTransition(update.transition.from, update.transition.to, update.values);
     }
 
@@ -111,7 +111,11 @@ export class WorkflowComponent implements OnChanges {
         this.workflow = this.workflow.removeStep(step.name);
     }
 
-    public trackByStep(index: number, step: WorkflowStep) {
+    public selectTab(tab: number) {
+        this.selectedTab = tab;
+    }
+
+    public trackByStep(_index: number, step: WorkflowStep) {
         return step.name;
     }
 }

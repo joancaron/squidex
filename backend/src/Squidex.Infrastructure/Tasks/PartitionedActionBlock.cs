@@ -20,21 +20,11 @@ namespace Squidex.Infrastructure.Tasks
 
         public Task Completion
         {
-            get { return Task.WhenAll(workers.Select(x => x.Completion)); }
-        }
-
-        public PartitionedActionBlock(Action<TInput> action, Func<TInput, long> partitioner)
-            : this (action?.ToAsync()!, partitioner, new ExecutionDataflowBlockOptions())
-        {
+            get => Task.WhenAll(workers.Select(x => x.Completion));
         }
 
         public PartitionedActionBlock(Func<TInput, Task> action, Func<TInput, long> partitioner)
             : this(action, partitioner, new ExecutionDataflowBlockOptions())
-        {
-        }
-
-        public PartitionedActionBlock(Action<TInput> action, Func<TInput, long> partitioner, ExecutionDataflowBlockOptions dataflowBlockOptions)
-            : this(action?.ToAsync()!, partitioner, dataflowBlockOptions)
         {
         }
 
@@ -54,7 +44,18 @@ namespace Squidex.Infrastructure.Tasks
                 workerOption.MaxDegreeOfParallelism = 1;
                 workerOption.MaxMessagesPerTask = 1;
 
-                workers[i] = new ActionBlock<TInput>(action, workerOption);
+                workers[i] = new ActionBlock<TInput>(async input =>
+                {
+                    try
+                    {
+                        await action(input);
+                    }
+                    catch (OperationCanceledException ex)
+                    {
+                        // Dataflow swallows operation cancelled exception.
+                        throw new AggregateException(ex);
+                    }
+                }, workerOption);
             }
 
             var distributorOption = new ExecutionDataflowBlockOptions
@@ -64,12 +65,20 @@ namespace Squidex.Infrastructure.Tasks
                 BoundedCapacity = 1
             };
 
-            distributor = new ActionBlock<TInput>(x =>
+            distributor = new ActionBlock<TInput>(async input =>
             {
-                var partition = Math.Abs(partitioner(x)) % workers.Length;
+                try
+                {
+                    var partition = Math.Abs(partitioner(input)) % workers.Length;
 
-                return workers[partition].SendAsync(x);
-            }, distributorOption);
+                    await workers[partition].SendAsync(input);
+                }
+                catch (OperationCanceledException ex)
+                {
+                    // Dataflow swallows operation cancelled exception.
+                    throw new AggregateException(ex);
+                }
+        }, distributorOption);
 
             distributor.Completion.ContinueWith(x =>
             {
@@ -80,7 +89,7 @@ namespace Squidex.Infrastructure.Tasks
             });
         }
 
-        public DataflowMessageStatus OfferMessage(DataflowMessageHeader messageHeader, TInput messageValue, ISourceBlock<TInput> source, bool consumeToAccept)
+        public DataflowMessageStatus OfferMessage(DataflowMessageHeader messageHeader, TInput messageValue, ISourceBlock<TInput>? source, bool consumeToAccept)
         {
             return distributor.OfferMessage(messageHeader, messageValue, source, consumeToAccept);
         }

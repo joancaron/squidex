@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -15,10 +15,10 @@ using Squidex.Infrastructure.Reflection;
 namespace Migrations.OldEvents
 {
     [EventType(nameof(ContentUpdateProposed))]
-    [Obsolete]
+    [Obsolete("New Event introduced")]
     public sealed class ContentUpdateProposed : ContentEvent, IMigrated<IEvent>
     {
-        public NamedContentData Data { get; set; }
+        public ContentData Data { get; set; }
 
         public IEvent Migrate()
         {

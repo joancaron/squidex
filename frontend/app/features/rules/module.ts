@@ -5,12 +5,14 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable: max-line-length
-
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
-import { HelpComponent, SqxFrameworkModule, SqxSharedModule } from '@app/shared';
-import { AssetChangedTriggerComponent, CommentTriggerComponent, ContentChangedTriggerComponent, GenericActionComponent, RuleComponent, RuleElementComponent, RuleEventBadgeClassPipe, RuleEventsPageComponent, RuleIconComponent, RulesPageComponent, RuleWizardComponent, SchemaChangedTriggerComponent, UsageTriggerComponent } from './declarations';
+import { HelpComponent, RuleMustExistGuard, SqxFrameworkModule, SqxSharedModule } from '@app/shared';
+import { AssetChangedTriggerComponent, CommentTriggerComponent, ContentChangedTriggerComponent, GenericActionComponent, RuleComponent, RuleElementComponent, RuleEventsPageComponent, RuleIconComponent, RuleSimulatorPageComponent, RulesPageComponent, SchemaChangedTriggerComponent, UsageTriggerComponent } from './declarations';
+import { RuleEventComponent } from './pages/events/rule-event.component';
+import { RulePageComponent } from './pages/rule/rule-page.component';
+import { SimulatedRuleEventComponent } from './pages/simulator/simulated-rule-event.component';
+import { FormattableInputComponent } from './shared/actions/formattable-input.component';
 
 const routes: Routes = [
     {
@@ -19,39 +21,67 @@ const routes: Routes = [
         children: [
             {
                 path: 'events',
-                component: RuleEventsPageComponent
+                component: RuleEventsPageComponent,
+            },
+            {
+                path: 'simulator',
+                component: RuleSimulatorPageComponent,
             },
             {
                 path: 'help',
                 component: HelpComponent,
                 data: {
-                    helpPage: '05-integrated/rules'
-                }
-            }
-        ]
-    }
+                    helpPage: '05-integrated/rules',
+                },
+            },
+        ],
+    }, {
+        path: ':ruleId',
+        component: RulePageComponent,
+        canActivate: [RuleMustExistGuard],
+        children: [
+            {
+                path: 'events',
+                component: RuleEventsPageComponent,
+            },
+            {
+                path: 'simulator',
+                component: RuleSimulatorPageComponent,
+            },
+            {
+                path: 'help',
+                component: HelpComponent,
+                data: {
+                    helpPage: '05-integrated/rules',
+                },
+            },
+        ],
+    },
 ];
 
 @NgModule({
     imports: [
+        RouterModule.forChild(routes),
         SqxFrameworkModule,
         SqxSharedModule,
-        RouterModule.forChild(routes)
     ],
     declarations: [
         AssetChangedTriggerComponent,
         CommentTriggerComponent,
         ContentChangedTriggerComponent,
+        FormattableInputComponent,
         GenericActionComponent,
         RuleComponent,
         RuleElementComponent,
-        RuleEventBadgeClassPipe,
+        RuleEventComponent,
         RuleEventsPageComponent,
         RuleIconComponent,
+        RulePageComponent,
+        RuleSimulatorPageComponent,
         RulesPageComponent,
-        RuleWizardComponent,
         SchemaChangedTriggerComponent,
-        UsageTriggerComponent
-    ]
+        SimulatedRuleEventComponent,
+        UsageTriggerComponent,
+    ],
 })
 export class SqxFeatureRulesModule {}

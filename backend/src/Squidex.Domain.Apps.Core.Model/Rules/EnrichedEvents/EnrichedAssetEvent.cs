@@ -5,7 +5,6 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using NodaTime;
 using Squidex.Domain.Apps.Core.Assets;
 using Squidex.Infrastructure;
@@ -16,7 +15,7 @@ namespace Squidex.Domain.Apps.Core.Rules.EnrichedEvents
     {
         public EnrichedAssetEventType Type { get; set; }
 
-        public Guid Id { get; set; }
+        public DomainId Id { get; set; }
 
         public Instant Created { get; set; }
 
@@ -42,12 +41,12 @@ namespace Squidex.Domain.Apps.Core.Rules.EnrichedEvents
 
         public bool IsImage
         {
-            get { return AssetType == AssetType.Image; }
+            get => AssetType == AssetType.Image;
         }
 
         public override long Partition
         {
-            get { return Id.GetHashCode(); }
+            get => Id.GetHashCode();
         }
     }
 }

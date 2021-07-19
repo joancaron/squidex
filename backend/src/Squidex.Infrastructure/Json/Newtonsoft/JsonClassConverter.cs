@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -28,7 +28,7 @@ namespace Squidex.Infrastructure.Json.Newtonsoft
             return ReadValue(reader, objectType, serializer);
         }
 
-        protected abstract T ReadValue(JsonReader reader, Type objectType, JsonSerializer serializer);
+        protected abstract T? ReadValue(JsonReader reader, Type objectType, JsonSerializer serializer);
 
         public sealed override void WriteJson(JsonWriter writer, object? value, JsonSerializer serializer)
         {

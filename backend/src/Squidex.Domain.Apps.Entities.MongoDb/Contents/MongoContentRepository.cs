@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -11,41 +11,40 @@ using System.Threading;
 using System.Threading.Tasks;
 using MongoDB.Driver;
 using NodaTime;
+using Squidex.Domain.Apps.Core.Contents;
 using Squidex.Domain.Apps.Entities.Apps;
 using Squidex.Domain.Apps.Entities.Contents;
 using Squidex.Domain.Apps.Entities.Contents.Repositories;
-using Squidex.Domain.Apps.Entities.Contents.Text;
-using Squidex.Domain.Apps.Entities.MongoDb.Contents.Operations;
 using Squidex.Domain.Apps.Entities.Schemas;
+using Squidex.Hosting;
 using Squidex.Infrastructure;
-using Squidex.Infrastructure.Json;
+using Squidex.Infrastructure.MongoDb;
 using Squidex.Infrastructure.Queries;
 
 namespace Squidex.Domain.Apps.Entities.MongoDb.Contents
 {
     public partial class MongoContentRepository : IContentRepository, IInitializable
     {
+        private readonly MongoContentCollection collectionAll;
+        private readonly MongoContentCollection collectionPublished;
         private readonly IAppProvider appProvider;
-        private readonly DataConverter converter;
-        private readonly MongoContentCollectionAll collectionAll;
-        private readonly MongoContentCollectionPublished collectionPublished;
 
         static MongoContentRepository()
         {
-            StatusSerializer.Register();
+            TypeConverterStringSerializer<Status>.Register();
         }
 
-        public MongoContentRepository(IMongoDatabase database, IAppProvider appProvider, ITextIndex indexer, IJsonSerializer serializer)
+        public MongoContentRepository(IMongoDatabase database, IAppProvider appProvider)
         {
-            Guard.NotNull(appProvider, nameof(appProvider));
-            Guard.NotNull(serializer, nameof(serializer));
+            collectionAll =
+                new MongoContentCollection("States_Contents_All3", database, appProvider,
+                    ReadPreference.Primary);
+
+            collectionPublished =
+                new MongoContentCollection("States_Contents_Published3", database, appProvider,
+                    ReadPreference.Secondary);
 
             this.appProvider = appProvider;
-
-            converter = new DataConverter(serializer);
-
-            collectionAll = new MongoContentCollectionAll(database, appProvider, indexer, converter);
-            collectionPublished = new MongoContentCollectionPublished(database, appProvider, indexer, converter);
         }
 
         public async Task InitializeAsync(CancellationToken ct = default)
@@ -54,74 +53,93 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Contents
             await collectionPublished.InitializeAsync(ct);
         }
 
-        public Task<IResultList<IContentEntity>> QueryAsync(IAppEntity app, ISchemaEntity schema, ClrQuery query, SearchScope scope)
+        public IAsyncEnumerable<IContentEntity> StreamAll(DomainId appId, HashSet<DomainId>? schemaIds,
+            CancellationToken ct = default)
+        {
+            return collectionAll.StreamAll(appId, schemaIds, ct);
+        }
+
+        public Task<IResultList<IContentEntity>> QueryAsync(IAppEntity app, List<ISchemaEntity> schemas, Q q, SearchScope scope,
+            CancellationToken ct = default)
         {
             if (scope == SearchScope.All)
             {
-                return collectionAll.QueryAsync(app, schema, query);
+                return collectionAll.QueryAsync(app, schemas, q, ct);
             }
             else
             {
-                return collectionPublished.QueryAsync(app, schema, query);
+                return collectionPublished.QueryAsync(app, schemas, q, ct);
             }
         }
 
-        public Task<IResultList<IContentEntity>> QueryAsync(IAppEntity app, ISchemaEntity schema, HashSet<Guid> ids, SearchScope scope)
+        public Task<IResultList<IContentEntity>> QueryAsync(IAppEntity app, ISchemaEntity schema, Q q, SearchScope scope,
+            CancellationToken ct = default)
         {
             if (scope == SearchScope.All)
             {
-                return collectionAll.QueryAsync(app, schema, ids);
+                return collectionAll.QueryAsync(app, schema, q, ct);
             }
             else
             {
-                return collectionPublished.QueryAsync(app, schema, ids);
+                return collectionPublished.QueryAsync(app, schema, q, ct);
             }
         }
 
-        public Task<List<(IContentEntity Content, ISchemaEntity Schema)>> QueryAsync(IAppEntity app, HashSet<Guid> ids, SearchScope scope)
+        public Task<IContentEntity?> FindContentAsync(IAppEntity app, ISchemaEntity schema, DomainId id, SearchScope scope,
+            CancellationToken ct = default)
         {
             if (scope == SearchScope.All)
             {
-                return collectionAll.QueryAsync(app, ids);
+                return collectionAll.FindContentAsync(schema, id, ct);
             }
             else
             {
-                return collectionPublished.QueryAsync(app, ids);
+                return collectionPublished.FindContentAsync(schema, id, ct);
             }
         }
 
-        public Task<IContentEntity?> FindContentAsync(IAppEntity app, ISchemaEntity schema, Guid id, SearchScope scope)
+        public Task<IReadOnlyList<(DomainId SchemaId, DomainId Id, Status Status)>> QueryIdsAsync(DomainId appId, HashSet<DomainId> ids, SearchScope scope,
+            CancellationToken ct = default)
         {
             if (scope == SearchScope.All)
             {
-                return collectionAll.FindContentAsync(schema, id);
+                return collectionAll.QueryIdsAsync(appId, ids, ct);
             }
             else
             {
-                return collectionPublished.FindContentAsync(schema, id);
+                return collectionPublished.QueryIdsAsync(appId, ids, ct);
             }
         }
 
-        public Task<IReadOnlyList<(Guid SchemaId, Guid Id)>> QueryIdsAsync(Guid appId, HashSet<Guid> ids, SearchScope scope)
+        public Task<bool> HasReferrersAsync(DomainId appId, DomainId contentId, SearchScope scope,
+            CancellationToken ct = default)
         {
             if (scope == SearchScope.All)
             {
-                return collectionAll.QueryIdsAsync(appId, ids);
+                return collectionAll.HasReferrersAsync(appId, contentId, ct);
             }
             else
             {
-                return collectionPublished.QueryIdsAsync(appId, ids);
+                return collectionPublished.HasReferrersAsync(appId, contentId, ct);
             }
         }
 
-        public Task QueryScheduledWithoutDataAsync(Instant now, Func<IContentEntity, Task> callback)
+        public Task ResetScheduledAsync(DomainId documentId,
+            CancellationToken ct = default)
         {
-            return collectionAll.QueryScheduledWithoutDataAsync(now, callback);
+            return collectionAll.ResetScheduledAsync(documentId, ct);
         }
 
-        public Task<IReadOnlyList<(Guid SchemaId, Guid Id)>> QueryIdsAsync(Guid appId, Guid schemaId, FilterNode<ClrValue> filterNode)
+        public Task QueryScheduledWithoutDataAsync(Instant now, Func<IContentEntity, Task> callback,
+            CancellationToken ct = default)
         {
-            return collectionAll.QueryIdsAsync(appId, schemaId, filterNode);
+            return collectionAll.QueryScheduledWithoutDataAsync(now, callback, ct);
+        }
+
+        public Task<IReadOnlyList<(DomainId SchemaId, DomainId Id, Status Status)>> QueryIdsAsync(DomainId appId, DomainId schemaId, FilterNode<ClrValue> filterNode,
+            CancellationToken ct = default)
+        {
+            return collectionAll.QueryIdsAsync(appId, schemaId, filterNode, ct);
         }
 
         public IEnumerable<IMongoCollection<MongoContentEntity>> GetInternalCollections()

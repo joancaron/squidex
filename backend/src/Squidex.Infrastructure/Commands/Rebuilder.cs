@@ -10,98 +10,143 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
-using Squidex.Infrastructure.Caching;
+using Microsoft.Extensions.DependencyInjection;
+using Squidex.Caching;
 using Squidex.Infrastructure.EventSourcing;
 using Squidex.Infrastructure.States;
 
+#pragma warning disable RECS0108 // Warns about static fields in generic types
+
 namespace Squidex.Infrastructure.Commands
 {
-    public delegate Task IdSource(Func<Guid, Task> add);
-
     public class Rebuilder
     {
         private readonly ILocalCache localCache;
-        private readonly IStore<Guid> store;
         private readonly IEventStore eventStore;
         private readonly IServiceProvider serviceProvider;
 
+        private static class Factory<T, TState> where T : DomainObject<TState> where TState : class, IDomainState<TState>, new()
+        {
+            private static readonly ObjectFactory ObjectFactory = ActivatorUtilities.CreateFactory(typeof(T), new[] { typeof(IPersistenceFactory<TState>) });
+
+            public static T Create(IServiceProvider serviceProvider, IPersistenceFactory<TState> persistenceFactory)
+            {
+                return (T)ObjectFactory(serviceProvider, new object[] { persistenceFactory });
+            }
+        }
+
         public Rebuilder(
             ILocalCache localCache,
-            IStore<Guid> store,
             IEventStore eventStore,
             IServiceProvider serviceProvider)
         {
-            Guard.NotNull(localCache, nameof(localCache));
-            Guard.NotNull(store, nameof(store));
-            Guard.NotNull(eventStore, nameof(eventStore));
-
             this.eventStore = eventStore;
             this.serviceProvider = serviceProvider;
             this.localCache = localCache;
-            this.store = store;
         }
 
-        public Task RebuildAsync<T, TState>(string filter, CancellationToken ct) where T : DomainObjectBase<TState> where TState : class, IDomainState<TState>, new()
+        public virtual async Task RebuildAsync<T, TState>(string filter, int batchSize, CancellationToken ct = default) where T : DomainObject<TState> where TState : class, IDomainState<TState>, new()
         {
-            return RebuildAsync<T, TState>(async target =>
+            var store = serviceProvider.GetRequiredService<IStore<TState>>();
+
+            await store.ClearSnapshotsAsync();
+
+            await InsertManyAsync<T, TState>(store, async target =>
             {
-                await eventStore.QueryAsync(async storedEvent =>
+                await foreach (var storedEvent in eventStore.QueryAllAsync(filter, ct: ct))
                 {
                     var id = storedEvent.Data.Headers.AggregateId();
 
                     await target(id);
-                }, filter, ct: ct);
-            }, ct);
+                }
+            }, batchSize, ct);
         }
 
-        public virtual async Task RebuildAsync<T, TState>(IdSource source, CancellationToken ct = default) where T : DomainObjectBase<TState> where TState : class, IDomainState<TState>, new()
+        public virtual async Task InsertManyAsync<T, TState>(IEnumerable<DomainId> source, int batchSize, CancellationToken ct = default) where T : DomainObject<TState> where TState : class, IDomainState<TState>, new()
         {
             Guard.NotNull(source, nameof(source));
+            Guard.Between(batchSize, 1, 1000, nameof(batchSize));
 
-            await store.GetSnapshotStore<TState>().ClearAsync();
+            var store = serviceProvider.GetRequiredService<IStore<TState>>();
 
-            await InsertManyAsync<T, TState>(source, ct);
+            await InsertManyAsync<T, TState>(store, async target =>
+            {
+                foreach (var id in source)
+                {
+                    await target(id);
+                }
+            }, batchSize, ct);
         }
 
-        public virtual async Task InsertManyAsync<T, TState>(IdSource source, CancellationToken ct = default) where T : DomainObjectBase<TState> where TState : class, IDomainState<TState>, new()
+        private async Task InsertManyAsync<T, TState>(IStore<TState> store, Func<Func<DomainId, Task>, Task> source, int batchSize, CancellationToken ct = default) where T : DomainObject<TState> where TState : class, IDomainState<TState>, new()
         {
-            Guard.NotNull(source, nameof(source));
+            var parallelism = Environment.ProcessorCount;
 
-            var worker = new ActionBlock<Guid>(async id =>
+            var workerBlock = new ActionBlock<DomainId[]>(async ids =>
             {
                 try
                 {
-                    var domainObject = (T)serviceProvider.GetService(typeof(T));
+                    await using (var context = store.WithBatchContext(typeof(T)))
+                    {
+                        await context.LoadAsync(ids);
 
-                    domainObject.Setup(id);
+                        foreach (var id in ids)
+                        {
+                            try
+                            {
+                                var domainObject = Factory<T, TState>.Create(serviceProvider, context);
 
-                    await domainObject.RebuildStateAsync();
+                                domainObject.Setup(id);
+
+                                await domainObject.RebuildStateAsync();
+                            }
+                            catch (DomainObjectNotFoundException)
+                            {
+                                return;
+                            }
+                        }
+                    }
                 }
-                catch (DomainObjectNotFoundException)
+                catch (OperationCanceledException ex)
                 {
-                    return;
+                    // Dataflow swallows operation cancelled exception.
+                    throw new AggregateException(ex);
                 }
             },
             new ExecutionDataflowBlockOptions
             {
-                MaxDegreeOfParallelism = Environment.ProcessorCount * 2
+                MaxDegreeOfParallelism = parallelism,
+                MaxMessagesPerTask = 10,
+                BoundedCapacity = parallelism
             });
 
-            var handledIds = new HashSet<Guid>();
+            var batchBlock = new BatchBlock<DomainId>(batchSize, new GroupingDataflowBlockOptions
+            {
+                BoundedCapacity = batchSize
+            });
+
+            batchBlock.LinkTo(workerBlock, new DataflowLinkOptions
+            {
+                PropagateCompletion = true
+            });
+
+            var handledIds = new HashSet<DomainId>();
 
             using (localCache.StartContext())
             {
-                await source(async id =>
+                await source(id =>
                 {
                     if (handledIds.Add(id))
                     {
-                        await worker.SendAsync(id, ct);
+                        return batchBlock.SendAsync(id, ct);
                     }
+
+                    return Task.CompletedTask;
                 });
 
-                worker.Complete();
+                batchBlock.Complete();
 
-                await worker.Completion;
+                await workerBlock.Completion;
             }
         }
     }

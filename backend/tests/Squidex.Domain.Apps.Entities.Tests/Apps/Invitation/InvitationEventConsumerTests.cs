@@ -9,25 +9,26 @@ using System;
 using System.Threading.Tasks;
 using FakeItEasy;
 using NodaTime;
-using Squidex.Domain.Apps.Entities.Apps.Notifications;
+using Squidex.Domain.Apps.Core.TestHelpers;
+using Squidex.Domain.Apps.Entities.Notifications;
 using Squidex.Domain.Apps.Events.Apps;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.EventSourcing;
-using Squidex.Infrastructure.Log;
+using Squidex.Log;
 using Squidex.Shared.Users;
 using Xunit;
 
-namespace Squidex.Domain.Apps.Entities.Apps.Invitation.Notifications
+namespace Squidex.Domain.Apps.Entities.Apps.Invitation
 {
     public class InvitationEventConsumerTests
     {
         private readonly INotificationSender notificatíonSender = A.Fake<INotificationSender>();
         private readonly IUserResolver userResolver = A.Fake<IUserResolver>();
-        private readonly IUser assigner = A.Fake<IUser>();
-        private readonly IUser assignee = A.Fake<IUser>();
+        private readonly IUser assigner = UserMocks.User("1");
+        private readonly IUser assignee = UserMocks.User("2");
         private readonly ISemanticLog log = A.Fake<ISemanticLog>();
-        private readonly string assignerId = Guid.NewGuid().ToString();
-        private readonly string assigneeId = Guid.NewGuid().ToString();
+        private readonly string assignerId = DomainId.NewGuid().ToString();
+        private readonly string assigneeId = DomainId.NewGuid().ToString();
         private readonly string appName = "my-app";
         private readonly InvitationEventConsumer sut;
 
@@ -172,12 +173,12 @@ namespace Squidex.Domain.Apps.Entities.Apps.Invitation.Notifications
                 .MustNotHaveHappened();
         }
 
-        private Envelope<IEvent> CreateEvent(string assignerType, bool isNewUser, bool isNewContributor = true, Instant? instant = null, int streamNumber = 2)
+        private Envelope<IEvent> CreateEvent(RefTokenType assignerType, bool isNewUser, bool isNewContributor = true, Instant? instant = null, int streamNumber = 2)
         {
             var @event = new AppContributorAssigned
             {
                 Actor = new RefToken(assignerType, assignerId),
-                AppId = NamedId.Of(Guid.NewGuid(), appName),
+                AppId = NamedId.Of(DomainId.NewGuid(), appName),
                 ContributorId = assigneeId,
                 IsCreated = isNewUser,
                 IsAdded = isNewContributor

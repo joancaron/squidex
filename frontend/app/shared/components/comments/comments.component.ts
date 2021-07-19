@@ -5,7 +5,7 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { ChangeDetectorRef, Component, ElementRef, Input, OnInit, QueryList, ViewChild, ViewChildren } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, Input, OnChanges, QueryList, ViewChild, ViewChildren } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AppsState, AuthService, CommentDto, CommentsService, CommentsState, ContributorsState, DialogService, ResourceOwner, UpsertCommentForm } from '@app/shared/internal';
@@ -17,9 +17,9 @@ import { CommentComponent } from './comment.component';
 @Component({
     selector: 'sqx-comments',
     styleUrls: ['./comments.component.scss'],
-    templateUrl: './comments.component.html'
+    templateUrl: './comments.component.html',
 })
-export class CommentsComponent extends ResourceOwner implements OnInit {
+export class CommentsComponent extends ResourceOwner implements OnChanges {
     @ViewChild('commentsList', { static: false })
     public commentsList: ElementRef<HTMLDivElement>;
 
@@ -45,14 +45,14 @@ export class CommentsComponent extends ResourceOwner implements OnInit {
         private readonly changeDetector: ChangeDetectorRef,
         private readonly dialogs: DialogService,
         private readonly formBuilder: FormBuilder,
-        private readonly router: Router
+        private readonly router: Router,
     ) {
         super();
 
         this.userToken = authService.user!.token;
     }
 
-    public ngOnInit() {
+    public ngOnChanges() {
         this.contributorsState.load();
 
         this.commentsUrl = `apps/${this.appsState.appName}/comments/${this.commentsId}`;
@@ -66,7 +66,7 @@ export class CommentsComponent extends ResourceOwner implements OnInit {
             let isEditing = false;
 
             this.children.forEach(x => {
-                isEditing = isEditing || x.isEditing;
+                isEditing = isEditing || x.snapshot.isEditing;
             });
 
             if (!isEditing) {
@@ -89,7 +89,7 @@ export class CommentsComponent extends ResourceOwner implements OnInit {
         this.commentForm.submitCompleted();
     }
 
-    public trackByComment(index: number, comment: CommentDto) {
+    public trackByComment(_index: number, comment: CommentDto) {
         return comment.id;
     }
 }

@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -10,12 +10,14 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
 using Squidex.Areas.Api.Controllers.Users.Models;
 using Squidex.Domain.Users;
 using Squidex.Infrastructure.Commands;
-using Squidex.Infrastructure.Log;
+using Squidex.Log;
+using Squidex.Shared.Identity;
 using Squidex.Shared.Users;
 using Squidex.Web;
 
@@ -37,11 +39,11 @@ namespace Squidex.Areas.Api.Controllers.Users
         {
             var assembly = typeof(UsersController).Assembly;
 
-            using (var avatarStream = assembly.GetManifestResourceStream("Squidex.Areas.Api.Controllers.Users.Assets.Avatar.png"))
+            using (var resourceStream = assembly.GetManifestResourceStream("Squidex.Areas.Api.Controllers.Users.Assets.Avatar.png"))
             {
-                AvatarBytes = new byte[avatarStream!.Length];
+                AvatarBytes = new byte[resourceStream!.Length];
 
-                avatarStream.Read(AvatarBytes, 0, AvatarBytes.Length);
+                resourceStream.Read(AvatarBytes, 0, AvatarBytes.Length);
             }
         }
 
@@ -68,7 +70,7 @@ namespace Squidex.Areas.Api.Controllers.Users
         /// </returns>
         [HttpGet]
         [Route("/")]
-        [ProducesResponseType(typeof(ResourcesDto), 200)]
+        [ProducesResponseType(typeof(ResourcesDto), StatusCodes.Status200OK)]
         [ApiPermission]
         public IActionResult GetUserResources()
         {
@@ -89,7 +91,7 @@ namespace Squidex.Areas.Api.Controllers.Users
         /// </returns>
         [HttpGet]
         [Route("users/")]
-        [ProducesResponseType(typeof(UserDto[]), 200)]
+        [ProducesResponseType(typeof(UserDto[]), StatusCodes.Status200OK)]
         [ApiPermission]
         public async Task<IActionResult> GetUsers(string query)
         {
@@ -97,7 +99,7 @@ namespace Squidex.Areas.Api.Controllers.Users
             {
                 var users = await userResolver.QueryByEmailAsync(query);
 
-                var response = users.Where(x => !x.IsHidden()).Select(x => UserDto.FromUser(x, Resources)).ToArray();
+                var response = users.Where(x => !x.Claims.IsHidden()).Select(x => UserDto.FromUser(x, Resources)).ToArray();
 
                 return Ok(response);
             }
@@ -108,7 +110,7 @@ namespace Squidex.Areas.Api.Controllers.Users
                     .WriteProperty("status", "Failed"));
             }
 
-            return Ok(new UserDto[0]);
+            return Ok(Array.Empty<UserDto>());
         }
 
         /// <summary>
@@ -121,7 +123,7 @@ namespace Squidex.Areas.Api.Controllers.Users
         /// </returns>
         [HttpGet]
         [Route("users/{id}/")]
-        [ProducesResponseType(typeof(UserDto), 200)]
+        [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
         [ApiPermission]
         public async Task<IActionResult> GetUser(string id)
         {
@@ -156,7 +158,7 @@ namespace Squidex.Areas.Api.Controllers.Users
         /// </returns>
         [HttpGet]
         [Route("users/{id}/picture/")]
-        [ProducesResponseType(typeof(FileResult), 200)]
+        [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK)]
         [ResponseCache(Duration = 300)]
         public async Task<IActionResult> GetUserPicture(string id)
         {
@@ -166,7 +168,7 @@ namespace Squidex.Areas.Api.Controllers.Users
 
                 if (entity != null)
                 {
-                    if (entity.IsPictureUrlStored())
+                    if (entity.Claims.IsPictureUrlStored())
                     {
                         var callback = new FileCallback(async (body, range, ct) =>
                         {
@@ -176,7 +178,7 @@ namespace Squidex.Areas.Api.Controllers.Users
                             }
                             catch
                             {
-                                await body.WriteAsync(AvatarBytes);
+                                await body.WriteAsync(AvatarBytes, ct);
                             }
                         });
 
@@ -185,15 +187,15 @@ namespace Squidex.Areas.Api.Controllers.Users
 
                     using (var client = httpClientFactory.CreateClient())
                     {
-                        var url = entity.PictureNormalizedUrl();
+                        var url = entity.Claims.PictureNormalizedUrl();
 
                         if (!string.IsNullOrWhiteSpace(url))
                         {
-                            var response = await client.GetAsync(url);
+                            var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
 
                             if (response.IsSuccessStatusCode)
                             {
-                                var contentType = response.Content.Headers.ContentType.ToString();
+                                var contentType = response.Content.Headers.ContentType?.ToString();
 
                                 var etag = response.Headers.ETag;
 

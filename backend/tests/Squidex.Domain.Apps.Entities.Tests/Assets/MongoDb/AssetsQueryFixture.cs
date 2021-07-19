@@ -12,9 +12,8 @@ using MongoDB.Bson;
 using MongoDB.Driver;
 using Newtonsoft.Json;
 using Squidex.Domain.Apps.Core.Assets;
-using Squidex.Domain.Apps.Entities.Assets.Repositories;
+using Squidex.Domain.Apps.Core.TestHelpers;
 using Squidex.Domain.Apps.Entities.MongoDb.Assets;
-using Squidex.Domain.Apps.Entities.TestHelpers;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Json.Objects;
 using Squidex.Infrastructure.MongoDb;
@@ -28,17 +27,17 @@ namespace Squidex.Domain.Apps.Entities.Assets.MongoDb
         private readonly IMongoClient mongoClient = new MongoClient("mongodb://localhost");
         private readonly IMongoDatabase mongoDatabase;
 
-        public IAssetRepository AssetRepository { get; }
+        public MongoAssetRepository AssetRepository { get; }
 
-        public NamedId<Guid>[] AppIds { get; } = new[]
+        public NamedId<DomainId>[] AppIds { get; } =
         {
-            NamedId.Of(Guid.Parse("3b5ba909-e5a5-4858-9d0d-df4ff922d452"), "my-app1"),
-            NamedId.Of(Guid.Parse("4b3672c1-97c6-4e0b-a067-71e9e9a29db9"), "my-app1")
+            NamedId.Of(DomainId.Create("3b5ba909-e5a5-4858-9d0d-df4ff922d452"), "my-app1"),
+            NamedId.Of(DomainId.Create("4b3672c1-97c6-4e0b-a067-71e9e9a29db9"), "my-app1")
         };
 
         public AssetsQueryFixture()
         {
-            mongoDatabase = mongoClient.GetDatabase("QueryTests");
+            mongoDatabase = mongoClient.GetDatabase("Squidex_Testing");
 
             SetupJson();
 
@@ -86,9 +85,9 @@ namespace Squidex.Domain.Apps.Entities.Assets.MongoDb
 
                                 var asset = new MongoAssetEntity
                                 {
-                                    Id = Guid.NewGuid(),
-                                    AppId = appId,
+                                    DocumentId = DomainId.NewGuid(),
                                     Tags = new HashSet<string> { tag },
+                                    Id = DomainId.NewGuid(),
                                     FileHash = fileName,
                                     FileName = fileName,
                                     FileSize = 1024,
@@ -99,7 +98,7 @@ namespace Squidex.Domain.Apps.Entities.Assets.MongoDb
                                     {
                                         ["value"] = JsonValue.Create(tag)
                                     },
-                                    Slug = fileName,
+                                    Slug = fileName
                                 };
 
                                 await ExecuteBatchAsync(asset);
@@ -118,12 +117,12 @@ namespace Squidex.Domain.Apps.Entities.Assets.MongoDb
 
         private static void SetupJson()
         {
-            var jsonSerializer = JsonSerializer.Create(JsonHelper.DefaultSettings());
+            var jsonSerializer = JsonSerializer.Create(TestUtils.DefaultSerializerSettings);
 
             BsonJsonConvention.Register(jsonSerializer);
         }
 
-        public Guid RandomAppId()
+        public DomainId RandomAppId()
         {
             return AppIds[random.Next(0, AppIds.Length)].Id;
         }

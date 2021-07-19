@@ -1,4 +1,4 @@
-﻿// ==========================================================================
+// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
 //  Copyright (c) Squidex UG (haftungsbeschraenkt)
@@ -10,58 +10,59 @@ using System.Threading;
 using System.Threading.Tasks;
 using Orleans;
 using Orleans.Runtime;
+using Squidex.Caching;
 using Squidex.Domain.Apps.Core.HandleRules;
 using Squidex.Domain.Apps.Entities.Rules.Repositories;
-using Squidex.Domain.Apps.Events;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.EventSourcing;
-using Squidex.Infrastructure.Log;
 using Squidex.Infrastructure.Orleans;
 using Squidex.Infrastructure.States;
-using Squidex.Infrastructure.Tasks;
+using Squidex.Infrastructure.Translations;
+using Squidex.Log;
+using TaskExtensions = Squidex.Infrastructure.Tasks.TaskExtensions;
+
+#pragma warning disable RECS0015 // If an extension method is called as static method convert it to method syntax
 
 namespace Squidex.Domain.Apps.Entities.Rules.Runner
 {
-    public sealed class RuleRunnerGrain : GrainOfGuid, IRuleRunnerGrain, IRemindable
+    public sealed class RuleRunnerGrain : GrainOfString, IRuleRunnerGrain, IRemindable
     {
+        private const int MaxErrors = 10;
         private readonly IGrainState<State> state;
         private readonly IAppProvider appProvider;
+        private readonly ILocalCache localCache;
         private readonly IEventStore eventStore;
         private readonly IEventDataFormatter eventDataFormatter;
         private readonly IRuleEventRepository ruleEventRepository;
-        private readonly RuleService ruleService;
+        private readonly IRuleService ruleService;
         private readonly ISemanticLog log;
-        private CancellationTokenSource? currentTaskToken;
+        private CancellationTokenSource? currentJobToken;
         private IGrainReminder? currentReminder;
         private bool isStopping;
 
         [CollectionName("Rules_Runner")]
         public sealed class State
         {
-            public Guid? RuleId { get; set; }
+            public DomainId? RuleId { get; set; }
 
             public string? Position { get; set; }
+
+            public bool RunFromSnapshots { get; set; }
         }
 
         public RuleRunnerGrain(
             IGrainState<State> state,
             IAppProvider appProvider,
+            ILocalCache localCache,
             IEventStore eventStore,
             IEventDataFormatter eventDataFormatter,
             IRuleEventRepository ruleEventRepository,
-            RuleService ruleService,
+            IRuleService ruleService,
             ISemanticLog log)
         {
-            Guard.NotNull(state, nameof(state));
-            Guard.NotNull(appProvider, nameof(appProvider));
-            Guard.NotNull(eventStore, nameof(eventStore));
-            Guard.NotNull(eventDataFormatter, nameof(eventDataFormatter));
-            Guard.NotNull(ruleEventRepository, nameof(ruleEventRepository));
-            Guard.NotNull(ruleService, nameof(ruleService));
-            Guard.NotNull(log, nameof(log));
-
             this.state = state;
             this.appProvider = appProvider;
+            this.localCache = localCache;
             this.eventStore = eventStore;
             this.eventDataFormatter = eventDataFormatter;
             this.ruleEventRepository = ruleEventRepository;
@@ -69,96 +70,115 @@ namespace Squidex.Domain.Apps.Entities.Rules.Runner
             this.log = log;
         }
 
-        protected override Task OnActivateAsync(Guid key)
+        protected override Task OnActivateAsync(string key)
         {
-            EnsureIsRunning();
-
-            return base.OnActivateAsync(key);
+            return EnsureIsRunningAsync(true);
         }
 
         public override Task OnDeactivateAsync()
         {
             isStopping = true;
 
-            currentTaskToken?.Cancel();
+            currentJobToken?.Cancel();
 
             return base.OnDeactivateAsync();
         }
 
         public Task CancelAsync()
         {
-            currentTaskToken?.Cancel();
+            try
+            {
+                currentJobToken?.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                return Task.CompletedTask;
+            }
 
             return Task.CompletedTask;
         }
 
-        public Task<Guid?> GetRunningRuleIdAsync()
+        public Task<DomainId?> GetRunningRuleIdAsync()
         {
             return Task.FromResult(state.Value.RuleId);
         }
 
-        public async Task RunAsync(Guid ruleId)
+        public async Task RunAsync(DomainId ruleId, bool fromSnapshots)
         {
-            if (currentTaskToken != null)
+            if (currentJobToken != null)
             {
-                throw new DomainException("Another rule is already running.");
+                throw new DomainException(T.Get("rules.ruleAlreadyRunning"));
             }
 
             state.Value = new State
             {
-                RuleId = ruleId
+                RuleId = ruleId,
+                RunFromSnapshots = fromSnapshots
             };
 
-            EnsureIsRunning();
+            await EnsureIsRunningAsync(false);
 
             await state.WriteAsync();
         }
 
-        private void EnsureIsRunning()
+        private async Task EnsureIsRunningAsync(bool continues)
         {
-            if (state.Value.RuleId.HasValue && currentTaskToken == null)
-            {
-                currentTaskToken = new CancellationTokenSource();
+            var job = state.Value;
 
-                Process(state.Value, currentTaskToken.Token);
+            if (job.RuleId != null && currentJobToken == null)
+            {
+                if (state.Value.RunFromSnapshots && continues)
+                {
+                    state.Value = new State();
+
+                    await state.WriteAsync();
+                }
+                else
+                {
+                    currentJobToken = new CancellationTokenSource();
+
+                    Process(state.Value, currentJobToken.Token);
+                }
             }
         }
 
         private void Process(State job, CancellationToken ct)
         {
-            ProcessAsync(job, ct).Forget();
+            TaskExtensions.Forget(ProcessAsync(job, ct));
         }
 
-        private async Task ProcessAsync(State job, CancellationToken ct)
+        private async Task ProcessAsync(State currentState, CancellationToken ct)
         {
             try
             {
                 currentReminder = await RegisterOrUpdateReminder("KeepAlive", TimeSpan.Zero, TimeSpan.FromMinutes(2));
 
-                var rules = await appProvider.GetRulesAsync(Key);
-
-                var rule = rules.Find(x => x.Id == job.RuleId);
+                var rule = await appProvider.GetRuleAsync(DomainId.Create(Key), currentState.RuleId!.Value);
 
                 if (rule == null)
                 {
-                    throw new InvalidOperationException("Cannot find rule.");
+                    throw new DomainObjectNotFoundException(currentState.RuleId.ToString()!);
                 }
 
-                await eventStore.QueryAsync(async storedEvent =>
+                using (localCache.StartContext())
                 {
-                    var @event = eventDataFormatter.Parse(storedEvent.Data);
-
-                    var jobs = await ruleService.CreateJobsAsync(rule.RuleDef, rule.Id, @event);
-
-                    foreach (var job in jobs)
+                    var context = new RuleContext
                     {
-                        await ruleEventRepository.EnqueueAsync(job, job.Created, ct);
+                        AppId = rule.AppId,
+                        Rule = rule.RuleDef,
+                        RuleId = rule.Id,
+                        IgnoreStale = true
+                    };
+
+                    if (currentState.RunFromSnapshots && ruleService.CanCreateSnapshotEvents(context))
+                    {
+                        await EnqueueFromSnapshotsAsync(context, ct);
                     }
-
-                    job.Position = storedEvent.EventPosition;
-
-                    await state.WriteAsync();
-                }, SquidexHeaders.AppId, Key.ToString(), job.Position, ct);
+                    else
+                    {
+                        await EnqueueFromEventsAsync(currentState, context, ct);
+                    }
+                }
             }
             catch (OperationCanceledException)
             {
@@ -167,16 +187,16 @@ namespace Squidex.Domain.Apps.Entities.Rules.Runner
             catch (Exception ex)
             {
                 log.LogError(ex, w => w
-                    .WriteProperty("action", "runeRule")
+                    .WriteProperty("action", "runRule")
                     .WriteProperty("status", "failed")
-                    .WriteProperty("ruleId", job.RuleId?.ToString()));
+                    .WriteProperty("ruleId", currentState.RuleId?.ToString()));
             }
             finally
             {
                 if (!isStopping)
                 {
-                    job.RuleId = null;
-                    job.Position = null;
+                    currentState.RuleId = null;
+                    currentState.Position = null;
 
                     await state.WriteAsync();
 
@@ -187,16 +207,88 @@ namespace Squidex.Domain.Apps.Entities.Rules.Runner
                         currentReminder = null;
                     }
 
-                    currentTaskToken = null;
+                    currentJobToken?.Dispose();
+                    currentJobToken = null;
                 }
+            }
+        }
+
+        private async Task EnqueueFromSnapshotsAsync(RuleContext context, CancellationToken ct)
+        {
+            var errors = 0;
+
+            await foreach (var (job, ex, _) in ruleService.CreateSnapshotJobsAsync(context, ct))
+            {
+                if (job != null)
+                {
+                    await ruleEventRepository.EnqueueAsync(job, ex);
+                }
+                else if (ex != null)
+                {
+                    errors++;
+
+                    if (errors >= MaxErrors)
+                    {
+                        throw ex;
+                    }
+
+                    log.LogWarning(ex, w => w
+                        .WriteProperty("action", "runRule")
+                        .WriteProperty("status", "failedPartially"));
+                }
+            }
+        }
+
+        private async Task EnqueueFromEventsAsync(State currentState, RuleContext context, CancellationToken ct)
+        {
+            var errors = 0;
+
+            var filter = $"^([a-z]+)\\-{Key}";
+
+            await foreach (var storedEvent in eventStore.QueryAllAsync(filter, currentState.Position, ct: ct))
+            {
+                try
+                {
+                    var @event = eventDataFormatter.ParseIfKnown(storedEvent);
+
+                    if (@event != null)
+                    {
+                        var jobs = ruleService.CreateJobsAsync(@event, context, ct);
+
+                        await foreach (var (job, ex, _) in jobs)
+                        {
+                            if (job != null)
+                            {
+                                await ruleEventRepository.EnqueueAsync(job, ex);
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    errors++;
+
+                    if (errors >= MaxErrors)
+                    {
+                        throw;
+                    }
+
+                    log.LogWarning(ex, w => w
+                        .WriteProperty("action", "runRule")
+                        .WriteProperty("status", "failedPartially"));
+                }
+                finally
+                {
+                    currentState.Position = storedEvent.EventPosition;
+                }
+
+                await state.WriteAsync();
             }
         }
 
         public Task ReceiveReminder(string reminderName, TickStatus status)
         {
-            EnsureIsRunning();
-
-            return Task.CompletedTask;
+            return EnsureIsRunningAsync(true);
         }
     }
 }

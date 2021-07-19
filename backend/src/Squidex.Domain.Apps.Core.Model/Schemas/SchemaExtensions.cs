@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Squidex.Infrastructure;
+using Squidex.Text;
 
 namespace Squidex.Domain.Apps.Core.Schemas
 {
@@ -41,7 +42,7 @@ namespace Squidex.Domain.Apps.Core.Schemas
 
         public static string DisplayName(this IField field)
         {
-            return field.RawProperties.Label.WithFallback(field.TypeName());
+            return field.RawProperties.Label.Or(field.TypeName());
         }
 
         public static string TypeName(this Schema schema)
@@ -51,17 +52,12 @@ namespace Squidex.Domain.Apps.Core.Schemas
 
         public static string DisplayName(this Schema schema)
         {
-            return schema.Properties.Label.WithFallback(schema.TypeName());
+            return schema.Properties.Label.Or(schema.TypeName());
         }
 
         public static string DisplayNameUnchanged(this Schema schema)
         {
-            return schema.Properties.Label.WithFallback(schema.Name);
-        }
-
-        public static Guid SingleId(this ReferencesFieldProperties properties)
-        {
-            return properties.SchemaIds?.Count == 1 ? properties.SchemaIds[0] : Guid.Empty;
+            return schema.Properties.Label.Or(schema.Name);
         }
 
         public static IEnumerable<RootField> ReferenceFields(this Schema schema)

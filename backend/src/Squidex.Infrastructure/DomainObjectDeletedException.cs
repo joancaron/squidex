@@ -1,20 +1,23 @@
-﻿// ==========================================================================
+// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
 using System.Runtime.Serialization;
+using Squidex.Infrastructure.Translations;
 
 namespace Squidex.Infrastructure
 {
     [Serializable]
     public class DomainObjectDeletedException : DomainObjectException
     {
-        public DomainObjectDeletedException(string id, Type type)
-            : base(FormatMessage(id, type), id, type)
+        private const string ValidationError = "OBJECT_DELETED";
+
+        public DomainObjectDeletedException(string id, Exception? inner = null)
+            : base(FormatMessage(id), id, ValidationError, inner)
         {
         }
 
@@ -23,9 +26,9 @@ namespace Squidex.Infrastructure
         {
         }
 
-        private static string FormatMessage(string id, Type type)
+        private static string FormatMessage(string id)
         {
-            return $"Domain object \'{id}\' (type {type}) already deleted.";
+            return T.Get("exceptions.domainObjectDeleted", new { id });
         }
     }
 }

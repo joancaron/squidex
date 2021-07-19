@@ -1,151 +1,147 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
-using Microsoft.Extensions.Options;
 using Squidex.Domain.Apps.Core;
 using Squidex.Domain.Apps.Core.Assets;
 using Squidex.Domain.Apps.Entities.Assets;
 using Squidex.Infrastructure;
+using IGenericUrlGenerator = Squidex.Hosting.IUrlGenerator;
 
 namespace Squidex.Web.Services
 {
     public sealed class UrlGenerator : IUrlGenerator
     {
         private readonly IAssetFileStore assetFileStore;
-        private readonly UrlsOptions urlsOptions;
+        private readonly IGenericUrlGenerator urlGenerator;
 
         public bool CanGenerateAssetSourceUrl { get; }
 
-        public UrlGenerator(IOptions<UrlsOptions> urlsOptions, IAssetFileStore assetFileStore, bool allowAssetSourceUrl)
+        public UrlGenerator(IGenericUrlGenerator urlGenerator, IAssetFileStore assetFileStore, bool allowAssetSourceUrl)
         {
-            Guard.NotNull(assetFileStore, nameof(assetFileStore));
-            Guard.NotNull(urlsOptions, nameof(urlsOptions));
-
             this.assetFileStore = assetFileStore;
 
-            this.urlsOptions = urlsOptions.Value;
+            this.urlGenerator = urlGenerator;
 
             CanGenerateAssetSourceUrl = allowAssetSourceUrl;
         }
 
-        public string? AssetThumbnail(Guid assetId, AssetType assetType)
+        public string? AssetThumbnail(NamedId<DomainId> appId, string idOrSlug, AssetType assetType)
         {
             if (assetType != AssetType.Image)
             {
                 return null;
             }
 
-            return urlsOptions.BuildUrl($"api/assets/{assetId}?width=100&mode=Max");
+            return urlGenerator.BuildUrl($"api/assets/{appId.Name}/{idOrSlug}?width=100&mode=Max");
         }
 
-        public string AppSettingsUI(NamedId<Guid> appId)
+        public string AssetContentBase()
         {
-            return urlsOptions.BuildUrl($"app/{appId.Name}/settings", false);
+            return urlGenerator.BuildUrl("api/assets/");
         }
 
-        public string AssetContent(Guid assetId)
+        public string AssetContentBase(string appName)
         {
-            return urlsOptions.BuildUrl($"api/assets/{assetId}");
+            return urlGenerator.BuildUrl($"api/assets/{appName}/");
         }
 
-        public string? AssetSource(Guid assetId, long fileVersion)
+        public string AssetContent(NamedId<DomainId> appId, DomainId assetId)
         {
-            return assetFileStore.GeneratePublicUrl(assetId, fileVersion);
+            return urlGenerator.BuildUrl($"api/assets/{appId.Name}/{assetId}");
         }
 
-        public string AssetsUI(NamedId<Guid> appId)
+        public string AssetContent(NamedId<DomainId> appId, string idOrSlug)
         {
-            return urlsOptions.BuildUrl($"app/{appId.Name}/assets", false);
+            return urlGenerator.BuildUrl($"api/assets/{appId.Name}/{idOrSlug}");
         }
 
-        public string AssetsUI(NamedId<Guid> appId, string? query = null)
+        public string? AssetSource(NamedId<DomainId> appId, DomainId assetId, long fileVersion)
         {
-            return urlsOptions.BuildUrl($"app/{appId.Name}/assets?query={query}", false);
+            return assetFileStore.GeneratePublicUrl(appId.Id, assetId, fileVersion, null);
         }
 
-        public string BackupsUI(NamedId<Guid> appId)
+        public string AssetsUI(NamedId<DomainId> appId, string? query = null)
         {
-            return urlsOptions.BuildUrl($"app/{appId.Name}/settings/backups", false);
+            return urlGenerator.BuildUrl($"app/{appId.Name}/assets", false) + query != null ? $"?query={query}" : string.Empty;
         }
 
-        public string ClientsUI(NamedId<Guid> appId)
+        public string BackupsUI(NamedId<DomainId> appId)
         {
-            return urlsOptions.BuildUrl($"app/{appId.Name}/settings/clients", false);
+            return urlGenerator.BuildUrl($"app/{appId.Name}/settings/backups", false);
         }
 
-        public string ContentsUI(NamedId<Guid> appId)
+        public string ClientsUI(NamedId<DomainId> appId)
         {
-            return urlsOptions.BuildUrl($"app/{appId.Name}/content", false);
+            return urlGenerator.BuildUrl($"app/{appId.Name}/settings/clients", false);
         }
 
-        public string ContentsUI(NamedId<Guid> appId, NamedId<Guid> schemaId)
+        public string ContentsUI(NamedId<DomainId> appId, NamedId<DomainId> schemaId)
         {
-            return urlsOptions.BuildUrl($"app/{appId.Name}/content/{schemaId.Name}", false);
+            return urlGenerator.BuildUrl($"app/{appId.Name}/content/{schemaId.Name}", false);
         }
 
-        public string ContentUI(NamedId<Guid> appId, NamedId<Guid> schemaId, Guid contentId)
+        public string ContentUI(NamedId<DomainId> appId, NamedId<DomainId> schemaId, DomainId contentId)
         {
-            return urlsOptions.BuildUrl($"app/{appId.Name}/content/{schemaId.Name}/{contentId}/history", false);
+            return urlGenerator.BuildUrl($"app/{appId.Name}/content/{schemaId.Name}/{contentId}/history", false);
         }
 
-        public string ContributorsUI(NamedId<Guid> appId)
+        public string ContributorsUI(NamedId<DomainId> appId)
         {
-            return urlsOptions.BuildUrl($"app/{appId.Name}/settings/contributors", false);
+            return urlGenerator.BuildUrl($"app/{appId.Name}/settings/contributors", false);
         }
 
-        public string DashboardUI(NamedId<Guid> appId)
+        public string DashboardUI(NamedId<DomainId> appId)
         {
-            return urlsOptions.BuildUrl($"app/{appId.Name}", false);
+            return urlGenerator.BuildUrl($"app/{appId.Name}", false);
         }
 
-        public string LanguagesUI(NamedId<Guid> appId)
+        public string LanguagesUI(NamedId<DomainId> appId)
         {
-            return urlsOptions.BuildUrl($"app/{appId.Name}/settings/languages", false);
+            return urlGenerator.BuildUrl($"app/{appId.Name}/settings/languages", false);
         }
 
-        public string PatternsUI(NamedId<Guid> appId)
+        public string PatternsUI(NamedId<DomainId> appId)
         {
-            return urlsOptions.BuildUrl($"app/{appId.Name}/settings/patterns", false);
+            return urlGenerator.BuildUrl($"app/{appId.Name}/settings/patterns", false);
         }
 
-        public string PlansUI(NamedId<Guid> appId)
+        public string PlansUI(NamedId<DomainId> appId)
         {
-            return urlsOptions.BuildUrl($"app/{appId.Name}/settings/plans", false);
+            return urlGenerator.BuildUrl($"app/{appId.Name}/settings/plans", false);
         }
 
-        public string RolesUI(NamedId<Guid> appId)
+        public string RolesUI(NamedId<DomainId> appId)
         {
-            return urlsOptions.BuildUrl($"app/{appId.Name}/settings/roles", false);
+            return urlGenerator.BuildUrl($"app/{appId.Name}/settings/roles", false);
         }
 
-        public string RulesUI(NamedId<Guid> appId)
+        public string RulesUI(NamedId<DomainId> appId)
         {
-            return urlsOptions.BuildUrl($"app/{appId.Name}/rules", false);
+            return urlGenerator.BuildUrl($"app/{appId.Name}/rules", false);
         }
 
-        public string SchemasUI(NamedId<Guid> appId)
+        public string SchemasUI(NamedId<DomainId> appId)
         {
-            return urlsOptions.BuildUrl($"app/{appId.Name}/schemas", false);
+            return urlGenerator.BuildUrl($"app/{appId.Name}/schemas", false);
         }
 
-        public string SchemaUI(NamedId<Guid> appId, NamedId<Guid> schemaId)
+        public string SchemaUI(NamedId<DomainId> appId, NamedId<DomainId> schemaId)
         {
-            return urlsOptions.BuildUrl($"app/{appId.Name}/schemas/{schemaId.Name}", false);
+            return urlGenerator.BuildUrl($"app/{appId.Name}/schemas/{schemaId.Name}", false);
         }
 
-        public string WorkflowsUI(NamedId<Guid> appId)
+        public string WorkflowsUI(NamedId<DomainId> appId)
         {
-            return urlsOptions.BuildUrl($"app/{appId.Name}/settings/workflows", false);
+            return urlGenerator.BuildUrl($"app/{appId.Name}/settings/workflows", false);
         }
 
         public string UI()
         {
-            return urlsOptions.BuildUrl("app", false);
+            return urlGenerator.BuildUrl("app", false);
         }
     }
 }

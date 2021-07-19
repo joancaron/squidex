@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -9,27 +9,30 @@ using NodaTime;
 
 namespace Squidex.Domain.Apps.Core.Schemas
 {
-    [Equals(DoNotAddEqualityOperators = true)]
-    public sealed class DateTimeFieldProperties : FieldProperties
+    public sealed record DateTimeFieldProperties : FieldProperties
     {
-        public Instant? MaxValue { get; set; }
+        public LocalizedValue<Instant?> DefaultValues { get; init; }
 
-        public Instant? MinValue { get; set; }
+        public Instant? DefaultValue { get; init; }
 
-        public Instant? DefaultValue { get; set; }
+        public Instant? MaxValue { get; init; }
 
-        public DateTimeCalculatedDefaultValue? CalculatedDefaultValue { get; set; }
+        public Instant? MinValue { get; init; }
 
-        public DateTimeFieldEditor Editor { get; set; }
+        public string? Format { get; set; }
 
-        public override T Accept<T>(IFieldPropertiesVisitor<T> visitor)
+        public DateTimeCalculatedDefaultValue? CalculatedDefaultValue { get; init; }
+
+        public DateTimeFieldEditor Editor { get; init; }
+
+        public override T Accept<T, TArgs>(IFieldPropertiesVisitor<T, TArgs> visitor, TArgs args)
         {
-            return visitor.Visit(this);
+            return visitor.Visit(this, args);
         }
 
-        public override T Accept<T>(IFieldVisitor<T> visitor, IField field)
+        public override T Accept<T, TArgs>(IFieldVisitor<T, TArgs> visitor, IField field, TArgs args)
         {
-            return visitor.Visit((IField<DateTimeFieldProperties>)field);
+            return visitor.Visit((IField<DateTimeFieldProperties>)field, args);
         }
 
         public override RootField CreateRootField(long id, string name, Partitioning partitioning, IFieldSettings? settings = null)

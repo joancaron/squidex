@@ -5,18 +5,18 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { Component, Input, OnInit } from '@angular/core';
-import { FormControl, FormGroup } from '@angular/forms';
-import { FieldDto, ReferencesFieldPropertiesDto, SchemaTagSource } from '@app/shared';
+import { Component, Input } from '@angular/core';
+import { FormGroup } from '@angular/forms';
+import { FieldDto, LanguageDto, ReferencesFieldPropertiesDto, SchemaTagSource } from '@app/shared';
 
 @Component({
     selector: 'sqx-references-validation',
     styleUrls: ['references-validation.component.scss'],
-    templateUrl: 'references-validation.component.html'
+    templateUrl: 'references-validation.component.html',
 })
-export class ReferencesValidationComponent implements OnInit {
+export class ReferencesValidationComponent {
     @Input()
-    public editForm: FormGroup;
+    public fieldForm: FormGroup;
 
     @Input()
     public field: FieldDto;
@@ -24,22 +24,14 @@ export class ReferencesValidationComponent implements OnInit {
     @Input()
     public properties: ReferencesFieldPropertiesDto;
 
+    @Input()
+    public languages: ReadonlyArray<LanguageDto>;
+
+    @Input()
+    public isLocalizable?: boolean | null;
+
     constructor(
-        public readonly schemasSource: SchemaTagSource
+        public readonly schemasSource: SchemaTagSource,
     ) {
-    }
-
-    public ngOnInit() {
-        this.editForm.setControl('allowDuplicates',
-            new FormControl(this.properties.allowDuplicates));
-
-        this.editForm.setControl('maxItems',
-            new FormControl(this.properties.maxItems));
-
-        this.editForm.setControl('minItems',
-            new FormControl(this.properties.minItems));
-
-        this.editForm.setControl('schemaIds',
-            new FormControl(this.properties.schemaIds));
     }
 }

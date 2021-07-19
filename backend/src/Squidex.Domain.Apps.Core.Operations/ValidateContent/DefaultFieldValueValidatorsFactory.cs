@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -10,171 +10,267 @@ using System.Collections.Generic;
 using NodaTime;
 using Squidex.Domain.Apps.Core.Schemas;
 using Squidex.Domain.Apps.Core.ValidateContent.Validators;
-using Squidex.Infrastructure;
 using Squidex.Infrastructure.Json.Objects;
+using Squidex.Text;
+
+#pragma warning disable SA1313 // Parameter names should begin with lower-case letter
 
 namespace Squidex.Domain.Apps.Core.ValidateContent
 {
-    internal sealed class DefaultFieldValueValidatorsFactory : IFieldVisitor<IEnumerable<IValidator>>
+    internal sealed class DefaultFieldValueValidatorsFactory : IFieldVisitor<IEnumerable<IValidator>, DefaultFieldValueValidatorsFactory.Args>
     {
-        private readonly FieldValidatorFactory createFieldValidator;
+        private static readonly DefaultFieldValueValidatorsFactory Instance = new DefaultFieldValueValidatorsFactory();
 
-        private DefaultFieldValueValidatorsFactory(FieldValidatorFactory createFieldValidator)
+        public sealed record Args(ValidatorContext Context, ValidatorFactory Factory);
+
+        private DefaultFieldValueValidatorsFactory()
         {
-            this.createFieldValidator = createFieldValidator;
         }
 
-        public static IEnumerable<IValidator> CreateValidators(IField field, FieldValidatorFactory createFieldValidator)
+        public static IEnumerable<IValidator> CreateValidators(ValidatorContext context, IField field, ValidatorFactory factory)
         {
-            Guard.NotNull(field, nameof(field));
+            var args = new Args(context, factory);
 
-            var visitor = new DefaultFieldValueValidatorsFactory(createFieldValidator);
-
-            return field.Accept(visitor);
+            return field.Accept(Instance, args);
         }
 
-        public IEnumerable<IValidator> Visit(IArrayField field)
+        public IEnumerable<IValidator> Visit(IArrayField field, Args args)
         {
-            if (field.Properties.IsRequired || field.Properties.MinItems.HasValue || field.Properties.MaxItems.HasValue)
+            var properties = field.Properties;
+
+            var isRequired = IsRequired(properties, args.Context);
+
+            if (isRequired || properties.MinItems != null || properties.MaxItems != null)
             {
-                yield return new CollectionValidator(field.Properties.IsRequired, field.Properties.MinItems, field.Properties.MaxItems);
+                yield return new CollectionValidator(isRequired, properties.MinItems, properties.MaxItems);
             }
 
-            var nestedSchema = new Dictionary<string, (bool IsOptional, IValidator Validator)>(field.Fields.Count);
+            var nestedValidators = new Dictionary<string, (bool IsOptional, IValidator Validator)>(field.Fields.Count);
 
             foreach (var nestedField in field.Fields)
             {
-                nestedSchema[nestedField.Name] = (false, createFieldValidator(nestedField));
+                nestedValidators[nestedField.Name] = (false, args.Factory(nestedField));
             }
 
-            yield return new CollectionItemValidator(new ObjectValidator<IJsonValue>(nestedSchema, false, "field"));
+            yield return new CollectionItemValidator(new ObjectValidator<IJsonValue>(nestedValidators, false, "field"));
         }
 
-        public IEnumerable<IValidator> Visit(IField<AssetsFieldProperties> field)
+        public IEnumerable<IValidator> Visit(IField<AssetsFieldProperties> field, Args args)
         {
-            if (field.Properties.IsRequired || field.Properties.MinItems.HasValue || field.Properties.MaxItems.HasValue)
-            {
-                yield return new CollectionValidator(field.Properties.IsRequired, field.Properties.MinItems, field.Properties.MaxItems);
-            }
-
-            if (!field.Properties.AllowDuplicates)
-            {
-                yield return new UniqueValuesValidator<Guid>();
-            }
+            yield break;
         }
 
-        public IEnumerable<IValidator> Visit(IField<BooleanFieldProperties> field)
+        public IEnumerable<IValidator> Visit(IField<BooleanFieldProperties> field, Args args)
         {
-            if (field.Properties.IsRequired)
+            var properties = field.Properties;
+
+            var isRequired = IsRequired(properties, args.Context);
+
+            if (isRequired)
             {
                 yield return new RequiredValidator();
             }
         }
 
-        public IEnumerable<IValidator> Visit(IField<DateTimeFieldProperties> field)
+        public IEnumerable<IValidator> Visit(IField<ComponentFieldProperties> field, Args args)
         {
-            if (field.Properties.IsRequired)
+            var properties = field.Properties;
+
+            var isRequired = IsRequired(properties, args.Context);
+
+            if (isRequired)
             {
                 yield return new RequiredValidator();
             }
 
-            if (field.Properties.MinValue.HasValue || field.Properties.MaxValue.HasValue)
+            yield return ComponentValidator(args.Factory);
+        }
+
+        public IEnumerable<IValidator> Visit(IField<ComponentsFieldProperties> field, Args args)
+        {
+            var properties = field.Properties;
+
+            var isRequired = IsRequired(properties, args.Context);
+
+            if (isRequired || properties.MinItems != null || properties.MaxItems != null)
             {
-                yield return new RangeValidator<Instant>(field.Properties.MinValue, field.Properties.MaxValue);
+                yield return new CollectionValidator(isRequired, properties.MinItems, properties.MaxItems);
+            }
+
+            yield return new CollectionItemValidator(ComponentValidator(args.Factory));
+        }
+
+        public IEnumerable<IValidator> Visit(IField<DateTimeFieldProperties> field, Args args)
+        {
+            var properties = field.Properties;
+
+            var isRequired = IsRequired(properties, args.Context);
+
+            if (isRequired)
+            {
+                yield return new RequiredValidator();
+            }
+
+            if (properties.MinValue != null || properties.MaxValue != null)
+            {
+                yield return new RangeValidator<Instant>(properties.MinValue, properties.MaxValue);
             }
         }
 
-        public IEnumerable<IValidator> Visit(IField<GeolocationFieldProperties> field)
+        public IEnumerable<IValidator> Visit(IField<GeolocationFieldProperties> field, Args args)
         {
-            if (field.Properties.IsRequired)
+            var properties = field.Properties;
+
+            var isRequired = IsRequired(properties, args.Context);
+
+            if (isRequired)
             {
                 yield return new RequiredValidator();
             }
         }
 
-        public IEnumerable<IValidator> Visit(IField<JsonFieldProperties> field)
+        public IEnumerable<IValidator> Visit(IField<JsonFieldProperties> field, Args args)
         {
-            if (field.Properties.IsRequired)
+            var properties = field.Properties;
+
+            var isRequired = IsRequired(properties, args.Context);
+
+            if (isRequired)
             {
                 yield return new RequiredValidator();
             }
         }
 
-        public IEnumerable<IValidator> Visit(IField<NumberFieldProperties> field)
+        public IEnumerable<IValidator> Visit(IField<NumberFieldProperties> field, Args args)
         {
-            if (field.Properties.IsRequired)
+            var properties = field.Properties;
+
+            var isRequired = IsRequired(properties, args.Context);
+
+            if (isRequired)
             {
                 yield return new RequiredValidator();
             }
 
-            if (field.Properties.MinValue.HasValue || field.Properties.MaxValue.HasValue)
+            if (properties.MinValue != null || properties.MaxValue != null)
             {
-                yield return new RangeValidator<double>(field.Properties.MinValue, field.Properties.MaxValue);
+                yield return new RangeValidator<double>(properties.MinValue, properties.MaxValue);
             }
 
-            if (field.Properties.AllowedValues != null)
+            if (properties.AllowedValues != null)
             {
-                yield return new AllowedValuesValidator<double>(field.Properties.AllowedValues);
-            }
-        }
-
-        public IEnumerable<IValidator> Visit(IField<ReferencesFieldProperties> field)
-        {
-            if (field.Properties.IsRequired || field.Properties.MinItems.HasValue || field.Properties.MaxItems.HasValue)
-            {
-                yield return new CollectionValidator(field.Properties.IsRequired, field.Properties.MinItems, field.Properties.MaxItems);
-            }
-
-            if (!field.Properties.AllowDuplicates)
-            {
-                yield return new UniqueValuesValidator<Guid>();
+                yield return new AllowedValuesValidator<double>(properties.AllowedValues);
             }
         }
 
-        public IEnumerable<IValidator> Visit(IField<StringFieldProperties> field)
+        public IEnumerable<IValidator> Visit(IField<ReferencesFieldProperties> field, Args args)
         {
-            if (field.Properties.IsRequired)
+            yield break;
+        }
+
+        public IEnumerable<IValidator> Visit(IField<StringFieldProperties> field, Args args)
+        {
+            var properties = field.Properties;
+
+            var isRequired = IsRequired(properties, args.Context);
+
+            if (isRequired)
             {
                 yield return new RequiredStringValidator(true);
             }
 
-            if (field.Properties.MinLength.HasValue || field.Properties.MaxLength.HasValue)
+            if (properties.MinLength != null || properties.MaxLength != null)
             {
-                yield return new StringLengthValidator(field.Properties.MinLength, field.Properties.MaxLength);
+                yield return new StringLengthValidator(properties.MinLength, properties.MaxLength);
             }
 
-            if (!string.IsNullOrWhiteSpace(field.Properties.Pattern))
+            if (properties.MinCharacters != null ||
+                properties.MaxCharacters != null ||
+                properties.MinWords != null ||
+                properties.MaxWords != null)
             {
-                yield return new PatternValidator(field.Properties.Pattern, field.Properties.PatternMessage);
+                Func<string, string>? transform = null;
+
+                switch (properties.ContentType)
+                {
+                    case StringContentType.Markdown:
+                        transform = MarkdownExtensions.Markdown2Text;
+                        break;
+                    case StringContentType.Html:
+                        transform = HtmlExtensions.Html2Text;
+                        break;
+                }
+
+                yield return new StringTextValidator(transform,
+                   properties.MinCharacters,
+                   properties.MaxCharacters,
+                   properties.MinWords,
+                   properties.MaxWords);
             }
 
-            if (field.Properties.AllowedValues != null)
+            if (!string.IsNullOrWhiteSpace(properties.Pattern))
             {
-                yield return new AllowedValuesValidator<string>(field.Properties.AllowedValues);
+                yield return new PatternValidator(properties.Pattern, properties.PatternMessage);
+            }
+
+            if (properties.AllowedValues != null)
+            {
+                yield return new AllowedValuesValidator<string>(properties.AllowedValues);
             }
         }
 
-        public IEnumerable<IValidator> Visit(IField<TagsFieldProperties> field)
+        public IEnumerable<IValidator> Visit(IField<TagsFieldProperties> field, Args args)
         {
-            if (field.Properties.IsRequired || field.Properties.MinItems.HasValue || field.Properties.MaxItems.HasValue)
+            var properties = field.Properties;
+
+            var isRequired = IsRequired(properties, args.Context);
+
+            if (isRequired || properties.MinItems != null || properties.MaxItems != null)
             {
-                yield return new CollectionValidator(field.Properties.IsRequired, field.Properties.MinItems, field.Properties.MaxItems);
+                yield return new CollectionValidator(isRequired, properties.MinItems, properties.MaxItems);
             }
 
-            if (field.Properties.AllowedValues != null)
+            if (properties.AllowedValues != null)
             {
-                yield return new CollectionItemValidator(new AllowedValuesValidator<string>(field.Properties.AllowedValues));
+                yield return new CollectionItemValidator(new AllowedValuesValidator<string>(properties.AllowedValues));
             }
 
             yield return new CollectionItemValidator(new RequiredStringValidator(true));
         }
 
-        public IEnumerable<IValidator> Visit(IField<UIFieldProperties> field)
+        public IEnumerable<IValidator> Visit(IField<UIFieldProperties> field, Args args)
         {
             if (field is INestedField)
             {
                 yield return NoValueValidator.Instance;
             }
+        }
+
+        private static bool IsRequired(FieldProperties properties, ValidatorContext context)
+        {
+            var isRequired = properties.IsRequired;
+
+            if (context.Action == ValidationAction.Publish)
+            {
+                isRequired = isRequired || properties.IsRequiredOnPublish;
+            }
+
+            return isRequired;
+        }
+
+        private static IValidator ComponentValidator(ValidatorFactory factory)
+        {
+            return new ComponentValidator(schema =>
+            {
+                var nestedValidators = new Dictionary<string, (bool IsOptional, IValidator Validator)>(schema.Fields.Count);
+
+                foreach (var nestedField in schema.Fields)
+                {
+                    nestedValidators[nestedField.Name] = (false, factory(nestedField));
+                }
+
+                return new ObjectValidator<IJsonValue>(nestedValidators, false, "field");
+            });
         }
     }
 }

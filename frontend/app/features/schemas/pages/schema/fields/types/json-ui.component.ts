@@ -12,11 +12,11 @@ import { FieldDto, JsonFieldPropertiesDto } from '@app/shared';
 @Component({
     selector: 'sqx-json-ui',
     styleUrls: ['json-ui.component.scss'],
-    templateUrl: 'json-ui.component.html'
+    templateUrl: 'json-ui.component.html',
 })
 export class JsonUIComponent {
     @Input()
-    public editForm: FormGroup;
+    public fieldForm: FormGroup;
 
     @Input()
     public field: FieldDto;

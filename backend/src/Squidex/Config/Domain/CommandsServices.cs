@@ -1,4 +1,4 @@
-// ==========================================================================
+﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
 //  Copyright (c) Squidex UG (haftungsbeschraenkt)
@@ -7,23 +7,22 @@
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Squidex.Domain.Apps.Entities;
-using Squidex.Domain.Apps.Entities.Apps;
+using Squidex.Domain.Apps.Entities.Apps.DomainObject;
 using Squidex.Domain.Apps.Entities.Apps.Indexes;
 using Squidex.Domain.Apps.Entities.Apps.Invitation;
 using Squidex.Domain.Apps.Entities.Apps.Templates;
-using Squidex.Domain.Apps.Entities.Assets;
 using Squidex.Domain.Apps.Entities.Assets.Commands;
-using Squidex.Domain.Apps.Entities.Comments;
+using Squidex.Domain.Apps.Entities.Assets.DomainObject;
+using Squidex.Domain.Apps.Entities.Comments.DomainObject;
 using Squidex.Domain.Apps.Entities.Contents;
+using Squidex.Domain.Apps.Entities.Contents.DomainObject;
 using Squidex.Domain.Apps.Entities.Rules;
 using Squidex.Domain.Apps.Entities.Rules.Indexes;
 using Squidex.Domain.Apps.Entities.Rules.UsageTracking;
-using Squidex.Domain.Apps.Entities.Schemas;
 using Squidex.Domain.Apps.Entities.Schemas.Commands;
+using Squidex.Domain.Apps.Entities.Schemas.DomainObject;
 using Squidex.Domain.Apps.Entities.Schemas.Indexes;
 using Squidex.Infrastructure.Commands;
-using Squidex.Infrastructure.EventSourcing;
 using Squidex.Web.CommandMiddlewares;
 
 namespace Squidex.Config.Domain
@@ -32,8 +31,8 @@ namespace Squidex.Config.Domain
     {
         public static void AddSquidexCommands(this IServiceCollection services, IConfiguration config)
         {
-            services.Configure<ReadonlyOptions>(
-                config.GetSection("mode"));
+            services.Configure<ReadonlyOptions>(config,
+                "mode");
 
             services.AddSingletonAs<InMemoryCommandBus>()
                 .As<ICommandBus>();
@@ -74,10 +73,13 @@ namespace Squidex.Config.Domain
             services.AddSingletonAs<AppCommandMiddleware>()
                 .As<ICommandMiddleware>();
 
+            services.AddSingletonAs<AssetsBulkUpdateCommandMiddleware>()
+                .As<ICommandMiddleware>();
+
             services.AddSingletonAs<AssetCommandMiddleware>()
                 .As<ICommandMiddleware>();
 
-            services.AddSingletonAs<BulkUpdateCommandMiddleware>()
+            services.AddSingletonAs<ContentsBulkUpdateCommandMiddleware>()
                 .As<ICommandMiddleware>();
 
             services.AddSingletonAs<ContentCommandMiddleware>()
@@ -101,19 +103,17 @@ namespace Squidex.Config.Domain
             services.AddSingletonAs<AlwaysCreateClientCommandMiddleware>()
                 .As<ICommandMiddleware>();
 
-            services.AddSingletonAs<CreateBlogCommandMiddleware>()
+            services.AddSingletonAs<TemplateCommandMiddleware>()
                 .As<ICommandMiddleware>();
 
-            services.AddSingletonAs<CreateIdentityCommandMiddleware>()
-                .As<ICommandMiddleware>();
+            services.AddSingletonAs<CreateBlog>()
+                .As<ITemplate>();
 
-            services.AddSingletonAs<CreateProfileCommandMiddleware>()
-                .As<ICommandMiddleware>();
+            services.AddSingletonAs<CreateProfile>()
+                .As<ITemplate>();
 
             services.AddSingletonAs<UsageTrackerCommandMiddleware>()
                 .As<ICommandMiddleware>();
-
-            services.AddSingleton(typeof(IEventEnricher<>), typeof(SquidexEventEnricher<>));
         }
     }
 }

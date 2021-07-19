@@ -12,7 +12,7 @@ import { ApiUrlConfig, AppsState, CreateSchemaForm, SchemaDto, SchemasState } fr
 @Component({
     selector: 'sqx-schema-form',
     styleUrls: ['./schema-form.component.scss'],
-    templateUrl: './schema-form.component.html'
+    templateUrl: './schema-form.component.html',
 })
 export class SchemaFormComponent implements OnInit {
     @Output()
@@ -31,13 +31,13 @@ export class SchemaFormComponent implements OnInit {
     constructor(
         public readonly apiUrl: ApiUrlConfig,
         public readonly appsState: AppsState,
+        public readonly schemasState: SchemasState,
         private readonly formBuilder: FormBuilder,
-        private readonly schemasState: SchemasState
     ) {
     }
 
     public ngOnInit() {
-        this.createForm.load({ ...this.import, name: '' });
+        this.createForm.load({ type: 'Default', ...this.import, name: '' });
 
         this.showImport = !!this.import;
     }

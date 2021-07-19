@@ -10,7 +10,7 @@ import { positionModal, ResourceOwner } from '@app/framework/internal';
 import { timer } from 'rxjs';
 
 @Directive({
-    selector: '[sqxAnchoredTo]'
+    selector: '[sqxAnchoredTo]',
 })
 export class ModalPlacementDirective extends ResourceOwner implements AfterViewInit, OnDestroy {
     private targetElement: Element;
@@ -40,7 +40,7 @@ export class ModalPlacementDirective extends ResourceOwner implements AfterViewI
 
     constructor(
         private readonly renderer: Renderer2,
-        private readonly element: ElementRef<Element>
+        private readonly element: ElementRef<Element>,
     ) {
         super();
     }
@@ -67,7 +67,7 @@ export class ModalPlacementDirective extends ResourceOwner implements AfterViewI
         this.renderer.setStyle(modalRef, 'bottom', 'auto');
         this.renderer.setStyle(modalRef, 'right', 'auto');
 
-        let zIndex = window.document.defaultView!.getComputedStyle(modalRef).getPropertyValue('z-index');
+        const zIndex = window.document.defaultView!.getComputedStyle(modalRef).getPropertyValue('z-index');
 
         if (!zIndex || zIndex === 'auto') {
             this.renderer.setStyle(modalRef, 'z-index', 10000);
@@ -90,8 +90,8 @@ export class ModalPlacementDirective extends ResourceOwner implements AfterViewI
 
         const targetRect = this.targetElement.getBoundingClientRect();
 
-        let y = 0;
-        let x = 0;
+        let y: number;
+        let x: number;
 
         if (this.position === 'full') {
             x = -this.offset + targetRect.left;

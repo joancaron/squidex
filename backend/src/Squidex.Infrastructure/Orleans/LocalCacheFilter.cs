@@ -8,7 +8,7 @@
 using System;
 using System.Threading.Tasks;
 using Orleans;
-using Squidex.Infrastructure.Caching;
+using Squidex.Caching;
 
 namespace Squidex.Infrastructure.Orleans
 {
@@ -18,8 +18,6 @@ namespace Squidex.Infrastructure.Orleans
 
         public LocalCacheFilter(ILocalCache localCache)
         {
-            Guard.NotNull(localCache, nameof(localCache));
-
             this.localCache = localCache;
         }
 

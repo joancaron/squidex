@@ -6,7 +6,7 @@
  */
 
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, OnInit, Output } from '@angular/core';
-import { AssetDto, AssetsState, LocalStoreService, Query, StatefulComponent } from '@app/shared/internal';
+import { AssetDto, ComponentAssetsState, LocalStoreService, Query, Settings, StatefulComponent } from '@app/shared/internal';
 
 interface State {
     // The selected assets.
@@ -23,20 +23,23 @@ interface State {
     selector: 'sqx-assets-selector',
     styleUrls: ['./assets-selector.component.scss'],
     templateUrl: './assets-selector.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    providers: [
+        ComponentAssetsState,
+    ],
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AssetsSelectorComponent extends StatefulComponent<State> implements OnInit {
     @Output()
     public select = new EventEmitter<ReadonlyArray<AssetDto>>();
 
     constructor(changeDector: ChangeDetectorRef,
-        public readonly assetsState: AssetsState,
-        public readonly localStore: LocalStoreService
+        public readonly assetsState: ComponentAssetsState,
+        public readonly localStore: LocalStoreService,
     ) {
         super(changeDector, {
             selectedAssets: {},
             selectionCount: 0,
-            isListView: localStore.getBoolean('squidex.assets.list-view')
+            isListView: localStore.getBoolean(Settings.Local.ASSETS_MODE),
         });
     }
 
@@ -81,8 +84,8 @@ export class AssetsSelectorComponent extends StatefulComponent<State> implements
     }
 
     public changeView(isListView: boolean) {
-        this.next(s => ({ ...s, isListView }));
+        this.next({ isListView });
 
-        this.localStore.setBoolean('squidex.assets.list-view', isListView);
+        this.localStore.setBoolean(Settings.Local.ASSETS_MODE, isListView);
     }
 }

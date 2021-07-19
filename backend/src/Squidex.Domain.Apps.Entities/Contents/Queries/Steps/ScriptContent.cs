@@ -7,9 +7,9 @@
 
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Squidex.Domain.Apps.Core.Scripting;
-using Squidex.Infrastructure;
 
 namespace Squidex.Domain.Apps.Entities.Contents.Queries.Steps
 {
@@ -19,34 +19,32 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries.Steps
 
         public ScriptContent(IScriptEngine scriptEngine)
         {
-            Guard.NotNull(scriptEngine, nameof(scriptEngine));
-
             this.scriptEngine = scriptEngine;
         }
 
-        public async Task EnrichAsync(Context context, IEnumerable<ContentEntity> contents, ProvideSchema schemas)
+        public async Task EnrichAsync(Context context, IEnumerable<ContentEntity> contents, ProvideSchema schemas,
+            CancellationToken ct)
         {
             if (ShouldEnrich(context))
             {
                 foreach (var group in contents.GroupBy(x => x.SchemaId.Id))
                 {
-                    var schema = await schemas(group.Key);
+                    var (schema, _) = await schemas(group.Key);
 
                     var script = schema.SchemaDef.Scripts.Query;
 
                     if (!string.IsNullOrWhiteSpace(script))
                     {
-                        var results = new List<IEnrichedContentEntity>();
-
-                        await Task.WhenAll(group.Select(x => TransformAsync(context, script, x)));
+                        await Task.WhenAll(group.Select(x => TransformAsync(context, script, x, ct)));
                     }
                 }
             }
         }
 
-        private async Task TransformAsync(Context context, string script, ContentEntity content)
+        private async Task TransformAsync(Context context, string script, ContentEntity content,
+            CancellationToken ct)
         {
-            var scriptContext = new ScriptContext
+            var vars = new ScriptVars
             {
                 ContentId = content.Id,
                 Data = content.Data,
@@ -55,7 +53,12 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries.Steps
                 User = context.User
             };
 
-            content.Data = await scriptEngine.TransformAsync(scriptContext, script);
+            var options = new ScriptOptions
+            {
+                AsContext = true
+            };
+
+            content.Data = await scriptEngine.TransformAsync(vars, script, options, ct);
         }
 
         private static bool ShouldEnrich(Context context)

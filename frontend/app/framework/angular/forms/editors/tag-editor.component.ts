@@ -5,17 +5,13 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable: template-use-track-by-function
-
-import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, forwardRef, Input, OnChanges, OnInit, SimpleChanges, ViewChild } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, forwardRef, Input, OnChanges, OnInit, Output, SimpleChanges, ViewChild } from '@angular/core';
 import { FormControl, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { fadeAnimation, getTagValues, Keys, ModalModel, StatefulControlComponent, StringConverter, TagValue, Types } from '@app/framework/internal';
 import { distinctUntilChanged, map, tap } from 'rxjs/operators';
 
-export const CONVERSION_FAILED = {};
-
 export const SQX_TAG_EDITOR_CONTROL_VALUE_ACCESSOR: any = {
-    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => TagEditorComponent), multi: true
+    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => TagEditorComponent), multi: true,
 };
 
 let CACHED_FONT: string;
@@ -34,19 +30,17 @@ interface State {
     items: ReadonlyArray<TagValue>;
 }
 
-const NO_EMIT = { emitEvent: false };
-
 @Component({
     selector: 'sqx-tag-editor',
     styleUrls: ['./tag-editor.component.scss'],
     templateUrl: './tag-editor.component.html',
     providers: [
-        SQX_TAG_EDITOR_CONTROL_VALUE_ACCESSOR
+        SQX_TAG_EDITOR_CONTROL_VALUE_ACCESSOR,
     ],
     animations: [
-        fadeAnimation
+        fadeAnimation,
     ],
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TagEditorComponent extends StatefulControlComponent<State, ReadonlyArray<any>> implements AfterViewInit, OnChanges, OnInit {
     private latestValue: any;
@@ -57,50 +51,50 @@ export class TagEditorComponent extends StatefulControlComponent<State, Readonly
     @ViewChild('input', { static: false })
     public inputElement: ElementRef<HTMLInputElement>;
 
+    @Output()
+    public blur = new EventEmitter();
+
     @Input()
     public converter = StringConverter.INSTANCE;
 
     @Input()
-    public undefinedWhenEmpty = true;
+    public undefinedWhenEmpty?: boolean | null = true;
 
     @Input()
-    public acceptEnter = false;
+    public acceptEnter?: boolean | null;
 
     @Input()
-    public allowDuplicates = true;
+    public allowDuplicates?: boolean | null = true;
 
     @Input()
-    public dashed = false;
+    public dashed?: boolean | null;
 
     @Input()
-    public separated = false;
+    public separated?: boolean | null;
 
     @Input()
-    public singleLine = false;
+    public singleLine?: boolean | null;
 
     @Input()
-    public readonly = false;
+    public readonly?: boolean | null;
 
     @Input()
-    public styleBlank = false;
+    public styleBlank?: boolean | null;
 
     @Input()
-    public styleGray = false;
-
-    @Input()
-    public placeholder = ', to add tag';
+    public placeholder = 'i18n:common.tagAdd';
 
     @Input()
     public inputName = 'tag-editor';
 
     @Input()
-    public set suggestions(value: ReadonlyArray<string | TagValue>) {
-        this.suggestionsSorted = getTagValues(value);
+    public set disabled(value: boolean | null | undefined) {
+        this.setDisabledState(value === true);
     }
 
     @Input()
-    public set disabled(value: boolean) {
-        this.setDisabledState(value);
+    public set suggestions(value: ReadonlyArray<string | TagValue> | undefined | null) {
+        this.suggestionsSorted = getTagValues(value);
     }
 
     public suggestionsSorted: ReadonlyArray<TagValue> = [];
@@ -113,7 +107,7 @@ export class TagEditorComponent extends StatefulControlComponent<State, Readonly
             hasFocus: false,
             suggestedItems: [],
             suggestedIndex: 0,
-            items: []
+            items: [],
         });
     }
 
@@ -156,11 +150,10 @@ export class TagEditorComponent extends StatefulControlComponent<State, Readonly
                         }
                     }))
                 .subscribe(items => {
-                    this.next(s => ({
-                        ...s,
+                    this.next({
                         suggestedIndex: -1,
-                        suggestedItems: items || []
-                    }));
+                        suggestedItems: items || [],
+                    });
                 }));
     }
 
@@ -186,22 +179,20 @@ export class TagEditorComponent extends StatefulControlComponent<State, Readonly
             }
         }
 
-        this.next(s => ({ ...s, items }));
+        this.next({ items });
     }
 
-    public setDisabledState(isDisabled: boolean): void {
-        super.setDisabledState(isDisabled);
-
+    public onDisabled(isDisabled: boolean) {
         if (isDisabled) {
-            this.addInput.disable(NO_EMIT);
+            this.addInput.disable({ emitEvent: false });
         } else {
-            this.addInput.enable(NO_EMIT);
+            this.addInput.enable({ emitEvent: false });
         }
     }
 
     public focus() {
         if (this.addInput.enabled) {
-            this.next(s => ({ ...s, hasFocus: true }));
+            this.next({ hasFocus: true });
         }
     }
 
@@ -244,7 +235,7 @@ export class TagEditorComponent extends StatefulControlComponent<State, Readonly
 
                 const width = Math.max(widthText, widthPlaceholder);
 
-                this.inputElement.nativeElement.style.width = <any>((width + 5) + 'px');
+                this.inputElement.nativeElement.style.width = `${width + 5}px`;
             }
         }
 
@@ -275,27 +266,26 @@ export class TagEditorComponent extends StatefulControlComponent<State, Readonly
     }
 
     public onKeyDown(event: KeyboardEvent) {
-        const key = event.keyCode;
-
-        if (key === Keys.COMMA) {
-            if (this.selectValue(this.addInput.value)) {
-                return false;
-            }
-        } else if (key === Keys.DELETE) {
-            const value = <string>this.addInput.value;
+        if (Keys.isComma(event)) {
+            return !this.selectValue(this.addInput.value);
+        } else if (Keys.isDelete(event)) {
+            const value = this.addInput.value as string;
 
             if (!value || value.length === 0) {
                 this.updateItems(this.snapshot.items.slice(0, this.snapshot.items.length - 1), false);
 
                 return false;
             }
-        } else if (key === Keys.UP) {
+        } else if (Keys.isEscape(event) && this.suggestionsModal.isOpen) {
+            this.suggestionsModal.hide();
+            return false;
+        } else if (Keys.isUp(event)) {
             this.selectPrevIndex();
             return false;
-        } else if (key === Keys.DOWN) {
+        } else if (Keys.isDown(event)) {
             this.selectNextIndex();
             return false;
-        } else if (key === Keys.ENTER) {
+        } else if (Keys.isEnter(event)) {
             if (this.snapshot.suggestedIndex >= 0) {
                 if (this.selectValue(this.snapshot.suggestedItems[this.snapshot.suggestedIndex])) {
                     return false;
@@ -361,15 +351,15 @@ export class TagEditorComponent extends StatefulControlComponent<State, Readonly
             suggestedIndex = this.snapshot.suggestedItems.length - 1;
         }
 
-        this.next(s => ({ ...s, suggestedIndex }));
+        this.next({ suggestedIndex });
     }
 
     public resetFocus(): any {
-        this.next(s => ({ ...s, hasFocus: false }));
+        this.next({ hasFocus: false });
     }
 
     private resetAutocompletion() {
-        this.next(s => ({ ...s, suggestedItems: [], suggestedIndex: -1 }));
+        this.next({ suggestedItems: [], suggestedIndex: -1 });
     }
 
     private resetForm() {
@@ -378,6 +368,12 @@ export class TagEditorComponent extends StatefulControlComponent<State, Readonly
 
     public isSelected(tagValue: TagValue) {
         return this.snapshot.items.find(x => x.id === tagValue.id);
+    }
+
+    public callTouched() {
+        this.blur.next(true);
+
+        super.callTouched();
     }
 
     public onCut(event: ClipboardEvent) {
@@ -430,7 +426,7 @@ export class TagEditorComponent extends StatefulControlComponent<State, Readonly
     }
 
     private updateItems(items: ReadonlyArray<TagValue>, touched: boolean) {
-        this.next(s => ({ ...s, items }));
+        this.next({ items });
 
         if (items.length === 0 && this.undefinedWhenEmpty) {
             this.callChange(undefined);

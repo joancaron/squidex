@@ -6,10 +6,11 @@
 // ==========================================================================
 
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using Squidex.Domain.Apps.Core.Contents;
+using Squidex.Infrastructure.Collections;
 using Squidex.Infrastructure.Reflection;
+using Squidex.Infrastructure.Validation;
 using NoUpdateType = Squidex.Domain.Apps.Core.Contents.NoUpdate;
 
 namespace Squidex.Areas.Api.Controllers.Apps.Models
@@ -19,7 +20,7 @@ namespace Squidex.Areas.Api.Controllers.Apps.Models
         /// <summary>
         /// The transitions.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public Dictionary<Status, WorkflowTransitionDto> Transitions { get; set; }
 
         /// <summary>
@@ -61,12 +62,12 @@ namespace Squidex.Areas.Api.Controllers.Apps.Models
             return response;
         }
 
-        public WorkflowStep ToStep()
+        public WorkflowStep ToWorkflowStep()
         {
             return new WorkflowStep(
-                Transitions?.ToDictionary(
+                Transitions?.ToImmutableDictionary(
                     y => y.Key,
-                    y => y.Value?.ToTransition()!),
+                    y => y.Value?.ToWorkflowTransition()!),
                 Color,
                 NoUpdate ?
                     NoUpdateType.When(NoUpdateExpression, NoUpdateRoles) :

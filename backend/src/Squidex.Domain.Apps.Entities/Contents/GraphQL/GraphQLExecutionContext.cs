@@ -1,136 +1,168 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using GraphQL;
 using GraphQL.DataLoader;
 using Squidex.Domain.Apps.Core;
 using Squidex.Domain.Apps.Entities.Assets;
-using Squidex.Domain.Apps.Entities.Contents.GraphQL.Types;
 using Squidex.Domain.Apps.Entities.Contents.Queries;
+using Squidex.Infrastructure;
+using Squidex.Infrastructure.Commands;
 using Squidex.Infrastructure.Json.Objects;
-using Squidex.Infrastructure.Log;
+using Squidex.Log;
+using Squidex.Shared.Users;
 
 namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
 {
     public sealed class GraphQLExecutionContext : QueryExecutionContext
     {
         private static readonly List<IEnrichedAssetEntity> EmptyAssets = new List<IEnrichedAssetEntity>();
-        private static readonly List<IContentEntity> EmptyContents = new List<IContentEntity>();
-        private readonly IDataLoaderContextAccessor dataLoaderContextAccessor;
-        private readonly IDependencyResolver resolver;
+        private static readonly List<IEnrichedContentEntity> EmptyContents = new List<IEnrichedContentEntity>();
+        private readonly IDataLoaderContextAccessor dataLoaders;
+        private readonly IUserResolver userResolver;
 
         public IUrlGenerator UrlGenerator { get; }
 
+        public ICommandBus CommandBus { get; }
+
         public ISemanticLog Log { get; }
 
-        public GraphQLExecutionContext(Context context, IDependencyResolver resolver)
-            : base(context
-                    .WithoutCleanup()
-                    .WithoutContentEnrichment(),
-                resolver.Resolve<IAssetQueryService>(),
-                resolver.Resolve<IContentQueryService>())
+        public override Context Context { get; }
+
+        public GraphQLExecutionContext(IAssetQueryService assetQuery, IContentQueryService contentQuery,
+            Context context,
+            IDataLoaderContextAccessor dataLoaders,
+            ICommandBus commandBus, IUrlGenerator urlGenerator, IUserResolver userResolver,
+            ISemanticLog log)
+            : base(assetQuery, contentQuery)
         {
-            UrlGenerator = resolver.Resolve<IUrlGenerator>();
+            this.dataLoaders = dataLoaders;
+            this.userResolver = userResolver;
 
-            dataLoaderContextAccessor = resolver.Resolve<IDataLoaderContextAccessor>();
+            CommandBus = commandBus;
 
-            this.resolver = resolver;
+            UrlGenerator = urlGenerator;
+
+            Context = context.Clone(b => b
+                .WithoutCleanup()
+                .WithoutContentEnrichment());
+
+            Log = log;
         }
 
-        public void Setup(ExecutionOptions execution)
+        public async Task<IUser> FindUserAsync(RefToken refToken)
         {
-            var loader = resolver.Resolve<DataLoaderDocumentListener>();
+            if (refToken.IsClient)
+            {
+                return new ClientUser(refToken);
+            }
+            else
+            {
+                var dataLoader = GetUserLoader();
 
-            execution.Listeners.Add(loader);
-            execution.FieldMiddleware.Use(Middlewares.Logging(resolver.Resolve<ISemanticLog>()));
-            execution.FieldMiddleware.Use(Middlewares.Errors());
-
-            execution.UserContext = this;
+                return await dataLoader.LoadAsync(refToken.Identifier).GetResultAsync();
+            }
         }
 
-        public override async Task<IEnrichedAssetEntity?> FindAssetAsync(Guid id)
+        public async Task<IEnrichedAssetEntity?> FindAssetAsync(DomainId id)
         {
             var dataLoader = GetAssetsLoader();
 
-            return await dataLoader.LoadAsync(id);
+            return await dataLoader.LoadAsync(id).GetResultAsync();
         }
 
-        public async Task<IContentEntity?> FindContentAsync(Guid id)
+        public async Task<IContentEntity?> FindContentAsync(DomainId id)
         {
             var dataLoader = GetContentsLoader();
 
-            return await dataLoader.LoadAsync(id);
+            return await dataLoader.LoadAsync(id).GetResultAsync();
         }
 
-        public async Task<IReadOnlyList<IEnrichedAssetEntity>> GetReferencedAssetsAsync(IJsonValue value)
+        public Task<IReadOnlyList<IEnrichedAssetEntity>> GetReferencedAssetsAsync(IJsonValue value)
         {
             var ids = ParseIds(value);
 
             if (ids == null)
             {
-                return EmptyAssets;
+                return Task.FromResult<IReadOnlyList<IEnrichedAssetEntity>>(EmptyAssets);
             }
 
             var dataLoader = GetAssetsLoader();
 
-            return await dataLoader.LoadManyAsync(ids);
+            return LoadManyAsync(dataLoader, ids);
         }
 
-        public async Task<IReadOnlyList<IContentEntity>> GetReferencedContentsAsync(IJsonValue value)
+        public Task<IReadOnlyList<IEnrichedContentEntity>> GetReferencedContentsAsync(IJsonValue value)
         {
             var ids = ParseIds(value);
 
             if (ids == null)
             {
-                return EmptyContents;
+                return Task.FromResult<IReadOnlyList<IEnrichedContentEntity>>(EmptyContents);
             }
 
             var dataLoader = GetContentsLoader();
 
-            return await dataLoader.LoadManyAsync(ids);
+            return LoadManyAsync(dataLoader, ids);
         }
 
-        private IDataLoader<Guid, IEnrichedAssetEntity> GetAssetsLoader()
+        private IDataLoader<DomainId, IEnrichedAssetEntity> GetAssetsLoader()
         {
-            return dataLoaderContextAccessor.Context.GetOrAddBatchLoader<Guid, IEnrichedAssetEntity>("Assets",
+            return dataLoaders.Context.GetOrAddBatchLoader<DomainId, IEnrichedAssetEntity>(nameof(GetAssetsLoader),
                 async batch =>
                 {
-                    var result = await GetReferencedAssetsAsync(new List<Guid>(batch));
+                    var result = await GetReferencedAssetsAsync(new List<DomainId>(batch));
 
                     return result.ToDictionary(x => x.Id);
                 });
         }
 
-        private IDataLoader<Guid, IContentEntity> GetContentsLoader()
+        private IDataLoader<DomainId, IEnrichedContentEntity> GetContentsLoader()
         {
-            return dataLoaderContextAccessor.Context.GetOrAddBatchLoader<Guid, IContentEntity>("References",
+            return dataLoaders.Context.GetOrAddBatchLoader<DomainId, IEnrichedContentEntity>(nameof(GetContentsLoader),
                 async batch =>
                 {
-                    var result = await GetReferencedContentsAsync(new List<Guid>(batch));
+                    var result = await GetReferencedContentsAsync(new List<DomainId>(batch));
 
                     return result.ToDictionary(x => x.Id);
                 });
         }
 
-        private static ICollection<Guid>? ParseIds(IJsonValue value)
+        private IDataLoader<string, IUser> GetUserLoader()
+        {
+            return dataLoaders.Context.GetOrAddBatchLoader<string, IUser>(nameof(GetUserLoader),
+                async batch =>
+                {
+                    var result = await userResolver.QueryManyAsync(batch.ToArray());
+
+                    return result;
+                });
+        }
+
+        private static async Task<IReadOnlyList<T>> LoadManyAsync<TKey, T>(IDataLoader<TKey, T> dataLoader, ICollection<TKey> keys) where T : class
+        {
+            var contents = await Task.WhenAll(keys.Select(x => dataLoader.LoadAsync(x).GetResultAsync()));
+
+            return contents.NotNull().ToList();
+        }
+
+        private static ICollection<DomainId>? ParseIds(IJsonValue value)
         {
             try
             {
-                var result = new List<Guid>();
+                var result = new List<DomainId>();
 
                 if (value is JsonArray array)
                 {
                     foreach (var id in array)
                     {
-                        result.Add(Guid.Parse(id.ToString()));
+                        result.Add(DomainId.Create(id.ToString()));
                     }
                 }
 

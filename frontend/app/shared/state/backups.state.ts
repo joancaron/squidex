@@ -48,14 +48,14 @@ export class BackupsState extends State<Snapshot> {
     constructor(
         private readonly appsState: AppsState,
         private readonly backupsService: BackupsService,
-        private readonly dialogs: DialogService
+        private readonly dialogs: DialogService,
     ) {
-        super({ backups: [] });
+        super({ backups: [] }, 'Backups');
     }
 
     public load(isReload = false, silent = false): Observable<any> {
         if (isReload && !silent) {
-            this.resetState();
+            this.resetState('Loading Initial');
         }
 
         return this.loadInternal(isReload, silent);
@@ -63,24 +63,24 @@ export class BackupsState extends State<Snapshot> {
 
     private loadInternal(isReload: boolean, silent: boolean): Observable<any> {
         if (!silent) {
-            this.next({ isLoading: true });
+            this.next({ isLoading: true }, 'Loading Started');
         }
 
         return this.backupsService.getBackups(this.appName).pipe(
             tap(({ items: backups, canCreate }) => {
                 if (isReload && !silent) {
-                    this.dialogs.notifyInfo('Backups reloaded.');
+                    this.dialogs.notifyInfo('i18n:backups.reloaded');
                 }
 
                 this.next({
                     backups,
                     canCreate,
                     isLoaded: true,
-                    isLoading: false
-                });
+                    isLoading: false,
+                }, 'Loading Success');
             }),
             finalize(() => {
-                this.next({ isLoading: false });
+                this.next({ isLoading: false }, 'Loading Done');
             }),
             shareSubscribed(this.dialogs, { silent }));
     }
@@ -88,7 +88,7 @@ export class BackupsState extends State<Snapshot> {
     public start(): Observable<any> {
         return this.backupsService.postBackup(this.appsState.appName).pipe(
             tap(() => {
-                this.dialogs.notifyInfo('Backup started, it can take several minutes to complete.');
+                this.dialogs.notifyInfo('i18n:backups.started');
             }),
             shareSubscribed(this.dialogs));
     }
@@ -96,7 +96,7 @@ export class BackupsState extends State<Snapshot> {
     public delete(backup: BackupDto): Observable<any> {
         return this.backupsService.deleteBackup(this.appsState.appName, backup).pipe(
             tap(() => {
-                this.dialogs.notifyInfo('Backup is about to be deleted.');
+                this.dialogs.notifyInfo('i18n:backups.deleted');
             }),
             shareSubscribed(this.dialogs));
     }

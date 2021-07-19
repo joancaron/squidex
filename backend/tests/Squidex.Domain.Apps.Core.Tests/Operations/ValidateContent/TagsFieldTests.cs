@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -10,13 +10,14 @@ using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Squidex.Domain.Apps.Core.Schemas;
+using Squidex.Domain.Apps.Core.TestHelpers;
 using Squidex.Infrastructure.Collections;
 using Squidex.Infrastructure.Json.Objects;
 using Xunit;
 
 namespace Squidex.Domain.Apps.Core.Operations.ValidateContent
 {
-    public class TagsFieldTests
+    public class TagsFieldTests : IClassFixture<TranslationsFixture>
     {
         private readonly List<string> errors = new List<string>();
 
@@ -88,7 +89,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ValidateContent
             await sut.ValidateAsync(JsonValue.Array(JsonValue.Null), errors);
 
             errors.Should().BeEquivalentTo(
-                new[] { "[1]: Field is required." });
+                new[] { "Invalid json type, expected array of strings." });
         }
 
         [Fact]
@@ -99,7 +100,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ValidateContent
             await sut.ValidateAsync(CreateValue(string.Empty), errors);
 
             errors.Should().BeEquivalentTo(
-                new[] { "[1]: Field is required." });
+                new[] { "Invalid json type, expected array of strings." });
         }
 
         [Fact]
@@ -138,7 +139,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ValidateContent
         [Fact]
         public async Task Should_add_error_if_value_contains_an_not_allowed_values()
         {
-            var sut = Field(new TagsFieldProperties { AllowedValues = ReadOnlyCollection.Create("tag-2", "tag-3") });
+            var sut = Field(new TagsFieldProperties { AllowedValues = ImmutableList.Create("tag-2", "tag-3") });
 
             await sut.ValidateAsync(CreateValue("tag-1", "tag-2", null), errors);
 

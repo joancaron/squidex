@@ -1,7 +1,7 @@
 // ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -47,12 +47,12 @@ namespace Squidex.Domain.Apps.Core.Scripting.ContentWrapper
 
         public IJsonValue ContentValue
         {
-            get { return contentValue ??= JsonMapper.Map(value); }
+            get => contentValue ??= JsonMapper.Map(value);
         }
 
         public bool IsChanged
         {
-            get { return isChanged; }
+            get => isChanged;
         }
 
         public ContentFieldProperty(ContentFieldObject contentField, IJsonValue? contentValue = null)

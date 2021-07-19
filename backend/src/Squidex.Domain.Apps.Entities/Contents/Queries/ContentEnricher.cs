@@ -5,63 +5,62 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+using Squidex.Domain.Apps.Core.Schemas;
 using Squidex.Domain.Apps.Entities.Schemas;
 using Squidex.Infrastructure;
-using Squidex.Infrastructure.Log;
 using Squidex.Infrastructure.Reflection;
+using Squidex.Log;
 
 namespace Squidex.Domain.Apps.Entities.Contents.Queries
 {
     public sealed class ContentEnricher : IContentEnricher
     {
         private readonly IEnumerable<IContentEnricherStep> steps;
-        private readonly Lazy<IContentQueryService> contentQuery;
+        private readonly IAppProvider appProvider;
 
-        private IContentQueryService ContentQuery
+        public ContentEnricher(IEnumerable<IContentEnricherStep> steps, IAppProvider appProvider)
         {
-            get { return contentQuery.Value; }
-        }
-
-        public ContentEnricher(IEnumerable<IContentEnricherStep> steps, Lazy<IContentQueryService> contentQuery)
-        {
-            Guard.NotNull(steps, nameof(steps));
-            Guard.NotNull(contentQuery, nameof(contentQuery));
-
             this.steps = steps;
 
-            this.contentQuery = contentQuery;
+            this.appProvider = appProvider;
         }
 
-        public async Task<IEnrichedContentEntity> EnrichAsync(IContentEntity content, bool cloneData, Context context)
+        public async Task<IEnrichedContentEntity> EnrichAsync(IContentEntity content, bool cloneData, Context context,
+            CancellationToken ct)
         {
             Guard.NotNull(content, nameof(content));
 
-            var enriched = await EnrichInternalAsync(Enumerable.Repeat(content, 1), cloneData, context);
+            var enriched = await EnrichInternalAsync(Enumerable.Repeat(content, 1), cloneData, context, ct);
 
             return enriched[0];
         }
 
-        public Task<IReadOnlyList<IEnrichedContentEntity>> EnrichAsync(IEnumerable<IContentEntity> contents, Context context)
+        public Task<IReadOnlyList<IEnrichedContentEntity>> EnrichAsync(IEnumerable<IContentEntity> contents, Context context,
+            CancellationToken ct)
         {
             Guard.NotNull(contents, nameof(contents));
             Guard.NotNull(context, nameof(context));
 
-            return EnrichInternalAsync(contents, false, context);
+            return EnrichInternalAsync(contents, false, context, ct);
         }
 
-        private async Task<IReadOnlyList<IEnrichedContentEntity>> EnrichInternalAsync(IEnumerable<IContentEntity> contents, bool cloneData, Context context)
+        private async Task<IReadOnlyList<IEnrichedContentEntity>> EnrichInternalAsync(IEnumerable<IContentEntity> contents, bool cloneData, Context context,
+            CancellationToken ct)
         {
             using (Profiler.TraceMethod<ContentEnricher>())
             {
                 var results = new List<ContentEntity>();
 
-                foreach (var step in steps)
+                if (context.App != null)
                 {
-                    await step.EnrichAsync(context);
+                    foreach (var step in steps)
+                    {
+                        await step.EnrichAsync(context, ct);
+                    }
                 }
 
                 if (contents.Any())
@@ -78,18 +77,35 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
                         results.Add(result);
                     }
 
-                    var schemaCache = new Dictionary<Guid, Task<ISchemaEntity>>();
-
-                    Task<ISchemaEntity> GetSchema(Guid id)
+                    if (context.App != null)
                     {
-                        return schemaCache.GetOrAdd(id, x => ContentQuery.GetSchemaOrThrowAsync(context, x.ToString()));
-                    }
+                        var schemaCache = new Dictionary<DomainId, Task<(ISchemaEntity, ResolvedComponents)>>();
 
-                    foreach (var step in steps)
-                    {
-                        using (Profiler.TraceMethod(step.ToString()!))
+                        Task<(ISchemaEntity, ResolvedComponents)> GetSchema(DomainId id)
                         {
-                            await step.EnrichAsync(context, results, GetSchema);
+                            return schemaCache.GetOrAdd(id, async x =>
+                            {
+                                var schema = await appProvider.GetSchemaAsync(context.App.Id, x, false);
+
+                                if (schema == null)
+                                {
+                                    throw new DomainObjectNotFoundException(x.ToString());
+                                }
+
+                                var components = await appProvider.GetComponentsAsync(schema);
+
+                                return (schema, components);
+                            });
+                        }
+
+                        foreach (var step in steps)
+                        {
+                            ct.ThrowIfCancellationRequested();
+
+                            using (Profiler.TraceMethod(step.ToString()!))
+                            {
+                                await step.EnrichAsync(context, results, GetSchema, ct);
+                            }
                         }
                     }
                 }

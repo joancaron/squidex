@@ -6,7 +6,7 @@
  */
 
 import { UIOptions } from './../configurations';
-import { OnboardingService, OnboardingServiceFactory } from './onboarding.service';
+import { OnboardingService } from './onboarding.service';
 
 class LocalStoreMock {
     private store = {};
@@ -27,19 +27,13 @@ describe('OnboardingService', () => {
         localStore = new LocalStoreMock();
     });
 
-    it('should instantiate from factory', () => {
-        const onboardingService = OnboardingServiceFactory(new UIOptions({}), <any>localStore);
-
-        expect(onboardingService).toBeDefined();
-    });
-
     it('should instantiate', () => {
         const onboardingService = new OnboardingService(new UIOptions({}), <any>localStore);
 
         expect(onboardingService).toBeDefined();
     });
 
-    it('should show when value not in store', () => {
+    it('should show if value not in store', () => {
         localStore.set('squidex.onboarding.disable.feature-a1', '0');
 
         const onboardingService = new OnboardingService(new UIOptions({}), <any>localStore);
@@ -47,7 +41,7 @@ describe('OnboardingService', () => {
         expect(onboardingService.shouldShow('feature-a2')).toBeTruthy();
     });
 
-    it('should not show when value in store', () => {
+    it('should not show if value in store', () => {
         localStore.set('squidex.onboarding.disable.feature-b1', '1');
 
         const onboardingService = new OnboardingService(new UIOptions({}), <any>localStore);
@@ -55,7 +49,7 @@ describe('OnboardingService', () => {
         expect(onboardingService.shouldShow('feature-b1')).toBeFalsy();
     });
 
-    it('should not show when disabled', () => {
+    it('should not show if disabled', () => {
         const onboardingService = new OnboardingService(new UIOptions({}), <any>localStore);
 
         onboardingService.disable('feature-c1');
@@ -63,7 +57,7 @@ describe('OnboardingService', () => {
         expect(onboardingService.shouldShow('feature-c1')).toBeFalsy();
     });
 
-    it('should not show when all disabled', () => {
+    it('should not show if all disabled', () => {
         const onboardingService = new OnboardingService(new UIOptions({}), <any>localStore);
 
         onboardingService.disableAll();
@@ -71,7 +65,7 @@ describe('OnboardingService', () => {
         expect(onboardingService.shouldShow('feature-d1')).toBeFalsy();
     });
 
-    it('should not show when disabled by setting', () => {
+    it('should not show if disabled by setting', () => {
         const onboardingService = new OnboardingService(new UIOptions({ hideOnboarding: true }), <any>localStore);
 
         expect(onboardingService.shouldShow('feature-d1')).toBeFalsy();

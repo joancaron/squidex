@@ -18,17 +18,17 @@ describe('PlansState', () => {
         authService,
         creator,
         newVersion,
-        version
+        version,
     } = TestValues;
 
     const oldPlans = {
         currentPlanId: 'id1',
         planOwner: creator,
         plans: [
-            new PlanDto('id1', 'name1', '100€', undefined, 'id1_yearly', '200€', undefined, 1, 1, 1),
-            new PlanDto('id2', 'name2', '400€', undefined, 'id2_yearly', '800€', undefined, 2, 2, 2)
+            new PlanDto('id1', 'name1', '100€', undefined, 'id1_yearly', '200€', undefined, 1, 1, 1, 1),
+            new PlanDto('id2', 'name2', '400€', undefined, 'id2_yearly', '800€', undefined, 2, 2, 2, 2),
         ],
-        hasPortal: true
+        hasPortal: true,
     };
 
     let dialogs: IMock<DialogService>;
@@ -54,8 +54,8 @@ describe('PlansState', () => {
             plansState.load().subscribe();
 
             expect(plansState.snapshot.plans).toEqual([
-                { isSelected: true,  isYearlySelected: false, plan: oldPlans.plans[0] },
-                { isSelected: false, isYearlySelected: false, plan: oldPlans.plans[1] }
+                { isSelected: true, isYearlySelected: false, plan: oldPlans.plans[0] },
+                { isSelected: false, isYearlySelected: false, plan: oldPlans.plans[1] },
             ]);
             expect(plansState.snapshot.isOwner).toBeFalsy();
             expect(plansState.snapshot.isLoaded).toBeTruthy();
@@ -73,7 +73,7 @@ describe('PlansState', () => {
 
             expect(plansState.snapshot.plans).toEqual([
                 { isSelected: false, isYearlySelected: false, plan: oldPlans.plans[0] },
-                { isSelected: false, isYearlySelected: true,  plan: oldPlans.plans[1] }
+                { isSelected: false, isYearlySelected: true, plan: oldPlans.plans[1] },
             ]);
             expect(plansState.snapshot.hasPortal).toBeTruthy();
             expect(plansState.snapshot.isLoaded).toBeTruthy();
@@ -84,16 +84,16 @@ describe('PlansState', () => {
             dialogs.verify(x => x.notifyInfo(It.isAnyString()), Times.never());
         });
 
-        it('should reset loading when loading failed', () => {
+        it('should reset loading state if loading failed', () => {
             plansService.setup(x => x.getPlans(app))
-                .returns(() => throwError('error'));
+                .returns(() => throwError(() => 'Service Error'));
 
             plansState.load().pipe(onErrorResumeNext()).subscribe();
 
             expect(plansState.snapshot.isLoading).toBeFalsy();
         });
 
-        it('should show notification on load when reload is true', () => {
+        it('should show notification on load if reload is true', () => {
             plansService.setup(x => x.getPlans(app))
                 .returns(() => of(versioned(version, oldPlans))).verifiable();
 
@@ -115,7 +115,7 @@ describe('PlansState', () => {
             plansState.load().subscribe();
         });
 
-        it('should redirect when returning url', () => {
+        it('should redirect if returning url', () => {
             plansState.window = <any>{ location: {} };
 
             const result = { redirectUri: 'http://url' };
@@ -126,14 +126,14 @@ describe('PlansState', () => {
             plansState.change('free').pipe(onErrorResumeNext()).subscribe();
 
             expect(plansState.snapshot.plans).toEqual([
-                { isSelected: true,  isYearlySelected: false, plan: oldPlans.plans[0] },
-                { isSelected: false, isYearlySelected: false, plan: oldPlans.plans[1] }
+                { isSelected: true, isYearlySelected: false, plan: oldPlans.plans[0] },
+                { isSelected: false, isYearlySelected: false, plan: oldPlans.plans[1] },
             ]);
             expect(plansState.window.location.href).toBe(result.redirectUri);
             expect(plansState.snapshot.version).toEqual(version);
         });
 
-        it('should update plans when no returning url', () => {
+        it('should update plans if no returning url', () => {
             plansService.setup(x => x.putPlan(app, It.isAny(), version))
                 .returns(() => of(versioned(newVersion, { redirectUri: '' })));
 
@@ -141,7 +141,7 @@ describe('PlansState', () => {
 
             expect(plansState.snapshot.plans).toEqual([
                 { isSelected: false, isYearlySelected: false, plan: oldPlans.plans[0] },
-                { isSelected: false, isYearlySelected: true,  plan: oldPlans.plans[1] }
+                { isSelected: false, isYearlySelected: true, plan: oldPlans.plans[1] },
             ]);
             expect(plansState.snapshot.isOwner).toBeTruthy();
             expect(plansState.snapshot.version).toEqual(newVersion);

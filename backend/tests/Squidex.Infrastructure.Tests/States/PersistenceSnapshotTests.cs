@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -11,51 +11,60 @@ using FakeItEasy;
 using Squidex.Infrastructure.EventSourcing;
 using Xunit;
 
-#pragma warning disable RECS0002 // Convert anonymous method to method group
-
 namespace Squidex.Infrastructure.States
 {
     public class PersistenceSnapshotTests
     {
-        private readonly string key = Guid.NewGuid().ToString();
+        private readonly DomainId key = DomainId.NewGuid();
+        private readonly ISnapshotStore<int> snapshotStore = A.Fake<ISnapshotStore<int>>();
         private readonly IEventDataFormatter eventDataFormatter = A.Fake<IEventDataFormatter>();
         private readonly IEventStore eventStore = A.Fake<IEventStore>();
-        private readonly IServiceProvider services = A.Fake<IServiceProvider>();
-        private readonly ISnapshotStore<int, string> snapshotStore = A.Fake<ISnapshotStore<int, string>>();
         private readonly IStreamNameResolver streamNameResolver = A.Fake<IStreamNameResolver>();
-        private readonly IStore<string> sut;
+        private readonly IStore<int> sut;
 
         public PersistenceSnapshotTests()
         {
-            A.CallTo(() => services.GetService(typeof(ISnapshotStore<int, string>)))
-                .Returns(snapshotStore);
-
-            sut = new Store<string>(eventStore, new DefaultEventEnricher<string>(), eventDataFormatter, services, streamNameResolver);
+            sut = new Store<int>(snapshotStore, eventStore, eventDataFormatter, streamNameResolver);
         }
 
         [Fact]
         public async Task Should_read_from_store()
         {
             A.CallTo(() => snapshotStore.ReadAsync(key))
-                .Returns((20, 10));
+                .Returns((20, true, 10));
 
-            var persistedState = 0;
-            var persistence = sut.WithSnapshots(None.Type, key, (int x) => persistedState = x);
+            var persistedState = Save.Snapshot(0);
+            var persistence = sut.WithSnapshots(None.Type, key, persistedState.Write);
 
             await persistence.ReadAsync();
 
             Assert.Equal(10, persistence.Version);
-            Assert.Equal(20, persistedState);
+            Assert.Equal(20, persistedState.Value);
         }
 
         [Fact]
-        public async Task Should_return_empty_version_when_version_negative()
+        public async Task Should_not_read_from_store_if_not_valid()
         {
             A.CallTo(() => snapshotStore.ReadAsync(key))
-                .Returns((20, -10));
+                .Returns((20, false, 10));
 
-            var persistedState = 0;
-            var persistence = sut.WithSnapshots(None.Type, key, (int x) => persistedState = x);
+            var persistedState = Save.Snapshot(0);
+            var persistence = sut.WithSnapshots(None.Type, key, persistedState.Write);
+
+            await persistence.ReadAsync();
+
+            Assert.Equal(10, persistence.Version);
+            Assert.Equal(0, persistedState.Value);
+        }
+
+        [Fact]
+        public async Task Should_return_empty_version_if_version_negative()
+        {
+            A.CallTo(() => snapshotStore.ReadAsync(key))
+                .Returns((20, true, -10));
+
+            var persistedState = Save.Snapshot(0);
+            var persistence = sut.WithSnapshots(None.Type, key, persistedState.Write);
 
             await persistence.ReadAsync();
 
@@ -63,28 +72,28 @@ namespace Squidex.Infrastructure.States
         }
 
         [Fact]
-        public async Task Should_set_to_empty_when_store_returns_not_found()
+        public async Task Should_set_to_empty_if_store_returns_not_found()
         {
             A.CallTo(() => snapshotStore.ReadAsync(key))
-                .Returns((20, EtagVersion.Empty));
+                .Returns((20, true, EtagVersion.Empty));
 
-            var persistedState = 0;
-            var persistence = sut.WithSnapshots(None.Type, key, (int x) => persistedState = x);
+            var persistedState = Save.Snapshot(0);
+            var persistence = sut.WithSnapshots(None.Type, key, persistedState.Write);
 
             await persistence.ReadAsync();
 
             Assert.Equal(-1, persistence.Version);
-            Assert.Equal( 0, persistedState);
+            Assert.Equal(0, persistedState.Value);
         }
 
         [Fact]
         public async Task Should_throw_exception_if_not_found_and_version_expected()
         {
             A.CallTo(() => snapshotStore.ReadAsync(key))
-                .Returns((123, EtagVersion.Empty));
+                .Returns((123, true, EtagVersion.Empty));
 
-            var persistedState = 0;
-            var persistence = sut.WithSnapshots(None.Type, key, (int x) => persistedState = x);
+            var persistedState = Save.Snapshot(0);
+            var persistence = sut.WithSnapshots(None.Type, key, persistedState.Write);
 
             await Assert.ThrowsAsync<DomainObjectNotFoundException>(() => persistence.ReadAsync(1));
         }
@@ -93,10 +102,10 @@ namespace Squidex.Infrastructure.States
         public async Task Should_throw_exception_if_other_version_found()
         {
             A.CallTo(() => snapshotStore.ReadAsync(key))
-                .Returns((123, 2));
+                .Returns((123, true, 2));
 
-            var persistedState = 0;
-            var persistence = sut.WithSnapshots(None.Type, key, (int x) => persistedState = x);
+            var persistedState = Save.Snapshot(0);
+            var persistence = sut.WithSnapshots(None.Type, key, persistedState.Write);
 
             await Assert.ThrowsAsync<InconsistentStateException>(() => persistence.ReadAsync(1));
         }
@@ -105,15 +114,15 @@ namespace Squidex.Infrastructure.States
         public async Task Should_write_to_store_with_previous_version()
         {
             A.CallTo(() => snapshotStore.ReadAsync(key))
-                .Returns((20, 10));
+                .Returns((20, true, 10));
 
-            var persistedState = 0;
-            var persistence = sut.WithSnapshots(None.Type, key, (int x) => persistedState = x);
+            var persistedState = Save.Snapshot(0);
+            var persistence = sut.WithSnapshots(None.Type, key, persistedState.Write);
 
             await persistence.ReadAsync();
 
             Assert.Equal(10, persistence.Version);
-            Assert.Equal(20, persistedState);
+            Assert.Equal(20, persistedState.Value);
 
             await persistence.WriteSnapshotAsync(100);
 
@@ -124,7 +133,7 @@ namespace Squidex.Infrastructure.States
         [Fact]
         public async Task Should_write_snapshot_to_store_with_empty_version()
         {
-            var persistence = sut.WithSnapshots<int>(None.Type, key, null);
+            var persistence = sut.WithSnapshots(None.Type, key, null);
 
             await persistence.WriteSnapshotAsync(100);
 
@@ -133,16 +142,16 @@ namespace Squidex.Infrastructure.States
         }
 
         [Fact]
-        public async Task Should_not_wrap_exception_when_writing_to_store_with_previous_version()
+        public async Task Should_not_wrap_exception_if_writing_to_store_with_previous_version()
         {
             A.CallTo(() => snapshotStore.ReadAsync(key))
-                .Returns((20, 10));
+                .Returns((20, true, 10));
 
             A.CallTo(() => snapshotStore.WriteAsync(key, 100, 10, 11))
                 .Throws(new InconsistentStateException(1, 1, new InvalidOperationException()));
 
-            var persistedState = 0;
-            var persistence = sut.WithSnapshots(None.Type, key, (int x) => persistedState = x);
+            var persistedState = Save.Snapshot(0);
+            var persistence = sut.WithSnapshots(None.Type, key, persistedState.Write);
 
             await persistence.ReadAsync();
 
@@ -150,10 +159,10 @@ namespace Squidex.Infrastructure.States
         }
 
         [Fact]
-        public async Task Should_delete_snapshot_but_not_events_when_deleted()
+        public async Task Should_delete_snapshot_but_not_events_if_deleted()
         {
-            var persistedState = 0;
-            var persistence = sut.WithSnapshots(None.Type, key, (int x) => persistedState = x);
+            var persistedState = Save.Snapshot(0);
+            var persistence = sut.WithSnapshots(None.Type, key, persistedState.Write);
 
             await persistence.DeleteAsync();
 
@@ -167,33 +176,10 @@ namespace Squidex.Infrastructure.States
         [Fact]
         public async Task Should_call_snapshot_store_on_clear()
         {
-            await sut.ClearSnapshotsAsync<string, int>();
+            await sut.ClearSnapshotsAsync();
 
             A.CallTo(() => snapshotStore.ClearAsync())
                 .MustHaveHappened();
-        }
-
-        [Fact]
-        public async Task Should_delete_snapshot_but_not_events_when_deleted_from_store()
-        {
-            await sut.RemoveSnapshotAsync<string, int>(key);
-
-            A.CallTo(() => eventStore.DeleteStreamAsync(A<string>._))
-                .MustNotHaveHappened();
-
-            A.CallTo(() => snapshotStore.RemoveAsync(key))
-                .MustHaveHappened();
-        }
-
-        [Fact]
-        public async Task Should_get_snapshot()
-        {
-            A.CallTo(() => snapshotStore.ReadAsync(key))
-                .Returns((123, -1));
-
-            var result = await sut.GetSnapshotAsync<string, int>(key);
-
-            Assert.Equal(123, result);
         }
     }
 }

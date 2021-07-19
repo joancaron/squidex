@@ -7,13 +7,13 @@
 
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 import { FormGroup } from '@angular/forms';
-import { FieldDto } from '@app/shared';
+import { FieldDto, MathHelper } from '@app/shared';
 
 @Component({
     selector: 'sqx-content-value-editor',
     styleUrls: ['./content-value-editor.component.scss'],
     templateUrl: './content-value-editor.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ContentValueEditorComponent {
     @Input()
@@ -21,4 +21,6 @@ export class ContentValueEditorComponent {
 
     @Input()
     public form: FormGroup;
+
+    public readonly uniqueId = MathHelper.guid();
 }

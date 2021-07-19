@@ -6,18 +6,22 @@
  */
 
 import { CdkDragDrop } from '@angular/cdk/drag-drop';
-import { ChangeDetectionStrategy, Component, Input, QueryList, ViewChildren } from '@angular/core';
-import { AbstractControl, FormArray, FormGroup } from '@angular/forms';
-import { AppLanguageDto, EditContentForm, RootFieldDto, sorted } from '@app/shared';
+import { ChangeDetectionStrategy, Component, Input, OnChanges, QueryList, SimpleChanges, ViewChildren } from '@angular/core';
+import { AppLanguageDto, ComponentsFieldPropertiesDto, disabled$, EditContentForm, fadeAnimation, FieldArrayForm, ModalModel, ObjectForm, SchemaDto, sorted, Types } from '@app/shared';
+import { combineLatest, Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { ArrayItemComponent } from './array-item.component';
 
 @Component({
     selector: 'sqx-array-editor',
     styleUrls: ['./array-editor.component.scss'],
     templateUrl: './array-editor.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    animations: [
+        fadeAnimation,
+    ],
 })
-export class ArrayEditorComponent {
+export class ArrayEditorComponent implements OnChanges {
     @Input()
     public form: EditContentForm;
 
@@ -25,7 +29,10 @@ export class ArrayEditorComponent {
     public formContext: any;
 
     @Input()
-    public field: RootFieldDto;
+    public formModel: FieldArrayForm;
+
+    @Input()
+    public canUnset?: boolean | null;
 
     @Input()
     public language: AppLanguageDto;
@@ -33,56 +40,90 @@ export class ArrayEditorComponent {
     @Input()
     public languages: ReadonlyArray<AppLanguageDto>;
 
-    @Input()
-    public arrayControl: FormArray;
-
     @ViewChildren(ArrayItemComponent)
     public children: QueryList<ArrayItemComponent>;
 
-    public itemRemove(index: number) {
-        this.form.arrayItemRemove(this.field, this.language, index);
+    public isArray = false;
+
+    public schemasDropdown = new ModalModel();
+    public schemasList: ReadonlyArray<SchemaDto>;
+
+    public isDisabled: Observable<boolean>;
+
+    public isFull: Observable<boolean>;
+
+    public get hasField() {
+        return this.formModel.field['nested']?.length > 0;
     }
 
-    public itemAdd(value?: FormGroup) {
-        this.form.arrayItemInsert(this.field, this.language, value);
+    public ngOnChanges(changes: SimpleChanges) {
+        if (changes['formModel']) {
+            const maxItems = this.formModel.field.properties['maxItems'] || Number.MAX_VALUE;
+
+            if (Types.is(this.formModel.field.properties, ComponentsFieldPropertiesDto)) {
+                this.schemasList = this.formModel.field.properties.schemaIds?.map(x => this.formModel.globals.schemas[x]).filter(x => !!x) || [];
+            } else {
+                this.isArray = true;
+            }
+
+            this.isDisabled = disabled$(this.formModel.form);
+
+            this.isFull = combineLatest([
+                this.isDisabled,
+                this.formModel.itemChanges,
+            ]).pipe(map(([disabled, items]) => {
+                return disabled || items.length >= maxItems;
+            }));
+        }
     }
 
-    public sort(event: CdkDragDrop<ReadonlyArray<AbstractControl>>) {
-        this.sortInternal(sorted(event));
+    public removeItem(index: number) {
+        this.formModel.removeItemAt(index);
+    }
+
+    public addCopy(value: ObjectForm) {
+        this.formModel.addCopy(value);
+    }
+
+    public addItem() {
+        this.formModel.addItem();
+    }
+
+    public addComponent(schema: SchemaDto) {
+        this.formModel.addComponent(schema.id);
+    }
+
+    public clear() {
+        this.formModel.reset();
+    }
+
+    public sort(event: CdkDragDrop<ReadonlyArray<ObjectForm>>) {
+        this.formModel.sort(sorted(event));
+
+        this.reset();
+    }
+
+    public move(item: ObjectForm, index: number) {
+        this.formModel.move(index, item);
+
+        this.reset();
     }
 
     public collapseAll() {
-        this.children.forEach(component => {
-            component.collapse();
+        this.children.forEach(child => {
+            child.collapse();
         });
     }
 
     public expandAll() {
-        this.children.forEach(component => {
-            component.expand();
+        this.children.forEach(child => {
+            child.expand();
         });
     }
 
     private reset() {
-        this.children.forEach(component => {
-            component.reset();
+        this.children.forEach(child => {
+            child.reset();
         });
-    }
-
-    public move(control: AbstractControl, index: number) {
-        let controls = [...this.arrayControl.controls];
-
-        controls.splice(controls.indexOf(control), 1);
-        controls.splice(index, 0, control);
-
-        this.sortInternal(controls);
-    }
-
-    private sortInternal(controls: ReadonlyArray<AbstractControl>) {
-        for (let i = 0; i < controls.length; i++) {
-            this.arrayControl.setControl(i, controls[i]);
-        }
-
-        this.reset();
     }
 }

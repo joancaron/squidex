@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -41,7 +41,8 @@ namespace Squidex.Domain.Users.MongoDb
             return "Identity_Roles";
         }
 
-        protected override Task SetupCollectionAsync(IMongoCollection<IdentityRole> collection, CancellationToken ct = default)
+        protected override Task SetupCollectionAsync(IMongoCollection<IdentityRole> collection,
+            CancellationToken ct)
         {
             return collection.Indexes.CreateOneAsync(
                 new CreateIndexModel<IdentityRole>(
@@ -61,11 +62,6 @@ namespace Squidex.Domain.Users.MongoDb
 
         public void Dispose()
         {
-        }
-
-        public IdentityRole Create(string name)
-        {
-            return new IdentityRole { Name = name };
         }
 
         public async Task<IdentityRole> FindByIdAsync(string roleId, CancellationToken cancellationToken)

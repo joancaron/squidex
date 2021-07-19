@@ -8,6 +8,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
+using Squidex.Hosting;
 
 namespace Squidex.Infrastructure
 {
@@ -28,7 +29,10 @@ namespace Squidex.Infrastructure
             {
                 if (!string.IsNullOrWhiteSpace(key) && !string.IsNullOrWhiteSpace(value))
                 {
-                    Language.AddLanguage(key, value);
+                    if (!Language.TryGetLanguage(key, out _))
+                    {
+                        Language.AddLanguage(key, value);
+                    }
                 }
             }
 

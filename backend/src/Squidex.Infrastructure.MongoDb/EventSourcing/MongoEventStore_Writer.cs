@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -10,7 +10,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using MongoDB.Bson;
 using MongoDB.Driver;
-using Squidex.Infrastructure.Log;
+using Squidex.Log;
 
 namespace Squidex.Infrastructure.EventSourcing
 {
@@ -35,8 +35,6 @@ namespace Squidex.Infrastructure.EventSourcing
         public async Task AppendAsync(Guid commitId, string streamName, long expectedVersion, ICollection<EventData> events)
         {
             Guard.NotEmpty(commitId, nameof(commitId));
-            Guard.NotNullOrEmpty(streamName, nameof(streamName));
-            Guard.NotNull(events, nameof(events));
             Guard.NotNullOrEmpty(streamName, nameof(streamName));
             Guard.NotNull(events, nameof(events));
             Guard.LessThan(events.Count, MaxCommitSize, "events.Count");
@@ -64,7 +62,10 @@ namespace Squidex.Infrastructure.EventSourcing
                     {
                         await Collection.InsertOneAsync(commit);
 
-                        notifier.NotifyEventsStored(streamName);
+                        if (!CanUseChangeStreams)
+                        {
+                            notifier.NotifyEventsStored(streamName);
+                        }
 
                         return;
                     }
@@ -93,6 +94,28 @@ namespace Squidex.Infrastructure.EventSourcing
                             throw;
                         }
                     }
+                }
+            }
+        }
+
+        public async Task AppendUnsafeAsync(IEnumerable<EventCommit> commits)
+        {
+            Guard.NotNull(commits, nameof(commits));
+
+            using (Profiler.TraceMethod<MongoEventStore>())
+            {
+                var writes = new List<WriteModel<MongoEventCommit>>();
+
+                foreach (var commit in commits)
+                {
+                    var document = BuildCommit(commit.Id, commit.StreamName, commit.Offset, commit.Events);
+
+                    writes.Add(new InsertOneModel<MongoEventCommit>(document));
+                }
+
+                if (writes.Count > 0)
+                {
+                    await Collection.BulkWriteAsync(writes, BulkUnordered);
                 }
             }
         }

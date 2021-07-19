@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -9,31 +9,11 @@ using System;
 using NodaTime;
 using Squidex.Infrastructure;
 
+#pragma warning disable SA1313 // Parameter names should begin with lower-case letter
+
 namespace Squidex.Domain.Apps.Core.Comments
 {
-    public sealed class Comment
+    public sealed record Comment(DomainId Id, Instant Time, RefToken User, string Text, Uri? Url = null)
     {
-        public Guid Id { get; }
-
-        public Instant Time { get; }
-
-        public RefToken User { get; }
-
-        public string Text { get; }
-
-        public Uri? Url { get; }
-
-        public Comment(Guid id, Instant time, RefToken user, string text, Uri? url = null)
-        {
-            Guard.NotEmpty(id, nameof(id));
-            Guard.NotNull(user, nameof(user));
-            Guard.NotNull(text, nameof(text));
-
-            Id = id;
-            Text = text;
-            Time = time;
-            User = user;
-            Url = url;
-        }
     }
 }

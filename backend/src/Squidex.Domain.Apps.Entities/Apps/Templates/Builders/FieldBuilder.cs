@@ -5,6 +5,7 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
+using System;
 using Squidex.Domain.Apps.Core;
 using Squidex.Domain.Apps.Core.Schemas;
 using Squidex.Domain.Apps.Entities.Schemas.Commands;
@@ -13,77 +14,76 @@ namespace Squidex.Domain.Apps.Entities.Apps.Templates.Builders
 {
     public abstract class FieldBuilder
     {
-        private readonly UpsertSchemaField field;
-        private readonly UpsertCommand schema;
+        protected UpsertSchemaFieldBase Field { get; init; }
+        protected CreateSchema Schema { get; init; }
+    }
 
-        protected T Properties<T>() where T : FieldProperties
+    public abstract class FieldBuilder<T> : FieldBuilder
+        where T : FieldBuilder
+    {
+        protected FieldBuilder(UpsertSchemaFieldBase field, CreateSchema schema)
         {
-            return (T)field.Properties;
+            Field = field;
+            Schema = schema;
         }
 
-        protected FieldBuilder(UpsertSchemaField field, UpsertCommand schema)
+        public T Label(string? label)
         {
-            this.field = field;
-            this.schema = schema;
+            Field.Properties = Field.Properties with { Label = label };
+
+            return (T)(object)this;
         }
 
-        public FieldBuilder Label(string? label)
+        public T Hints(string? hints)
         {
-            field.Properties.Label = label;
+            Field.Properties = Field.Properties with { Hints = hints };
 
-            return this;
+            return (T)(object)this;
         }
 
-        public FieldBuilder Hints(string? hints)
+        public T Localizable()
         {
-            field.Properties.Hints = hints;
-
-            return this;
-        }
-
-        public FieldBuilder Localizable()
-        {
-            field.Partitioning = Partitioning.Language.Key;
-
-            return this;
-        }
-
-        public FieldBuilder Disabled()
-        {
-            field.IsDisabled = true;
-
-            return this;
-        }
-
-        public FieldBuilder Required()
-        {
-            field.Properties.IsRequired = true;
-
-            return this;
-        }
-
-        public FieldBuilder ShowInList()
-        {
-            if (schema.FieldsInReferences == null)
+            if (Field is UpsertSchemaField localizableField)
             {
-                schema.FieldsInReferences = new FieldNames();
+                localizableField.Partitioning = Partitioning.Language.Key;
             }
 
-            schema.FieldsInReferences.Add(field.Name);
-
-            return this;
+            return (T)(object)this;
         }
 
-        public FieldBuilder ShowInReferences()
+        public T Disabled()
         {
-            if (schema.FieldsInLists == null)
-            {
-                schema.FieldsInLists = new FieldNames();
-            }
+            Field.IsDisabled = true;
 
-            schema.FieldsInLists.Add(field.Name);
+            return (T)(object)this;
+        }
 
-            return this;
+        public T Required()
+        {
+            Field.Properties = Field.Properties with { IsRequired = true };
+
+            return (T)(object)this;
+        }
+
+        protected void Properties<TProperties>(Func<TProperties, TProperties> updater) where TProperties : FieldProperties
+        {
+            Field.Properties = updater((TProperties)Field.Properties);
+        }
+
+        public T ShowInList()
+        {
+            Schema.FieldsInLists ??= new FieldNames();
+            Schema.FieldsInLists.Add(Field.Name);
+
+            return (T)(object)this;
+        }
+
+        public T ShowInReferences()
+        {
+            Schema.FieldsInReferences ??= new FieldNames();
+            Schema.FieldsInReferences.Add(Field.Name);
+
+            return (T)(object)this;
         }
     }
 }

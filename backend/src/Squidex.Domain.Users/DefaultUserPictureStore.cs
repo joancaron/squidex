@@ -1,15 +1,14 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Squidex.Infrastructure;
-using Squidex.Infrastructure.Assets;
+using Squidex.Assets;
 
 namespace Squidex.Domain.Users
 {
@@ -19,8 +18,6 @@ namespace Squidex.Domain.Users
 
         public DefaultUserPictureStore(IAssetStore assetStore)
         {
-            Guard.NotNull(assetStore, nameof(assetStore));
-
             this.assetStore = assetStore;
         }
 

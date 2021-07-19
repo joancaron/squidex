@@ -5,7 +5,6 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using NodaTime;
 using Squidex.Domain.Apps.Core.Contents;
 using Squidex.Infrastructure;
@@ -16,7 +15,7 @@ namespace Squidex.Domain.Apps.Core.Rules.EnrichedEvents
     {
         public EnrichedContentEventType Type { get; set; }
 
-        public Guid Id { get; set; }
+        public DomainId Id { get; set; }
 
         public Instant Created { get; set; }
 
@@ -26,15 +25,17 @@ namespace Squidex.Domain.Apps.Core.Rules.EnrichedEvents
 
         public RefToken LastModifiedBy { get; set; }
 
-        public NamedContentData Data { get; set; }
+        public ContentData Data { get; set; }
 
-        public NamedContentData? DataOld { get; set; }
+        public ContentData? DataOld { get; set; }
 
         public Status Status { get; set; }
 
+        public Status? NewStatus { get; set; }
+
         public override long Partition
         {
-            get { return Id.GetHashCode(); }
+            get => Id.GetHashCode();
         }
     }
 }

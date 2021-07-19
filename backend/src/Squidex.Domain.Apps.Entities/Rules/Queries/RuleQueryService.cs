@@ -8,20 +8,17 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Squidex.Domain.Apps.Entities.Rules.Indexes;
-using Squidex.Infrastructure;
 
 namespace Squidex.Domain.Apps.Entities.Rules.Queries
 {
     public sealed class RuleQueryService : IRuleQueryService
     {
+        private static readonly List<IEnrichedRuleEntity> EmptyResults = new List<IEnrichedRuleEntity>();
         private readonly IRulesIndex rulesIndex;
         private readonly IRuleEnricher ruleEnricher;
 
         public RuleQueryService(IRulesIndex rulesIndex, IRuleEnricher ruleEnricher)
         {
-            Guard.NotNull(rulesIndex, nameof(rulesIndex));
-            Guard.NotNull(ruleEnricher, nameof(ruleEnricher));
-
             this.rulesIndex = rulesIndex;
             this.ruleEnricher = ruleEnricher;
         }
@@ -30,9 +27,14 @@ namespace Squidex.Domain.Apps.Entities.Rules.Queries
         {
             var rules = await rulesIndex.GetRulesAsync(context.App.Id);
 
-            var enriched = await ruleEnricher.EnrichAsync(rules, context);
+            if (rules.Count > 0)
+            {
+                var enriched = await ruleEnricher.EnrichAsync(rules, context);
 
-            return enriched;
+                return enriched;
+            }
+
+            return EmptyResults;
         }
     }
 }

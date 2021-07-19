@@ -1,7 +1,7 @@
-﻿// ==========================================================================
+// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -19,22 +19,27 @@ namespace Squidex.Domain.Apps.Entities.Assets
             : base(typeNameRegistry)
         {
             AddEventMessage<AssetCreated>(
-                "uploaded asset.");
+                "history.assets.uploaded");
 
             AddEventMessage<AssetUpdated>(
-                "replaced asset.");
+                "history.assets.replaced");
 
             AddEventMessage<AssetAnnotated>(
-                "updated asset.");
+                "history.assets.updated");
         }
 
         protected override Task<HistoryEvent?> CreateEventCoreAsync(Envelope<IEvent> @event)
         {
-            var channel = $"assets.{@event.Headers.AggregateId()}";
+            HistoryEvent? result = null;
 
-            var result = ForEvent(@event.Payload, channel);
+            if (@event.Payload is AssetEvent assetEvent)
+            {
+                var channel = $"assets.{assetEvent.AssetId}";
 
-            return Task.FromResult<HistoryEvent?>(result);
+                result = ForEvent(@event.Payload, channel);
+            }
+
+            return Task.FromResult(result);
         }
     }
 }

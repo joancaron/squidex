@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -20,10 +20,7 @@ namespace Squidex.Areas.Api.Config.OpenApi
     {
         public bool Process(OperationProcessorContext context)
         {
-            if (context.OperationDescription.Operation.Security == null)
-            {
-                context.OperationDescription.Operation.Security = new List<OpenApiSecurityRequirement>();
-            }
+            context.OperationDescription.Operation.Security ??= new List<OpenApiSecurityRequirement>();
 
             var permissionAttribute = context.MethodInfo.GetCustomAttribute<ApiPermissionAttribute>();
 
@@ -43,7 +40,7 @@ namespace Squidex.Areas.Api.Config.OpenApi
 
                 if (authorizeAttributes.Any())
                 {
-                    var scopes = authorizeAttributes.Where(a => a.Roles != null).SelectMany(a => a.Roles.Split(',')).Distinct().ToList();
+                    var scopes = authorizeAttributes.Where(a => a.Roles != null).SelectMany(a => a.Roles!.Split(',')).Distinct().ToList();
 
                     context.OperationDescription.Operation.Security.Add(new OpenApiSecurityRequirement
                     {

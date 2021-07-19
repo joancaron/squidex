@@ -1,12 +1,13 @@
-﻿/*
+/*
  * Squidex Headless CMS
  *
  * @license
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { addDays, addHours, addMilliseconds, addMinutes, addMonths, addSeconds, addYears, format, formatDistanceToNow, parse, parseISO, startOfDay, startOfMonth, startOfTomorrow, startOfWeek, startOfYesterday } from 'date-fns';
+import { addDays, addHours, addMilliseconds, addMinutes, addMonths, addSeconds, addYears, format, formatDistanceToNow, formatISO, parse, parseISO, startOfDay, startOfMonth, startOfTomorrow, startOfWeek, startOfYesterday } from 'date-fns';
 import { DateHelper } from './date-helper';
+import { Types } from './types';
 
 const DATE_FORMAT = 'yyyy-MM-dd';
 
@@ -95,10 +96,12 @@ export class DateTime {
         if (value.length === DATE_FORMAT.length) {
             date = parse(value, DATE_FORMAT, new Date());
         } else {
-            date = date = parseISO(value);
+            date = parseISO(value);
         }
 
-        if (isNaN(date.getTime())) {
+        const time = date.getTime();
+
+        if (Number.isNaN(time) || !Types.isNumber(time)) {
             return null;
         }
 
@@ -176,26 +179,30 @@ export class DateTime {
     public toISODate(): string {
         return format(this.value, DATE_FORMAT);
     }
+
+    public toISODateTime(): string {
+        return formatISO(this.value);
+    }
+
     public toStringFormat(pattern: string): string {
-        return format(this.value, pattern);
+        return format(this.value, pattern, { locale: DateHelper.getFnsLocale() });
     }
 
     public toStringFormatUTC(pattern: string): string {
-        return format(DateHelper.getUTCDate(this.value), pattern);
+        return format(DateHelper.getUTCDate(this.value), pattern, { locale: DateHelper.getFnsLocale() });
     }
 
     public toFromNow(): string {
-        return formatDistanceToNow(this.value);
+        return formatDistanceToNow(this.value, { locale: DateHelper.getFnsLocale() });
     }
 
     public toISOString(withoutMilliseconds = true): string {
         let result = this.value.toISOString();
 
         if (withoutMilliseconds) {
-            result = result.slice(0, 19) + 'Z';
+            result = `${result.slice(0, 19)}Z`;
         }
 
         return result;
     }
-
 }

@@ -23,7 +23,7 @@ namespace Squidex.Config.Authentication
 
         public override Task TokenValidated(TokenValidatedContext context)
         {
-            var identity = (ClaimsIdentity)context.Principal.Identity;
+            var identity = (ClaimsIdentity)context.Principal!.Identity!;
 
             if (!string.IsNullOrWhiteSpace(options.OidcRoleClaimType) && options.OidcRoleMapping?.Count >= 0)
             {
@@ -39,6 +39,21 @@ namespace Squidex.Config.Authentication
             }
 
             return base.TokenValidated(context);
+        }
+
+        public override Task RedirectToIdentityProviderForSignOut(RedirectContext context)
+        {
+            if (!string.IsNullOrEmpty(options.OidcOnSignoutRedirectUrl))
+            {
+                var logoutUri = options.OidcOnSignoutRedirectUrl;
+
+                context.Response.Redirect(logoutUri);
+                context.HandleResponse();
+
+                return Task.CompletedTask;
+            }
+
+            return base.RedirectToIdentityProviderForSignOut(context);
         }
     }
 }

@@ -8,7 +8,7 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
 import { ContributorsState, ErrorDto, ImportContributorsForm, RoleDto } from '@app/shared';
-import { empty, of } from 'rxjs';
+import { EMPTY, of } from 'rxjs';
 import { catchError, mergeMap, tap } from 'rxjs/operators';
 
 type ImportStatus = {
@@ -21,11 +21,9 @@ type ImportStatus = {
 @Component({
     selector: 'sqx-import-contributors-dialog',
     styleUrls: ['./import-contributors-dialog.component.scss'],
-    templateUrl: './import-contributors-dialog.component.html'
+    templateUrl: './import-contributors-dialog.component.html',
 })
 export class ImportContributorsDialogComponent {
-    public readonly standalone = { standalone: true };
-
     @Output()
     public close = new EventEmitter();
 
@@ -38,7 +36,7 @@ export class ImportContributorsDialogComponent {
 
     constructor(
         private readonly formBuilder: FormBuilder,
-        private readonly contributorsState: ContributorsState
+        private readonly contributorsState: ContributorsState,
     ) {
     }
 
@@ -52,7 +50,7 @@ export class ImportContributorsDialogComponent {
                 email: contributor.contributorId,
                 result: 'Pending',
                 resultText: 'Pending',
-                role: 'Developer'
+                role: 'Developer',
             }));
         }
     }
@@ -79,9 +77,9 @@ export class ImportContributorsDialogComponent {
                             status.result = 'Failed';
                         }
 
-                        return empty();
-                    })
-                ), 1)
+                        return EMPTY;
+                    }),
+                ), 1),
         ).subscribe();
     }
 }
@@ -91,11 +89,11 @@ function createRequest(status: ImportStatus) {
 }
 
 function getError(error: ErrorDto): string {
-    return error.details[0];
+    return error.details[0].originalMessage;
 }
 
 function getSuccess(created: boolean | undefined): string {
     return created ?
-        'User has been invited and assigned.' :
-        'User has been assigned';
+        'i18n:contributors.contributorAssignedInvited' :
+        'i18n:contributors.contributorAssignedExisting';
 }

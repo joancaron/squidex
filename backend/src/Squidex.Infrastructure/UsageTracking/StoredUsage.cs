@@ -1,30 +1,17 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
 
+#pragma warning disable SA1313 // Parameter names should begin with lower-case letter
+
 namespace Squidex.Infrastructure.UsageTracking
 {
-    public sealed class StoredUsage
+    public sealed record StoredUsage(string? Category, DateTime Date, Counters Counters)
     {
-        public string? Category { get; }
-
-        public DateTime Date { get; }
-
-        public Counters Counters { get;  }
-
-        public StoredUsage(string? category, DateTime date, Counters counters)
-        {
-            Guard.NotNull(counters, nameof(counters));
-
-            Category = category;
-            Counters = counters;
-
-            Date = date;
-        }
     }
 }

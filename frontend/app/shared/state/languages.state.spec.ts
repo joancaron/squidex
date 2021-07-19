@@ -17,7 +17,7 @@ describe('LanguagesState', () => {
         app,
         appsState,
         newVersion,
-        version
+        version,
     } = TestValues;
 
     const languageDE = new LanguageDto('de', 'German');
@@ -57,15 +57,15 @@ describe('LanguagesState', () => {
             languagesState.load().subscribe();
 
             expect(languagesState.snapshot.languages).toEqual([
-               {
-                   language: oldLanguages.items[0],
-                   fallbackLanguages: [oldLanguages.items[1]],
-                   fallbackLanguagesNew: []
-               }, {
-                   language: oldLanguages.items[1],
-                   fallbackLanguages: [oldLanguages.items[0]],
-                   fallbackLanguagesNew: []
-               }
+                {
+                    language: oldLanguages.items[0],
+                    fallbackLanguages: [oldLanguages.items[1]],
+                    fallbackLanguagesNew: [],
+                }, {
+                    language: oldLanguages.items[1],
+                    fallbackLanguages: [oldLanguages.items[0]],
+                    fallbackLanguagesNew: [],
+                },
             ]);
             expect(languagesState.snapshot.allLanguagesNew).toEqual([languageIT, languageES]);
             expect(languagesState.snapshot.isLoaded).toBeTruthy();
@@ -75,16 +75,16 @@ describe('LanguagesState', () => {
             dialogs.verify(x => x.notifyInfo(It.isAnyString()), Times.never());
         });
 
-        it('should reset loading when loading failed', () => {
+        it('should reset loading state if loading failed', () => {
             languagesService.setup(x => x.getLanguages(app))
-                .returns(() => throwError('error'));
+                .returns(() => throwError(() => 'Service Error'));
 
             languagesState.load().pipe(onErrorResumeNext()).subscribe();
 
             expect(languagesState.snapshot.isLoading).toBeFalsy();
         });
 
-        it('should show notification on load when reload is true', () => {
+        it('should show notification on load if reload is true', () => {
             languagesState.load(true).subscribe();
 
             expect().nothing();
@@ -98,7 +98,7 @@ describe('LanguagesState', () => {
             languagesState.load().subscribe();
         });
 
-        it('should update languages when language added', () => {
+        it('should update languages if language added', () => {
             const updated = createLanguages('de');
 
             languagesService.setup(x => x.postLanguage(app, It.isAny(), version))
@@ -109,7 +109,7 @@ describe('LanguagesState', () => {
             expectNewLanguages(updated);
         });
 
-        it('should update languages when language updated', () => {
+        it('should update languages if language updated', () => {
             const updated = createLanguages('de');
 
             const request = { isMaster: true, isOptional: false, fallback: [] };
@@ -122,7 +122,7 @@ describe('LanguagesState', () => {
             expectNewLanguages(updated);
         });
 
-        it('should update languages when language deleted', () => {
+        it('should update languages if language deleted', () => {
             const updated = createLanguages('de');
 
             languagesService.setup(x => x.deleteLanguage(app, oldLanguages.items[1], version))
@@ -138,8 +138,8 @@ describe('LanguagesState', () => {
                 {
                     language: updated.items[0],
                     fallbackLanguages: [],
-                    fallbackLanguagesNew: []
-                }
+                    fallbackLanguagesNew: [],
+                },
             ]);
             expect(languagesState.snapshot.allLanguagesNew).toEqual([languageEN, languageIT, languageES]);
             expect(languagesState.snapshot.version).toEqual(newVersion);

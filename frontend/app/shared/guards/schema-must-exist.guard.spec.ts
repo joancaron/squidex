@@ -6,7 +6,7 @@
  */
 
 import { Router } from '@angular/router';
-import { SchemaDetailsDto, SchemasState } from '@app/shared/internal';
+import { SchemaDto, SchemasState } from '@app/shared/internal';
 import { of } from 'rxjs';
 import { IMock, Mock, Times } from 'typemoq';
 import { SchemaMustExistGuard } from './schema-must-exist.guard';
@@ -14,8 +14,8 @@ import { SchemaMustExistGuard } from './schema-must-exist.guard';
 describe('SchemaMustExistGuard', () => {
     const route: any = {
         params: {
-            schemaName: '123'
-        }
+            schemaName: '123',
+        },
     };
 
     let schemasState: IMock<SchemasState>;
@@ -28,9 +28,9 @@ describe('SchemaMustExistGuard', () => {
         schemaGuard = new SchemaMustExistGuard(schemasState.object, router.object);
     });
 
-    it('should load schema and return true when found', () => {
+    it('should load schema and return true if found', () => {
         schemasState.setup(x => x.select('123'))
-            .returns(() => of(<SchemaDetailsDto>{}));
+            .returns(() => of(<SchemaDto>{}));
 
         let result: boolean;
 
@@ -41,7 +41,7 @@ describe('SchemaMustExistGuard', () => {
         expect(result!).toBeTruthy();
     });
 
-    it('should load schema and return false when not found', () => {
+    it('should load schema and return false if not found', () => {
         schemasState.setup(x => x.select('123'))
             .returns(() => of(null));
 

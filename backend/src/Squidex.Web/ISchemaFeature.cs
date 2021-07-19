@@ -5,13 +5,12 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
-using Squidex.Infrastructure;
+using Squidex.Domain.Apps.Entities.Schemas;
 
 namespace Squidex.Web
 {
     public interface ISchemaFeature
     {
-        NamedId<Guid> SchemaId { get; }
+        ISchemaEntity Schema { get; }
     }
 }

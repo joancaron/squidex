@@ -1,12 +1,12 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
 using Squidex.Areas.Api.Controllers.Comments.Models;
@@ -43,15 +43,15 @@ namespace Squidex.Areas.Api.Controllers.Comments
         /// When passing in a version you can retrieve all updates since then.
         /// </remarks>
         /// <returns>
-        /// 200 => All comments returned.
+        /// 200 => Comments returned.
         /// 404 => App not found.
         /// </returns>
         [HttpGet]
         [Route("apps/{app}/comments/{commentsId}")]
-        [ProducesResponseType(typeof(CommentsDto), 200)]
-        [ApiPermission(Permissions.AppCommon)]
+        [ProducesResponseType(typeof(CommentsDto), StatusCodes.Status200OK)]
+        [ApiPermissionOrAnonymous(Permissions.AppCommentsRead)]
         [ApiCosts(0)]
-        public async Task<IActionResult> GetComments(string app, string commentsId, [FromQuery] long version = EtagVersion.Any)
+        public async Task<IActionResult> GetComments(string app, DomainId commentsId, [FromQuery] long version = EtagVersion.Any)
         {
             var result = await commentsLoader.GetCommentsAsync(commentsId, version);
 
@@ -73,15 +73,15 @@ namespace Squidex.Areas.Api.Controllers.Comments
         /// <param name="request">The comment object that needs to created.</param>
         /// <returns>
         /// 201 => Comment created.
-        /// 400 => Comment is not valid.
+        /// 400 => Comment request not valid.
         /// 404 => App not found.
         /// </returns>
         [HttpPost]
         [Route("apps/{app}/comments/{commentsId}")]
         [ProducesResponseType(typeof(CommentDto), 201)]
-        [ApiPermission(Permissions.AppCommon)]
+        [ApiPermissionOrAnonymous(Permissions.AppCommentsCreate)]
         [ApiCosts(0)]
-        public async Task<IActionResult> PostComment(string app, string commentsId, [FromBody] UpsertCommentDto request)
+        public async Task<IActionResult> PostComment(string app, DomainId commentsId, [FromBody] UpsertCommentDto request)
         {
             var command = request.ToCreateCommand(commentsId);
 
@@ -93,7 +93,7 @@ namespace Squidex.Areas.Api.Controllers.Comments
         }
 
         /// <summary>
-        /// Updates the comment.
+        /// Update a comment.
         /// </summary>
         /// <param name="app">The name of the app.</param>
         /// <param name="commentsId">The id of the comments.</param>
@@ -101,22 +101,24 @@ namespace Squidex.Areas.Api.Controllers.Comments
         /// <param name="request">The comment object that needs to updated.</param>
         /// <returns>
         /// 204 => Comment updated.
-        /// 400 => Comment text not valid.
+        /// 400 => Comment request not valid.
         /// 404 => Comment or app not found.
         /// </returns>
         [HttpPut]
         [Route("apps/{app}/comments/{commentsId}/{commentId}")]
-        [ApiPermission(Permissions.AppCommon)]
+        [ApiPermissionOrAnonymous(Permissions.AppCommentsUpdate)]
         [ApiCosts(0)]
-        public async Task<IActionResult> PutComment(string app, string commentsId, Guid commentId, [FromBody] UpsertCommentDto request)
+        public async Task<IActionResult> PutComment(string app, DomainId commentsId, DomainId commentId, [FromBody] UpsertCommentDto request)
         {
-            await CommandBus.PublishAsync(request.ToUpdateComment(commentsId, commentId));
+            var command = request.ToUpdateComment(commentsId, commentId);
+
+            await CommandBus.PublishAsync(command);
 
             return NoContent();
         }
 
         /// <summary>
-        /// Deletes the comment.
+        /// Delete a comment.
         /// </summary>
         /// <param name="app">The name of the app.</param>
         /// <param name="commentsId">The id of the comments.</param>
@@ -127,15 +129,13 @@ namespace Squidex.Areas.Api.Controllers.Comments
         /// </returns>
         [HttpDelete]
         [Route("apps/{app}/comments/{commentsId}/{commentId}")]
-        [ApiPermission(Permissions.AppCommon)]
+        [ApiPermissionOrAnonymous(Permissions.AppCommentsDelete)]
         [ApiCosts(0)]
-        public async Task<IActionResult> DeleteComment(string app, string commentsId, Guid commentId)
+        public async Task<IActionResult> DeleteComment(string app, DomainId commentsId, DomainId commentId)
         {
-            await CommandBus.PublishAsync(new DeleteComment
-            {
-                CommentsId = commentsId,
-                CommentId = commentId
-            });
+            var command = new DeleteComment { CommentsId = commentsId, CommentId = commentId };
+
+            await CommandBus.PublishAsync(command);
 
             return NoContent();
         }

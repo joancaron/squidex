@@ -8,16 +8,16 @@
 import { Injectable } from '@angular/core';
 import { LocalStoreService, Version } from '@app/framework';
 
-export declare type AutoSaveKey = { schemaId: string, schemaVersion: Version, contentId?: string };
+export declare type AutoSaveKey = { schemaId: string; schemaVersion: Version; contentId?: string };
 
 @Injectable()
 export class AutoSaveService {
     constructor(
-        private readonly localStore: LocalStoreService
+        private readonly localStore: LocalStoreService,
     ) {
     }
 
-    public get(key: AutoSaveKey): object | null {
+    public fetch(key: AutoSaveKey): {} | null {
         if (!key) {
             return null;
         }
@@ -25,13 +25,15 @@ export class AutoSaveService {
         const value = this.localStore.get(getKey(key));
 
         if (value) {
+            this.remove(key);
+
             return JSON.parse(value);
         }
 
         return null;
     }
 
-    public set(key: AutoSaveKey, content: object) {
+    public set(key: AutoSaveKey, content: {}) {
         if (!key || !content) {
             return;
         }
@@ -51,7 +53,9 @@ export class AutoSaveService {
 }
 
 function getKey(key: AutoSaveKey) {
-    let { contentId, schemaId, schemaVersion } = key;
+    const { schemaId, schemaVersion } = key;
+
+    let contentId = key.contentId;
 
     if (!contentId) {
         contentId = '';

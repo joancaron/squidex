@@ -1,11 +1,12 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
 using Squidex.Areas.Api.Controllers.Apps.Models;
@@ -37,13 +38,13 @@ namespace Squidex.Areas.Api.Controllers.Apps
         /// </summary>
         /// <param name="app">The name of the app.</param>
         /// <returns>
-        /// 200 => App roles returned.
+        /// 200 => Roles returned.
         /// 404 => App not found.
         /// </returns>
         [HttpGet]
         [Route("apps/{app}/roles/")]
-        [ProducesResponseType(typeof(RolesDto), 200)]
-        [ApiPermission(Permissions.AppRolesRead)]
+        [ProducesResponseType(typeof(RolesDto), StatusCodes.Status200OK)]
+        [ApiPermissionOrAnonymous(Permissions.AppRolesRead)]
         [ApiCosts(0)]
         public IActionResult GetRoles(string app)
         {
@@ -67,8 +68,8 @@ namespace Squidex.Areas.Api.Controllers.Apps
         /// </returns>
         [HttpGet]
         [Route("apps/{app}/roles/permissions")]
-        [ProducesResponseType(typeof(string[]), 200)]
-        [ApiPermission(Permissions.AppRolesRead)]
+        [ProducesResponseType(typeof(string[]), StatusCodes.Status200OK)]
+        [ApiPermissionOrAnonymous(Permissions.AppRolesRead)]
         [ApiCosts(0)]
         public IActionResult GetPermissions(string app)
         {
@@ -77,7 +78,7 @@ namespace Squidex.Areas.Api.Controllers.Apps
                 return permissionsProvider.GetPermissionsAsync(App);
             });
 
-            Response.Headers[HeaderNames.ETag] = string.Concat(response).Sha256Base64();
+            Response.Headers[HeaderNames.ETag] = string.Concat(response).ToSha256Base64();
 
             return Ok(response);
         }
@@ -88,14 +89,14 @@ namespace Squidex.Areas.Api.Controllers.Apps
         /// <param name="app">The name of the app.</param>
         /// <param name="request">Role object that needs to be added to the app.</param>
         /// <returns>
-        /// 201 => User assigned to app.
-        /// 400 => Role name already in use.
+        /// 201 => Role created.
+        /// 400 => Role request not valid.
         /// 404 => App not found.
         /// </returns>
         [HttpPost]
         [Route("apps/{app}/roles/")]
         [ProducesResponseType(typeof(RolesDto), 201)]
-        [ApiPermission(Permissions.AppRolesCreate)]
+        [ApiPermissionOrAnonymous(Permissions.AppRolesCreate)]
         [ApiCosts(1)]
         public async Task<IActionResult> PostRole(string app, [FromBody] AddRoleDto request)
         {
@@ -119,9 +120,10 @@ namespace Squidex.Areas.Api.Controllers.Apps
         /// </returns>
         [HttpPut]
         [Route("apps/{app}/roles/{roleName}/")]
-        [ProducesResponseType(typeof(RolesDto), 200)]
-        [ApiPermission(Permissions.AppRolesUpdate)]
+        [ProducesResponseType(typeof(RolesDto), StatusCodes.Status200OK)]
+        [ApiPermissionOrAnonymous(Permissions.AppRolesUpdate)]
         [ApiCosts(1)]
+        [UrlDecodeRouteParams]
         public async Task<IActionResult> PutRole(string app, string roleName, [FromBody] UpdateRoleDto request)
         {
             var command = request.ToCommand(roleName);
@@ -138,14 +140,15 @@ namespace Squidex.Areas.Api.Controllers.Apps
         /// <param name="roleName">The name of the role.</param>
         /// <returns>
         /// 200 => Role deleted.
-        /// 400 => Role is in use by contributor or client or default role.
+        /// 400 => Role is in use by contributor or client or a default role.
         /// 404 => Role or app not found.
         /// </returns>
         [HttpDelete]
         [Route("apps/{app}/roles/{roleName}/")]
-        [ProducesResponseType(typeof(RolesDto), 200)]
-        [ApiPermission(Permissions.AppRolesDelete)]
+        [ProducesResponseType(typeof(RolesDto), StatusCodes.Status200OK)]
+        [ApiPermissionOrAnonymous(Permissions.AppRolesDelete)]
         [ApiCosts(1)]
+        [UrlDecodeRouteParams]
         public async Task<IActionResult> DeleteRole(string app, string roleName)
         {
             var command = new DeleteRole { Name = roleName };

@@ -1,19 +1,21 @@
-﻿// ==========================================================================
+// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
 //  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Squidex.Domain.Apps.Core.Contents;
+using Squidex.Infrastructure;
 using Squidex.Infrastructure.Queries;
+using Squidex.Infrastructure.Translations;
 
 namespace Squidex.Domain.Apps.Core.ValidateContent.Validators
 {
-    public delegate Task<IReadOnlyList<(Guid SchemaId, Guid Id)>> CheckUniqueness(FilterNode<ClrValue> filter);
+    public delegate Task<IReadOnlyList<(DomainId SchemaId, DomainId Id, Status Status)>> CheckUniqueness(FilterNode<ClrValue> filter);
 
     public sealed class UniqueValidator : IValidator
     {
@@ -26,11 +28,6 @@ namespace Squidex.Domain.Apps.Core.ValidateContent.Validators
 
         public async Task ValidateAsync(object? value, ValidationContext context, AddError addError)
         {
-            if (context.Mode == ValidationMode.Optimized)
-            {
-                return;
-            }
-
             var count = context.Path.Count();
 
             if (value != null && (count == 0 || (count == 2 && context.Path.Last() == InvariantPartitioning.Key)))
@@ -52,7 +49,7 @@ namespace Squidex.Domain.Apps.Core.ValidateContent.Validators
 
                     if (found.Any(x => x.Id != context.ContentId))
                     {
-                        addError(context.Path, "Another content with the same value exists.");
+                        addError(context.Path, T.Get("contents.validation.unique"));
                     }
                 }
             }

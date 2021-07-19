@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -16,7 +16,7 @@ using Squidex.Infrastructure.Reflection;
 namespace Migrations.OldEvents
 {
     [EventType(nameof(ScriptsConfigured))]
-    [Obsolete]
+    [Obsolete("New Event introduced")]
     public sealed class ScriptsConfigured : SchemaEvent, IMigrated<IEvent>
     {
         public string ScriptQuery { get; set; }
@@ -35,27 +35,27 @@ namespace Migrations.OldEvents
 
             if (!string.IsNullOrWhiteSpace(ScriptQuery))
             {
-                scripts.Query = ScriptQuery;
+                scripts = scripts with { Query = ScriptQuery };
             }
 
             if (!string.IsNullOrWhiteSpace(ScriptCreate))
             {
-                scripts.Create = ScriptCreate;
+                scripts = scripts with { Create = ScriptCreate };
             }
 
             if (!string.IsNullOrWhiteSpace(ScriptUpdate))
             {
-                scripts.Update = ScriptUpdate;
+                scripts = scripts with { Update = ScriptUpdate };
             }
 
             if (!string.IsNullOrWhiteSpace(ScriptDelete))
             {
-                scripts.Delete = ScriptDelete;
+                scripts = scripts with { Delete = ScriptDelete };
             }
 
             if (!string.IsNullOrWhiteSpace(ScriptChange))
             {
-                scripts.Change = ScriptChange;
+                scripts = scripts with { Change = ScriptChange };
             }
 
             return SimpleMapper.Map(this, new SchemaScriptsConfigured { Scripts = scripts });

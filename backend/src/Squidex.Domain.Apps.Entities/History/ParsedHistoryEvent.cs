@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using NodaTime;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.Translations;
 
 namespace Squidex.Domain.Apps.Entities.History
 {
@@ -17,39 +18,39 @@ namespace Squidex.Domain.Apps.Entities.History
         private readonly HistoryEvent item;
         private readonly Lazy<string?> message;
 
-        public Guid Id
+        public DomainId Id
         {
-            get { return item.Id; }
+            get => item.Id;
         }
 
         public Instant Created
         {
-            get { return item.Created; }
+            get => item.Created;
         }
 
         public RefToken Actor
         {
-            get { return item.Actor; }
+            get => item.Actor;
         }
 
         public long Version
         {
-            get { return item.Version; }
+            get => item.Version;
         }
 
         public string Channel
         {
-            get { return item.Channel; }
+            get => item.Channel;
         }
 
         public string EventType
         {
-            get { return item.EventType; }
+            get => item.EventType;
         }
 
         public string? Message
         {
-            get { return message.Value; }
+            get => message.Value;
         }
 
         public ParsedHistoryEvent(HistoryEvent item, IReadOnlyDictionary<string, string> texts)
@@ -58,8 +59,10 @@ namespace Squidex.Domain.Apps.Entities.History
 
             message = new Lazy<string?>(() =>
             {
-                if (texts.TryGetValue(item.EventType, out var result))
+                if (texts.TryGetValue(item.EventType, out var translationKey))
                 {
+                    var result = T.Get(translationKey);
+
                     foreach (var (key, value) in item.Parameters)
                     {
                         result = result.Replace("[" + key + "]", value);

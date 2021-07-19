@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -9,9 +9,11 @@ using System.Collections.Generic;
 using FluentAssertions;
 using Squidex.Domain.Apps.Core.Apps;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.Collections;
 using Xunit;
 
 #pragma warning disable SA1310 // Field names must not contain underscore
+#pragma warning disable CA1806 // Do not ignore method results
 
 namespace Squidex.Domain.Apps.Core.Model.Apps
 {
@@ -113,7 +115,7 @@ namespace Squidex.Domain.Apps.Core.Model.Apps
                     [Language.EN] = new LanguageConfig(),
                     [Language.DE] = new LanguageConfig(),
                     [Language.ES] = new LanguageConfig(true),
-                    [Language.IT] = new LanguageConfig(true, Language.ES)
+                    [Language.IT] = new LanguageConfig(true, ImmutableList.Create(Language.ES))
                 });
 
             Assert.Equal(Language.DE, config.Master);
@@ -123,6 +125,14 @@ namespace Squidex.Domain.Apps.Core.Model.Apps
         public void Should_not_throw_exception_if_language_to_add_already_exists()
         {
             config_0.Set(Language.EN);
+        }
+
+        [Fact]
+        public void Should_return_same_language_if_already_added()
+        {
+            var config_1 = config_0.Set(Language.EN);
+
+            Assert.Same(config_1, config_0);
         }
 
         [Fact]
@@ -186,7 +196,7 @@ namespace Squidex.Domain.Apps.Core.Model.Apps
         }
 
         [Fact]
-        public void Should_remove_fallbacks_when_removing_language()
+        public void Should_remove_fallbacks_if_removing_language()
         {
             var config_1 = config_0.Set(Language.DE);
             var config_2 = config_1.Set(Language.IT, true, Language.UK);
@@ -203,7 +213,7 @@ namespace Squidex.Domain.Apps.Core.Model.Apps
         }
 
         [Fact]
-        public void Should_same_langauges_if_removing_single_language()
+        public void Should_same_languages_if_removing_single_language()
         {
             var config_1 = config_0.Remove(Language.EN);
 
@@ -245,7 +255,7 @@ namespace Squidex.Domain.Apps.Core.Model.Apps
                 new Dictionary<string, LanguageConfig>
                 {
                     [Language.EN] = new LanguageConfig(),
-                    [Language.IT] = new LanguageConfig(true, Language.EN)
+                    [Language.IT] = new LanguageConfig(true, ImmutableList.Create(Language.EN))
                 });
 
             Assert.Equal(Language.EN, config_2.Master);
@@ -262,7 +272,7 @@ namespace Squidex.Domain.Apps.Core.Model.Apps
                 new Dictionary<string, LanguageConfig>
                 {
                     [Language.EN] = new LanguageConfig(),
-                    [Language.IT] = new LanguageConfig(true, Language.EN)
+                    [Language.IT] = new LanguageConfig(true, ImmutableList.Create(Language.EN))
                 });
 
             Assert.Equal(Language.EN, config_2.Master);

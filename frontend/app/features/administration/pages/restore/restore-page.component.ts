@@ -13,7 +13,7 @@ import { timer } from 'rxjs';
 @Component({
     selector: 'sqx-restore-page',
     styleUrls: ['./restore-page.component.scss'],
-    templateUrl: './restore-page.component.html'
+    templateUrl: './restore-page.component.html',
 })
 export class RestorePageComponent {
     public restoreForm = new RestoreForm(this.formBuilder);
@@ -25,7 +25,7 @@ export class RestorePageComponent {
         public readonly authState: AuthService,
         private readonly backupsService: BackupsService,
         private readonly dialogs: DialogService,
-        private readonly formBuilder: FormBuilder
+        private readonly formBuilder: FormBuilder,
     ) {
     }
 
@@ -37,7 +37,7 @@ export class RestorePageComponent {
 
             this.backupsService.postRestore(value)
                 .subscribe(() => {
-                    this.dialogs.notifyInfo('Restore started, it can take several minutes to complete.');
+                    this.dialogs.notifyInfo('i18n:backups.restoreStarted');
                 }, error => {
                     this.dialogs.notifyError(error);
                 });

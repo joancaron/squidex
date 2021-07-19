@@ -15,7 +15,7 @@ import { withLatestFrom } from 'rxjs/operators';
 export class UsersDataSource implements AutocompleteSource {
     constructor(
         private readonly contributorsState: ContributorsState,
-        private readonly usersService: UsersService
+        private readonly usersService: UsersService,
     ) {
     }
 
@@ -39,8 +39,8 @@ export class UsersDataSource implements AutocompleteSource {
     styleUrls: ['./contributor-add-form.component.scss'],
     templateUrl: './contributor-add-form.component.html',
     providers: [
-        UsersDataSource
-    ]
+        UsersDataSource,
+    ],
 })
 export class ContributorAddFormComponent implements OnChanges {
     private defaultValue: any;
@@ -56,12 +56,12 @@ export class ContributorAddFormComponent implements OnChanges {
         public readonly contributorsState: ContributorsState,
         public readonly usersDataSource: UsersDataSource,
         private readonly dialogs: DialogService,
-        private readonly formBuilder: FormBuilder
+        private readonly formBuilder: FormBuilder,
     ) {
     }
 
     public ngOnChanges() {
-        this.defaultValue = { role: this.roles ? this.roles[0].name : null, user: '' };
+        this.defaultValue = { role: this.roles?.[0]?.name, user: '' };
 
         this.assignContributorForm.submitCompleted({ newValue: this.defaultValue });
     }
@@ -75,9 +75,9 @@ export class ContributorAddFormComponent implements OnChanges {
                     this.assignContributorForm.submitCompleted({ newValue: this.defaultValue });
 
                     if (isCreated) {
-                        this.dialogs.notifyInfo('A new user with the entered email address has been created and assigned as contributor.');
+                        this.dialogs.notifyInfo('i18n:contributors.contributorAssigned');
                     } else {
-                        this.dialogs.notifyInfo('User has been added as contributor.');
+                        this.dialogs.notifyInfo('i18n:contributors.contributorAssignedOld');
                     }
                 }, error => {
                     this.assignContributorForm.submitFailed(error);

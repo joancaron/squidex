@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -13,22 +13,17 @@ namespace Squidex.Domain.Apps.Core.Schemas
 {
     public class NestedField<T> : NestedField, IField<T> where T : FieldProperties, new()
     {
-        private T properties;
-
-        public T Properties
-        {
-            get { return properties; }
-        }
+        public T Properties { get; private set; }
 
         public override FieldProperties RawProperties
         {
-            get { return properties; }
+            get => Properties;
         }
 
         public NestedField(long id, string name, T? properties = null, IFieldSettings? settings = null)
             : base(id, name, settings)
         {
-            SetProperties(properties ?? new T());
+            Properties = properties ?? new T();
         }
 
         [Pure]
@@ -36,30 +31,22 @@ namespace Squidex.Domain.Apps.Core.Schemas
         {
             var typedProperties = ValidateProperties(newProperties);
 
-            typedProperties.Freeze();
-
-            if (properties.Equals(typedProperties))
+            if (Properties.Equals(typedProperties))
             {
                 return this;
             }
 
-            return Clone<NestedField<T>>(clone =>
+            return Clone(clone =>
             {
-                clone.SetProperties(typedProperties);
+                ((NestedField<T>)clone).Properties = typedProperties;
             });
         }
 
-        private void SetProperties(T newProperties)
-        {
-            properties = newProperties;
-            properties.Freeze();
-        }
-
-        private T ValidateProperties(FieldProperties newProperties)
+        private static T ValidateProperties(FieldProperties newProperties)
         {
             Guard.NotNull(newProperties, nameof(newProperties));
 
-            if (!(newProperties is T typedProperties))
+            if (newProperties is not T typedProperties)
             {
                 throw new ArgumentException($"Properties must be of type '{typeof(T)}", nameof(newProperties));
             }
@@ -67,9 +54,9 @@ namespace Squidex.Domain.Apps.Core.Schemas
             return typedProperties;
         }
 
-        public override TResult Accept<TResult>(IFieldVisitor<TResult> visitor)
+        public override TResult Accept<TResult, TArgs>(IFieldVisitor<TResult, TArgs> visitor, TArgs args)
         {
-            return properties.Accept(visitor, this);
+            return Properties.Accept(visitor, this, args);
         }
     }
 }

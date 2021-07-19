@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -9,14 +9,13 @@ using System.Collections.Generic;
 using System.Diagnostics.Contracts;
 using System.Linq;
 using Squidex.Infrastructure;
-
-#pragma warning disable IDE0028 // Simplify collection initialization
+using Squidex.Infrastructure.Collections;
 
 namespace Squidex.Domain.Apps.Core.Apps
 {
     public sealed class LanguagesConfig : IFieldPartitioning
     {
-        public static readonly LanguagesConfig English = new LanguagesConfig(
+        public static readonly LanguagesConfig English = new (
             new Dictionary<string, LanguageConfig>
             {
                 [Language.EN] = new LanguageConfig()
@@ -28,17 +27,17 @@ namespace Squidex.Domain.Apps.Core.Apps
 
         public string Master
         {
-            get { return master; }
+            get => master;
         }
 
         public IEnumerable<string> AllKeys
         {
-            get { return languages.Keys; }
+            get => languages.Keys;
         }
 
         public IReadOnlyDictionary<string, LanguageConfig> Languages
         {
-            get { return languages; }
+            get => languages;
         }
 
         public LanguagesConfig(Dictionary<string, LanguageConfig> languages, string master)
@@ -68,7 +67,7 @@ namespace Squidex.Domain.Apps.Core.Apps
 
             var newLanguages = new Dictionary<string, LanguageConfig>(languages)
             {
-                [language] = new LanguageConfig(isOptional, fallbacks)
+                [language] = new LanguageConfig(isOptional, ImmutableList.Create(fallbacks))
             };
 
             return Build(newLanguages, master);

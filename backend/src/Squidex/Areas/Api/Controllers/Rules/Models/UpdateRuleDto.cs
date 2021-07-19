@@ -1,14 +1,15 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using Newtonsoft.Json;
 using Squidex.Domain.Apps.Core.Rules;
 using Squidex.Domain.Apps.Entities.Rules.Commands;
+using Squidex.Infrastructure;
+using Squidex.Infrastructure.Reflection;
 
 namespace Squidex.Areas.Api.Controllers.Rules.Models
 {
@@ -30,9 +31,14 @@ namespace Squidex.Areas.Api.Controllers.Rules.Models
         [JsonConverter(typeof(RuleActionConverter))]
         public RuleAction Action { get; set; }
 
-        public UpdateRule ToCommand(Guid id)
+        /// <summary>
+        /// Enable or disable the rule.
+        /// </summary>
+        public bool? IsEnabled { get; set; }
+
+        public UpdateRule ToCommand(DomainId id)
         {
-            var command = new UpdateRule { RuleId = id, Action = Action, Name = Name };
+            var command = SimpleMapper.Map(this, new UpdateRule { RuleId = id });
 
             if (Trigger != null)
             {

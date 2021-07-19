@@ -1,86 +1,123 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System.Threading.Tasks;
+using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using System.Threading;
 using Squidex.Domain.Apps.Core.HandleRules;
 using Squidex.Domain.Apps.Core.Rules.EnrichedEvents;
 using Squidex.Domain.Apps.Core.Rules.Triggers;
 using Squidex.Domain.Apps.Core.Scripting;
+using Squidex.Domain.Apps.Entities.Assets.Repositories;
+using Squidex.Domain.Apps.Events;
 using Squidex.Domain.Apps.Events.Assets;
-using Squidex.Infrastructure;
 using Squidex.Infrastructure.EventSourcing;
 using Squidex.Infrastructure.Reflection;
 
 namespace Squidex.Domain.Apps.Entities.Assets
 {
-    public sealed class AssetChangedTriggerHandler : RuleTriggerHandler<AssetChangedTriggerV2, AssetEvent, EnrichedAssetEvent>
+    public sealed class AssetChangedTriggerHandler : IRuleTriggerHandler
     {
         private readonly IScriptEngine scriptEngine;
         private readonly IAssetLoader assetLoader;
+        private readonly IAssetRepository assetRepository;
 
-        public AssetChangedTriggerHandler(IScriptEngine scriptEngine, IAssetLoader assetLoader)
+        public bool CanCreateSnapshotEvents => true;
+
+        public Type TriggerType => typeof(AssetChangedTriggerV2);
+
+        public AssetChangedTriggerHandler(
+            IScriptEngine scriptEngine,
+            IAssetLoader assetLoader,
+            IAssetRepository assetRepository)
         {
-            Guard.NotNull(scriptEngine, nameof(scriptEngine));
-            Guard.NotNull(assetLoader, nameof(assetLoader));
-
             this.scriptEngine = scriptEngine;
-
             this.assetLoader = assetLoader;
+            this.assetRepository = assetRepository;
         }
 
-        protected override async Task<EnrichedAssetEvent?> CreateEnrichedEventAsync(Envelope<AssetEvent> @event)
+        public bool Handles(AppEvent @event)
         {
-            if (@event.Payload is AssetMoved)
+            return @event is AssetEvent && @event is not AssetMoved;
+        }
+
+        public async IAsyncEnumerable<EnrichedEvent> CreateSnapshotEventsAsync(RuleContext context,
+            [EnumeratorCancellation] CancellationToken ct = default)
+        {
+            await foreach (var asset in assetRepository.StreamAll(context.AppId.Id, ct))
             {
-                return null;
+                var result = new EnrichedAssetEvent
+                {
+                    Type = EnrichedAssetEventType.Created
+                };
+
+                SimpleMapper.Map(asset, result);
+
+                result.Actor = asset.LastModifiedBy;
+                result.Name = "AssetQueried";
+
+                yield return result;
             }
+        }
+
+        public async IAsyncEnumerable<EnrichedEvent> CreateEnrichedEventsAsync(Envelope<AppEvent> @event, RuleContext context,
+            [EnumeratorCancellation] CancellationToken ct = default)
+        {
+            var assetEvent = (AssetEvent)@event.Payload;
 
             var result = new EnrichedAssetEvent();
 
-            var asset = await assetLoader.GetAsync(@event.Payload.AssetId, @event.Headers.EventStreamNumber());
+            var asset = await assetLoader.GetAsync(
+                assetEvent.AppId.Id,
+                assetEvent.AssetId,
+                @event.Headers.EventStreamNumber());
 
-            SimpleMapper.Map(asset, result);
+            if (asset != null)
+            {
+                SimpleMapper.Map(asset, result);
 
-            result.AssetType = asset.Type;
+                result.AssetType = asset.Type;
+            }
 
             switch (@event.Payload)
             {
-                case AssetCreated _:
+                case AssetCreated:
                     result.Type = EnrichedAssetEventType.Created;
                     break;
-                case AssetAnnotated _:
+                case AssetAnnotated:
                     result.Type = EnrichedAssetEventType.Annotated;
                     break;
-                case AssetUpdated _:
+                case AssetUpdated:
                     result.Type = EnrichedAssetEventType.Updated;
                     break;
-                case AssetDeleted _:
+                case AssetDeleted:
                     result.Type = EnrichedAssetEventType.Deleted;
                     break;
             }
 
-            result.Name = $"Asset{result.Type}";
-
-            return result;
+            yield return result;
         }
 
-        protected override bool Trigger(EnrichedAssetEvent @event, AssetChangedTriggerV2 trigger)
+        public bool Trigger(EnrichedEvent @event, RuleContext context)
         {
+            var trigger = (AssetChangedTriggerV2)context.Rule.Trigger;
+
             if (string.IsNullOrWhiteSpace(trigger.Condition))
             {
                 return true;
             }
 
-            var context = new ScriptContext
+            var vars = new ScriptVars
             {
                 ["event"] = @event
             };
 
-            return scriptEngine.Evaluate(context, trigger.Condition);
+            return scriptEngine.Evaluate(vars, trigger.Condition);
         }
     }
 }

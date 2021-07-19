@@ -6,24 +6,15 @@
  */
 
 import { Injectable } from '@angular/core';
-import { DialogService, LocalStoreService, Pager, shareSubscribed, State } from '@app/framework';
-import { empty, Observable } from 'rxjs';
+import { DialogService, getPagingInfo, ListState, shareSubscribed, State } from '@app/framework';
+import { EMPTY, Observable } from 'rxjs';
 import { finalize, tap } from 'rxjs/operators';
 import { RuleEventDto, RulesService } from './../services/rules.service';
 import { AppsState } from './apps.state';
 
-interface Snapshot {
+interface Snapshot extends ListState {
     // The current rule events.
     ruleEvents: ReadonlyArray<RuleEventDto>;
-
-    // The pagination information.
-    ruleEventsPager: Pager;
-
-    // Indicates if the rule events are loaded.
-    isLoaded?: boolean;
-
-    // Indicates if the rule events are loading.
-    isLoading?: boolean;
 
     // The current rule id.
     ruleId?: string;
@@ -34,8 +25,11 @@ export class RuleEventsState extends State<Snapshot> {
     public ruleEvents =
         this.project(x => x.ruleEvents);
 
-    public ruleEventsPager =
-        this.project(x => x.ruleEventsPager);
+    public paging =
+        this.project(x => getPagingInfo(x, x.ruleEvents.length));
+
+    public query =
+        this.project(x => x.query);
 
     public isLoaded =
         this.project(x => x.isLoaded === true);
@@ -46,53 +40,47 @@ export class RuleEventsState extends State<Snapshot> {
     constructor(
         private readonly appsState: AppsState,
         private readonly dialogs: DialogService,
-        private readonly localStore: LocalStoreService,
-        private readonly rulesService: RulesService
+        private readonly rulesService: RulesService,
     ) {
         super({
             ruleEvents: [],
-            ruleEventsPager: Pager.fromLocalStore('rule-events', localStore)
-        });
-
-        this.ruleEventsPager.subscribe(pager => {
-            pager.saveTo('rule-events', this.localStore);
-        });
+            page: 0,
+            pageSize: 30,
+            total: 0,
+        }, 'Rule Events');
     }
 
-    public load(isReload = false): Observable<any> {
+    public load(isReload = false, update: Partial<Snapshot> = {}): Observable<any> {
         if (!isReload) {
-            this.resetState();
+            this.resetState({ ruleId: this.snapshot.ruleId, ...update }, 'Loading Initial');
         }
 
         return this.loadInternal(isReload);
     }
 
     private loadInternal(isReload: boolean): Observable<any> {
-        this.next({ isLoading: true });
+        this.next({ isLoading: true }, 'Loading Started');
+
+        const { page, pageSize, ruleId } = this.snapshot;
 
         return this.rulesService.getEvents(this.appName,
-                this.snapshot.ruleEventsPager.pageSize,
-                this.snapshot.ruleEventsPager.skip,
-                this.snapshot.ruleId).pipe(
+                pageSize,
+                pageSize * page,
+                ruleId).pipe(
             tap(({ total, items: ruleEvents }) => {
                 if (isReload) {
-                    this.dialogs.notifyInfo('RuleEvents reloaded.');
+                    this.dialogs.notifyInfo('i18n:rules.ruleEvents.reloaded');
                 }
 
-                return this.next(s => {
-                    const ruleEventsPager = s.ruleEventsPager.setCount(total);
-
-                    return {
-                        ...s,
-                        isLoaded: true,
-                        isLoading: false,
-                        ruleEvents,
-                        ruleEventsPager
-                    };
-                });
+                return this.next({
+                    isLoaded: true,
+                    isLoading: false,
+                    ruleEvents,
+                    total,
+                }, 'Loading Success');
             }),
             finalize(() => {
-                this.next({ isLoading: false });
+                this.next({ isLoading: false }, 'Loading Done');
             }),
             shareSubscribed(this.dialogs));
     }
@@ -100,7 +88,7 @@ export class RuleEventsState extends State<Snapshot> {
     public enqueue(event: RuleEventDto): Observable<any> {
         return this.rulesService.enqueueEvent(this.appsState.appName, event).pipe(
             tap(() => {
-                this.dialogs.notifyInfo('Events enqueued. Will be resend in a few seconds.');
+                this.dialogs.notifyInfo('i18n:rules.ruleEvents.enqueued');
             }),
             shareSubscribed(this.dialogs));
     }
@@ -109,26 +97,26 @@ export class RuleEventsState extends State<Snapshot> {
         return this.rulesService.cancelEvent(this.appsState.appName, event).pipe(
             tap(() => {
                 return this.next(s => {
-                    const ruleEvents = s.ruleEvents.replaceBy('id', setCancelled(event));
+                    const ruleEvents = s.ruleEvents.replacedBy('id', setCancelled(event));
 
                     return { ...s, ruleEvents, isLoaded: true };
-                });
+                }, 'Cancel');
             }),
             shareSubscribed(this.dialogs));
     }
 
     public filterByRule(ruleId?: string) {
-        if (ruleId === this.snapshot.ruleId) {
-            return empty();
+        if (!this.next({ page: 0, ruleId }, 'Loading Rule')) {
+            return EMPTY;
         }
-
-        this.next(s => ({ ...s, ruleEventsPager: s.ruleEventsPager.reset(), ruleId }));
 
         return this.loadInternal(false);
     }
 
-    public setPager(ruleEventsPager: Pager): Observable<any> {
-        this.next(s => ({ ...s, ruleEventsPager }));
+    public page(paging: { page: number; pageSize: number }) {
+        if (!this.next(paging, 'Loading Paged')) {
+            return EMPTY;
+        }
 
         return this.loadInternal(false);
     }

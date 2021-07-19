@@ -1,26 +1,28 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
+using Squidex.Domain.Apps.Core.Contents;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.Reflection;
 
 namespace Squidex.Domain.Apps.Entities.Contents.Commands
 {
-    public sealed class CreateContent : ContentDataCommand, ISchemaCommand, IAppCommand
+    public sealed class CreateContent : ContentDataCommand, ISchemaCommand
     {
-        public NamedId<Guid> AppId { get; set; }
-
-        public NamedId<Guid> SchemaId { get; set; }
-
-        public bool Publish { get; set; }
+        public Status? Status { get; set; }
 
         public CreateContent()
         {
-            ContentId = Guid.NewGuid();
+            ContentId = DomainId.NewGuid();
+        }
+
+        public ChangeContentStatus AsChange(Status status)
+        {
+            return SimpleMapper.Map(this, new ChangeContentStatus { Status = status });
         }
     }
 }

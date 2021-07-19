@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -14,25 +14,35 @@ namespace Squidex.Domain.Apps.Core.ConvertContent
 {
     public static class ContentConverterFlat
     {
-        public static Dictionary<string, object?> ToFlatten(this NamedContentData content)
+        public static Dictionary<string, object?> ToFlatten(this ContentData content)
         {
             var result = new Dictionary<string, object?>();
 
             foreach (var (key, value) in content)
             {
-                result[key] = GetFirst(value);
+                var first = GetFirst(value);
+
+                if (first != null)
+                {
+                    result[key] = first;
+                }
             }
 
             return result;
         }
 
-        public static FlatContentData ToFlatten(this NamedContentData content, string fallback)
+        public static FlatContentData ToFlatten(this ContentData content, string fallback)
         {
             var result = new FlatContentData();
 
             foreach (var (key, value) in content)
             {
-                result[key] = GetFirst(value, fallback);
+                var first = GetFirst(value, fallback);
+
+                if (first != null)
+                {
+                    result[key] = first;
+                }
             }
 
             return result;
@@ -40,7 +50,7 @@ namespace Squidex.Domain.Apps.Core.ConvertContent
 
         private static object? GetFirst(ContentFieldData? fieldData)
         {
-            if (fieldData == null)
+            if (fieldData == null || fieldData.Count == 0)
             {
                 return null;
             }

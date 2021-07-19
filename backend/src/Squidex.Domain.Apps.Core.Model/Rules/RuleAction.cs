@@ -1,19 +1,18 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
-using Squidex.Infrastructure.Reflection;
 using Squidex.Infrastructure.Validation;
 
 namespace Squidex.Domain.Apps.Core.Rules
 {
-    public abstract class RuleAction : Freezable
+    public abstract record RuleAction
     {
         public IEnumerable<ValidationError> Validate()
         {
@@ -24,7 +23,10 @@ namespace Squidex.Domain.Apps.Core.Rules
             {
                 foreach (var error in errors)
                 {
-                    yield return new ValidationError(error.ErrorMessage, error.MemberNames.ToArray());
+                    if (!string.IsNullOrWhiteSpace(error.ErrorMessage))
+                    {
+                        yield return new ValidationError(error.ErrorMessage, error.MemberNames.ToArray());
+                    }
                 }
             }
 
@@ -37,11 +39,6 @@ namespace Squidex.Domain.Apps.Core.Rules
         protected virtual IEnumerable<ValidationError> CustomValidate()
         {
             yield break;
-        }
-
-        public bool DeepEquals(RuleAction action)
-        {
-            return SimpleEquals.IsEquals(this, action);
         }
     }
 }

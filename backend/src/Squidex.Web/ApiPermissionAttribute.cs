@@ -15,13 +15,13 @@ using Squidex.Shared;
 
 namespace Squidex.Web
 {
-    public sealed class ApiPermissionAttribute : AuthorizeAttribute, IAsyncActionFilter
+    public class ApiPermissionAttribute : AuthorizeAttribute, IAsyncActionFilter
     {
         private readonly string[] permissionIds;
 
         public IEnumerable<string> PermissionIds
         {
-            get { return permissionIds; }
+            get => permissionIds;
         }
 
         public ApiPermissionAttribute(params string[] ids)
@@ -35,7 +35,7 @@ namespace Squidex.Web
         {
             if (permissionIds.Length > 0)
             {
-                var permissions = context.HttpContext.Context().Permissions;
+                var permissions = context.HttpContext.Context().UserPermissions;
 
                 var hasPermission = false;
 
@@ -43,23 +43,21 @@ namespace Squidex.Web
                 {
                     foreach (var id in permissionIds)
                     {
-                        var app = context.HttpContext.Features.Get<IAppFeature>()?.AppId.Name;
+                        var app = context.HttpContext.Features.Get<IAppFeature>()?.App.Name;
 
                         if (string.IsNullOrWhiteSpace(app))
                         {
                             app = Permission.Any;
                         }
 
-                        var schema = context.HttpContext.Features.Get<ISchemaFeature>()?.SchemaId.Name;
+                        var schema = context.HttpContext.Features.Get<ISchemaFeature>()?.Schema.SchemaDef.Name;
 
                         if (string.IsNullOrWhiteSpace(schema))
                         {
                             schema = Permission.Any;
                         }
 
-                        var permission = Permissions.ForApp(id, app, schema);
-
-                        if (permissions.Allows(permission))
+                        if (permissions.Allows(id, app, schema))
                         {
                             hasPermission = true;
                             break;

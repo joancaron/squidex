@@ -8,6 +8,7 @@
 using System.ComponentModel.DataAnnotations;
 using Squidex.Domain.Apps.Core.HandleRules;
 using Squidex.Domain.Apps.Core.Rules;
+using Squidex.Infrastructure.Validation;
 
 namespace Squidex.Extensions.Actions.Notification
 {
@@ -17,14 +18,14 @@ namespace Squidex.Extensions.Actions.Notification
         IconColor = "#3389ff",
         Display = "Send a notification",
         Description = "Send an integrated notification to a user.")]
-    public sealed class NotificationAction : RuleAction
+    public sealed record NotificationAction : RuleAction
     {
-        [Required]
+        [LocalizedRequired]
         [Display(Name = "User", Description = "The user id or email.")]
         [DataType(DataType.Text)]
         public string User { get; set; }
 
-        [Required]
+        [LocalizedRequired]
         [Display(Name = "Title", Description = "The text to send.")]
         [DataType(DataType.MultilineText)]
         [Formattable]

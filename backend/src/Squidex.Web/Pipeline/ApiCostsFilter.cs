@@ -1,17 +1,17 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
+using System.Globalization;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Squidex.Domain.Apps.Entities.Apps.Plans;
-using Squidex.Infrastructure;
-using Squidex.Infrastructure.Log;
+using Squidex.Log;
 
 namespace Squidex.Web.Pipeline
 {
@@ -21,8 +21,6 @@ namespace Squidex.Web.Pipeline
 
         public ApiCostsFilter(UsageGate usageGate)
         {
-            Guard.NotNull(usageGate, nameof(usageGate));
-
             this.usageGate = usageGate;
         }
 
@@ -52,7 +50,9 @@ namespace Squidex.Web.Pipeline
                 {
                     using (Profiler.Trace("CheckUsage"))
                     {
-                        var isBlocked = await usageGate.IsBlockedAsync(app, DateTime.Today);
+                        var (_, clientId) = context.HttpContext.User.GetClient();
+
+                        var isBlocked = await usageGate.IsBlockedAsync(app, clientId, DateTime.Today);
 
                         if (isBlocked)
                         {
@@ -62,7 +62,7 @@ namespace Squidex.Web.Pipeline
                     }
                 }
 
-                context.HttpContext.Response.Headers.Add("X-Costs", FilterDefinition.Costs.ToString());
+                context.HttpContext.Response.Headers.Add("X-Costs", FilterDefinition.Costs.ToString(CultureInfo.InvariantCulture));
             }
 
             await next();

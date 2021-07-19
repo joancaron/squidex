@@ -5,30 +5,33 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable: max-line-length
-
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { ApiUrlConfig, AppLanguageDto, AuthService, AutoSaveKey, AutoSaveService, CanComponentDeactivate, ContentDto, ContentsState, DialogService, EditContentForm, fadeAnimation, FieldDto, LanguagesState, ModalModel, ResourceOwner, SchemaDetailsDto, SchemasState, TempService, Version } from '@app/shared';
+import { ApiUrlConfig, AppLanguageDto, AppsState, AuthService, AutoSaveKey, AutoSaveService, CanComponentDeactivate, ContentDto, ContentsState, defined, DialogService, EditContentForm, fadeAnimation, LanguagesState, ModalModel, ResourceOwner, SchemaDto, SchemasState, TempService, Version } from '@app/shared';
 import { Observable, of } from 'rxjs';
-import { debounceTime, filter, onErrorResumeNext, tap } from 'rxjs/operators';
+import { filter, map, tap } from 'rxjs/operators';
+import { ContentReferencesComponent } from './references/content-references.component';
 
 @Component({
     selector: 'sqx-content-page',
     styleUrls: ['./content-page.component.scss'],
     templateUrl: './content-page.component.html',
     animations: [
-        fadeAnimation
-    ]
+        fadeAnimation,
+    ],
 })
 export class ContentPageComponent extends ResourceOwner implements CanComponentDeactivate, OnInit {
     private isLoadingContent: boolean;
     private autoSaveKey: AutoSaveKey;
 
-    public schema: SchemaDetailsDto;
+    @ViewChild(ContentReferencesComponent)
+    public references: ContentReferencesComponent;
+
+    public schema: SchemaDto;
 
     public formContext: any;
 
+    public contentTab = this.route.queryParams.pipe(map(x => x['tab'] || 'editor'));
     public content?: ContentDto | null;
     public contentVersion: Version | null;
     public contentForm: EditContentForm;
@@ -39,7 +42,11 @@ export class ContentPageComponent extends ResourceOwner implements CanComponentD
     public language: AppLanguageDto;
     public languages: ReadonlyArray<AppLanguageDto>;
 
-    constructor(apiUrl: ApiUrlConfig, authService: AuthService,
+    public confirmPreview = () => {
+        return this.checkPendingChangesBeforePreview();
+    };
+
+    constructor(apiUrl: ApiUrlConfig, authService: AuthService, appsState: AppsState,
         public readonly contentsState: ContentsState,
         private readonly autoSaveService: AutoSaveService,
         private readonly dialogs: DialogService,
@@ -47,29 +54,39 @@ export class ContentPageComponent extends ResourceOwner implements CanComponentD
         private readonly route: ActivatedRoute,
         private readonly router: Router,
         private readonly schemasState: SchemasState,
-        private readonly tempService: TempService
+        private readonly tempService: TempService,
     ) {
         super();
 
-        this.formContext = { user: authService.user, apiUrl: apiUrl.buildUrl('api') };
+        this.formContext = {
+            apiUrl: apiUrl.buildUrl('api'),
+            appId: contentsState.appId,
+            appName: appsState.appName,
+            user: authService.user,
+        };
     }
 
     public ngOnInit() {
         this.contentsState.loadIfNotLoaded();
 
         this.own(
-            this.languagesState.languages
-                .subscribe(languages => {
-                    this.languages = languages.map(x => x.language);
-                    this.language = this.languages.find(x => x.isMaster)!;
+            this.languagesState.isoMasterLanguage
+                .subscribe(language => {
+                    this.language = language;
                 }));
 
         this.own(
-            this.schemasState.selectedSchema
+            this.languagesState.isoLanguages
+                .subscribe(languages => {
+                    this.languages = languages;
+                }));
+
+        this.own(
+            this.schemasState.selectedSchema.pipe(defined())
                 .subscribe(schema => {
                     this.schema = schema;
 
-                    this.contentForm = new EditContentForm(this.languages, this.schema);
+                    this.contentForm = new EditContentForm(this.languages, this.schema, this.schemasState.schemaMap, this.formContext);
                 }));
 
         this.own(
@@ -77,31 +94,29 @@ export class ContentPageComponent extends ResourceOwner implements CanComponentD
                 .subscribe(content => {
                     const isNewContent = isOtherContent(content, this.content);
 
-                    this.content = content;
+                    this.formContext['initialContent'] = content;
 
-                    this.formContext['initialContent'] = this.content;
+                    this.content = content;
+                    this.contentForm.setContext(this.formContext);
 
                     this.autoSaveKey = {
                         schemaId: this.schema.id,
                         schemaVersion: this.schema.version,
-                        contentId: content?.id
+                        contentId: content?.id,
                     };
 
-                    const autosaved = this.autoSaveService.get(this.autoSaveKey);
+                    const dataAutosaved = this.autoSaveService.fetch(this.autoSaveKey);
+                    const dataCloned = this.tempService.fetch();
 
-                    if (content) {
-                        this.loadContent(content.data, true);
+                    if (dataCloned || content) {
+                        this.loadContent(dataCloned || content?.data || {}, true);
                     }
 
-                    const clone = this.tempService.fetch();
-
-                    if (clone) {
-                        this.loadContent(clone, true);
-                    } else if (isNewContent && autosaved && this.contentForm.hasChanges(autosaved)) {
-                        this.dialogs.confirm('Unsaved changes', 'You have unsaved changes. Do you want to load them now?')
+                    if (isNewContent && dataAutosaved && this.contentForm.hasChanges(dataAutosaved)) {
+                        this.dialogs.confirm('i18n:contents.unsavedChangesTitle', 'i18n:contents.unsavedChangesText')
                             .subscribe(shouldLoad => {
                                 if (shouldLoad) {
-                                    this.loadContent(autosaved, false);
+                                    this.loadContent(dataAutosaved, false);
                                 } else {
                                     this.autoSaveService.remove(this.autoSaveKey);
                                 }
@@ -110,23 +125,28 @@ export class ContentPageComponent extends ResourceOwner implements CanComponentD
                 }));
 
         this.own(
-            this.contentForm.form.valueChanges.pipe(
-                    filter(_ => !this.isLoadingContent),
-                    filter(_ => this.contentForm.form.enabled),
-                    debounceTime(2000)
-                ).subscribe(value => {
+            this.contentForm.valueChanges.pipe(filter(_ => !this.isLoadingContent && this.contentForm.form.enabled))
+                .subscribe(value => {
                     this.autoSaveService.set(this.autoSaveKey, value);
                 }));
     }
 
     public canDeactivate(): Observable<boolean> {
-        return this.checkPendingChanges('close the current content view').pipe(
+        return this.checkPendingChangesBeforeClose().pipe(
             tap(confirmed => {
                 if (confirmed) {
                     this.autoSaveService.remove(this.autoSaveKey);
                 }
-            })
+            }),
         );
+    }
+
+    public validate() {
+        this.references?.validate();
+    }
+
+    public publish() {
+        this.references?.publish();
     }
 
     public saveAndPublish() {
@@ -167,7 +187,7 @@ export class ContentPageComponent extends ResourceOwner implements CanComponentD
                     });
             }
         } else {
-            this.contentForm.submitFailed('Content element not valid, please check the field with the red bar on the left in all languages (if localizable).');
+            this.contentForm.submitFailed('i18n:contents.contentNotValid', false);
         }
     }
 
@@ -187,20 +207,31 @@ export class ContentPageComponent extends ResourceOwner implements CanComponentD
         const content = this.content;
 
         if (content) {
-            this.contentsState.deleteMany([content]).pipe(onErrorResumeNext())
-                .subscribe(() => {
-                    this.back();
-                });
+            this.contentsState.deleteMany([content]).subscribe(() => {
+                this.back();
+            });
         }
     }
 
-    public checkPendingChanges(action: string) {
+    public checkPendingChangesBeforePreview() {
+        return this.checkPendingChanges('i18n:contents.pendingChangesTextToPreview');
+    }
+
+    public checkPendingChangesBeforeClose() {
+        return this.checkPendingChanges('i18n:contents.pendingChangesTextToClose');
+    }
+
+    public checkPendingChangesBeforeChangingStatus() {
+        return this.checkPendingChanges('i18n:contents.pendingChangesTextToChange');
+    }
+
+    private checkPendingChanges(text: string) {
         if (this.content && !this.content.canUpdate) {
             return of(true);
         }
 
         return this.contentForm.hasChanged() ?
-            this.dialogs.confirm('Unsaved changes', `You have unsaved changes.\n\nWhen you ${action} you will loose them.\n\n**Do you want to continue anyway?**`) :
+            this.dialogs.confirm('i18n:contents.pendingChangesTitle', text) :
             of(true);
     }
 
@@ -219,7 +250,7 @@ export class ContentPageComponent extends ResourceOwner implements CanComponentD
             this.contentsState.loadVersion(content, version)
                 .subscribe(dto => {
                     if (compare) {
-                        this.contentFormCompare = new EditContentForm(this.languages, this.schema);
+                        this.contentFormCompare = new EditContentForm(this.languages, this.schema, this.schemasState.schemaMap, this.formContext);
 
                         this.contentFormCompare.load(dto.payload);
                         this.contentFormCompare.setEnabled(false);
@@ -238,22 +269,17 @@ export class ContentPageComponent extends ResourceOwner implements CanComponentD
 
     private loadContent(data: any, isInitial: boolean) {
         this.isLoadingContent = true;
-
-        this.autoSaveService.remove(this.autoSaveKey);
-
         try {
+            this.autoSaveService.remove(this.autoSaveKey);
+
             this.contentForm.load(data, isInitial);
             this.contentForm.setEnabled(!this.content || this.content.canUpdate);
         } finally {
             this.isLoadingContent = false;
         }
     }
-
-    public trackByField(field: FieldDto) {
-        return field.fieldId;
-    }
 }
 
-function isOtherContent(lhs: ContentDto | null | undefined, rhs: ContentDto | null | undefined) {
+function isOtherContent(lhs: ContentDto | undefined | null, rhs: ContentDto | undefined | null) {
     return !lhs || !rhs || lhs.id !== rhs.id;
 }

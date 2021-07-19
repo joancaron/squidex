@@ -5,18 +5,18 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { Component, Input, OnInit } from '@angular/core';
-import { FormControl, FormGroup, Validators } from '@angular/forms';
-import { BooleanFieldPropertiesDto, FieldDto } from '@app/shared';
+import { Component, Input } from '@angular/core';
+import { FormGroup } from '@angular/forms';
+import { BooleanFieldPropertiesDto, BOOLEAN_FIELD_EDITORS, FieldDto } from '@app/shared';
 
 @Component({
     selector: 'sqx-boolean-ui',
     styleUrls: ['boolean-ui.component.scss'],
-    templateUrl: 'boolean-ui.component.html'
+    templateUrl: 'boolean-ui.component.html',
 })
-export class BooleanUIComponent implements OnInit {
+export class BooleanUIComponent {
     @Input()
-    public editForm: FormGroup;
+    public fieldForm: FormGroup;
 
     @Input()
     public field: FieldDto;
@@ -24,13 +24,5 @@ export class BooleanUIComponent implements OnInit {
     @Input()
     public properties: BooleanFieldPropertiesDto;
 
-    public ngOnInit() {
-        this.editForm.setControl('editor',
-            new FormControl(this.properties.editor, [
-                Validators.required
-            ]));
-
-        this.editForm.setControl('inlineEditable',
-            new FormControl(this.properties.inlineEditable));
-    }
+    public editors = BOOLEAN_FIELD_EDITORS;
 }

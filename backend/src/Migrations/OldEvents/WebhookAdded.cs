@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -12,7 +12,7 @@ using Squidex.Infrastructure.EventSourcing;
 namespace Migrations.OldEvents
 {
     [EventType(nameof(WebhookAdded))]
-    [Obsolete]
+    [Obsolete("New Event introduced")]
     public sealed class WebhookAdded : SchemaEvent
     {
         public Guid Id { get; set; }

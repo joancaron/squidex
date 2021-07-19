@@ -1,7 +1,7 @@
-﻿// ==========================================================================
+// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
-using Squidex.Infrastructure.Log;
+using Squidex.Log;
 
 namespace Squidex.Web
 {
@@ -19,7 +19,7 @@ namespace Squidex.Web
         {
             var resultContext = await next();
 
-            if (resultContext.Result is ObjectResult objectResult && objectResult.Value is ProblemDetails problem)
+            if (resultContext.Result is ObjectResult { Value: ProblemDetails problem })
             {
                 var (error, _) = problem.ToErrorDto(context.HttpContext);
 
@@ -33,9 +33,10 @@ namespace Squidex.Web
 
             if (!wellKnown)
             {
-                var log = context.HttpContext.RequestServices.GetService<ISemanticLog>();
+                var log = context.HttpContext.RequestServices.GetRequiredService<ISemanticLog>();
 
-                log.LogError(context.Exception, w => w.WriteProperty("messag", "An unexpected exception has occurred."));
+                log.LogError(context.Exception, w => w
+                    .WriteProperty("message", "An unexpected exception has occurred."));
             }
 
             context.Result = GetResult(error);

@@ -14,22 +14,19 @@ import { map } from 'rxjs/operators';
 export class TranslationDto {
     constructor(
         public readonly result: string,
-        public readonly text: string
+        public readonly text: string,
     ) {
     }
 }
 
-export interface TranslateDto {
-    readonly text: string;
-    readonly sourceLanguage: string;
-    readonly targetLanguage: string;
-}
+export type TranslateDto =
+    Readonly<{ text: string; sourceLanguage: string; targetLanguage: string }>;
 
 @Injectable()
 export class TranslationsService {
     constructor(
         private readonly http: HttpClient,
-        private readonly apiUrl: ApiUrlConfig
+        private readonly apiUrl: ApiUrlConfig,
     ) {
     }
 
@@ -40,6 +37,6 @@ export class TranslationsService {
             map(body => {
                 return new TranslationDto(body.result, body.text);
             }),
-            pretifyError('Failed to translate text. Please reload.'));
+            pretifyError('i18n:translate.translateFailed'));
     }
 }

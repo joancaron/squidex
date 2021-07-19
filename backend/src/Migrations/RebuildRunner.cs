@@ -9,23 +9,25 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
 using Migrations.Migrations;
-using Squidex.Infrastructure;
+using Squidex.Domain.Apps.Entities.Assets;
 using Squidex.Infrastructure.Commands;
 
 namespace Migrations
 {
     public sealed class RebuildRunner
     {
+        private readonly RebuildFiles rebuildFiles;
         private readonly Rebuilder rebuilder;
         private readonly PopulateGrainIndexes populateGrainIndexes;
         private readonly RebuildOptions rebuildOptions;
 
-        public RebuildRunner(Rebuilder rebuilder, IOptions<RebuildOptions> rebuildOptions, PopulateGrainIndexes populateGrainIndexes)
+        public RebuildRunner(
+            IOptions<RebuildOptions> rebuildOptions,
+            Rebuilder rebuilder,
+            RebuildFiles rebuildFiles,
+            PopulateGrainIndexes populateGrainIndexes)
         {
-            Guard.NotNull(rebuilder, nameof(rebuilder));
-            Guard.NotNull(rebuildOptions, nameof(rebuildOptions));
-            Guard.NotNull(populateGrainIndexes, nameof(populateGrainIndexes));
-
+            this.rebuildFiles = rebuildFiles;
             this.rebuilder = rebuilder;
             this.rebuildOptions = rebuildOptions.Value;
             this.populateGrainIndexes = populateGrainIndexes;
@@ -33,35 +35,42 @@ namespace Migrations
 
         public async Task RunAsync(CancellationToken ct)
         {
+            var batchSize = rebuildOptions.CalculateBatchSize();
+
             if (rebuildOptions.Apps)
             {
-                await rebuilder.RebuildAppsAsync(ct);
+                await rebuilder.RebuildAppsAsync(batchSize, ct);
             }
 
             if (rebuildOptions.Schemas)
             {
-                await rebuilder.RebuildSchemasAsync(ct);
+                await rebuilder.RebuildSchemasAsync(batchSize, ct);
             }
 
             if (rebuildOptions.Rules)
             {
-                await rebuilder.RebuildRulesAsync(ct);
+                await rebuilder.RebuildRulesAsync(batchSize, ct);
             }
 
             if (rebuildOptions.Assets)
             {
-                await rebuilder.RebuildAssetsAsync(ct);
-                await rebuilder.RebuildAssetFoldersAsync(ct);
+                await rebuilder.RebuildAssetsAsync(batchSize, ct);
+                await rebuilder.RebuildAssetFoldersAsync(batchSize, ct);
+            }
+
+            if (rebuildOptions.AssetFiles)
+            {
+                await rebuildFiles.RepairAsync(ct);
             }
 
             if (rebuildOptions.Contents)
             {
-                await rebuilder.RebuildContentAsync(ct);
+                await rebuilder.RebuildContentAsync(batchSize, ct);
             }
 
             if (rebuildOptions.Indexes)
             {
-                await populateGrainIndexes.UpdateAsync();
+                await populateGrainIndexes.UpdateAsync(ct);
             }
         }
     }

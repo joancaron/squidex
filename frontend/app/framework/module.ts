@@ -1,39 +1,37 @@
-﻿/*
+/*
  * Squidex Headless CMS
  *
  * @license
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable: max-line-length
-
 import { CommonModule } from '@angular/common';
 import { HTTP_INTERCEPTORS } from '@angular/common/http';
 import { ModuleWithProviders, NgModule } from '@angular/core';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { ColorPickerModule } from 'ngx-color-picker';
-import { AnalyticsService, AutocompleteComponent, AvatarComponent, CachingInterceptor, CanDeactivateGuard, CheckboxGroupComponent, ClipboardService, CodeComponent, CodeEditorComponent, ColorPickerComponent, ConfirmClickDirective, ControlErrorsComponent, CopyDirective, DarkenPipe, DatePipe, DateTimeEditorComponent, DayOfWeekPipe, DayPipe, DialogRendererComponent, DialogService, DisplayNamePipe, DropdownComponent, DurationPipe, EditableTitleComponent, ExternalLinkDirective, FileDropDirective, FileSizePipe, FocusOnInitDirective, FormAlertComponent, FormErrorComponent, FormHintComponent, FromNowPipe, FullDateTimePipe, HighlightPipe, HoverBackgroundDirective, IFrameEditorComponent, ImageSourceDirective, IndeterminateValueDirective, ISODatePipe, JsonEditorComponent, KeysPipe, KNumberPipe, LightenPipe, ListViewComponent, LoadingInterceptor, LoadingService, LocalStoreService, MarkdownPipe, MessageBus, ModalDialogComponent, ModalDirective, ModalPlacementDirective, MoneyPipe, MonthPipe, OnboardingService, OnboardingTooltipComponent, PagerComponent, PanelComponent, PanelContainerDirective, ParentLinkDirective, PopupLinkDirective, ProgressBarComponent, ResizedDirective, ResizeService, ResourceLoaderService, RootViewComponent, SafeHtmlPipe, SafeUrlPipe, ScrollActiveDirective, ShortcutComponent, ShortcutService, ShortDatePipe, ShortTimePipe, StarsComponent, StatusIconComponent, StopClickDirective, SyncScollingDirective, SyncWidthDirective, TagEditorComponent, TemplateWrapperDirective, TempService, TitleComponent, TitleService, ToggleComponent, TooltipDirective, TransformInputDirective } from './declarations';
+import { AnalyticsService, AutocompleteComponent, AvatarComponent, CachingInterceptor, CanDeactivateGuard, CheckboxGroupComponent, ClipboardService, CodeComponent, CodeEditorComponent, ColorPickerComponent, ConfirmClickDirective, ControlErrorsComponent, CopyDirective, DarkenPipe, DatePipe, DateTimeEditorComponent, DayOfWeekPipe, DayPipe, DialogRendererComponent, DialogService, DisplayNamePipe, DropdownComponent, DurationPipe, EditableTitleComponent, ExternalLinkDirective, FileDropDirective, FileSizePipe, FocusOnInitDirective, FormAlertComponent, FormErrorComponent, FormHintComponent, FromNowPipe, FullDateTimePipe, HighlightPipe, HoverBackgroundDirective, ImageSourceDirective, IndeterminateValueDirective, ISODatePipe, KeysPipe, KNumberPipe, LanguageSelectorComponent, LightenPipe, ListViewComponent, LoadingInterceptor, LoadingService, LocalizedInputComponent, LocalStoreService, MarkdownInlinePipe, MarkdownPipe, MessageBus, ModalDialogComponent, ModalDirective, ModalPlacementDirective, MoneyPipe, MonthPipe, OnboardingService, OnboardingTooltipComponent, PagerComponent, PanelComponent, PanelContainerDirective, ParentLinkDirective, PopupLinkDirective, ProgressBarComponent, ResizedDirective, ResizeService, ResourceLoaderService, RootViewComponent, SafeHtmlPipe, SafeUrlPipe, ScrollActiveDirective, ShortcutComponent, ShortcutService, ShortDatePipe, ShortTimePipe, StarsComponent, StatusIconComponent, StopClickDirective, SyncScollingDirective, SyncWidthDirective, TabRouterlinkDirective, TagEditorComponent, TemplateWrapperDirective, TempService, TitleComponent, TitleService, ToggleComponent, TooltipDirective, TransformInputDirective, TranslatePipe, VideoPlayerComponent } from './declarations';
 
 @NgModule({
     imports: [
         ColorPickerModule,
         CommonModule,
         FormsModule,
-        ReactiveFormsModule
+        ReactiveFormsModule,
     ],
     declarations: [
         AutocompleteComponent,
         AvatarComponent,
         CheckboxGroupComponent,
+        CodeComponent,
+        CodeEditorComponent,
         ColorPickerComponent,
         ConfirmClickDirective,
         ControlErrorsComponent,
-        CodeComponent,
-        CodeEditorComponent,
         CopyDirective,
         DarkenPipe,
-        DateTimeEditorComponent,
         DatePipe,
+        DateTimeEditorComponent,
         DayOfWeekPipe,
         DayPipe,
         DialogRendererComponent,
@@ -52,15 +50,16 @@ import { AnalyticsService, AutocompleteComponent, AvatarComponent, CachingInterc
         FullDateTimePipe,
         HighlightPipe,
         HoverBackgroundDirective,
-        IFrameEditorComponent,
         ImageSourceDirective,
         IndeterminateValueDirective,
         ISODatePipe,
-        JsonEditorComponent,
         KeysPipe,
         KNumberPipe,
+        LanguageSelectorComponent,
         LightenPipe,
         ListViewComponent,
+        LocalizedInputComponent,
+        MarkdownInlinePipe,
         MarkdownPipe,
         ModalDialogComponent,
         ModalDirective,
@@ -69,8 +68,8 @@ import { AnalyticsService, AutocompleteComponent, AvatarComponent, CachingInterc
         MonthPipe,
         OnboardingTooltipComponent,
         PagerComponent,
-        PanelContainerDirective,
         PanelComponent,
+        PanelContainerDirective,
         ParentLinkDirective,
         PopupLinkDirective,
         ProgressBarComponent,
@@ -87,21 +86,24 @@ import { AnalyticsService, AutocompleteComponent, AvatarComponent, CachingInterc
         StopClickDirective,
         SyncScollingDirective,
         SyncWidthDirective,
+        TabRouterlinkDirective,
         TagEditorComponent,
         TemplateWrapperDirective,
         TitleComponent,
         ToggleComponent,
         TooltipDirective,
-        TransformInputDirective
+        TransformInputDirective,
+        TranslatePipe,
+        VideoPlayerComponent,
     ],
     exports: [
         AutocompleteComponent,
         AvatarComponent,
         CheckboxGroupComponent,
-        CodeEditorComponent,
-        CommonModule,
         CodeComponent,
+        CodeEditorComponent,
         ColorPickerComponent,
+        CommonModule,
         ConfirmClickDirective,
         ControlErrorsComponent,
         CopyDirective,
@@ -127,25 +129,26 @@ import { AnalyticsService, AutocompleteComponent, AvatarComponent, CachingInterc
         FullDateTimePipe,
         HighlightPipe,
         HoverBackgroundDirective,
-        IFrameEditorComponent,
         ImageSourceDirective,
         IndeterminateValueDirective,
         ISODatePipe,
-        JsonEditorComponent,
         KeysPipe,
         KNumberPipe,
+        LanguageSelectorComponent,
         LightenPipe,
         ListViewComponent,
+        LocalizedInputComponent,
+        MarkdownInlinePipe,
         MarkdownPipe,
-        ModalDirective,
         ModalDialogComponent,
+        ModalDirective,
         ModalPlacementDirective,
         MoneyPipe,
         MonthPipe,
         OnboardingTooltipComponent,
         PagerComponent,
-        PanelContainerDirective,
         PanelComponent,
+        PanelContainerDirective,
         ParentLinkDirective,
         PopupLinkDirective,
         ProgressBarComponent,
@@ -163,16 +166,19 @@ import { AnalyticsService, AutocompleteComponent, AvatarComponent, CachingInterc
         StopClickDirective,
         SyncScollingDirective,
         SyncWidthDirective,
+        TabRouterlinkDirective,
         TagEditorComponent,
         TemplateWrapperDirective,
         TitleComponent,
         ToggleComponent,
         TooltipDirective,
-        TransformInputDirective
-    ]
+        TransformInputDirective,
+        TranslatePipe,
+        VideoPlayerComponent,
+    ],
 })
 export class SqxFrameworkModule {
-    public static forRoot(): ModuleWithProviders {
+    public static forRoot(): ModuleWithProviders<SqxFrameworkModule> {
         return {
             ngModule: SqxFrameworkModule,
             providers: [
@@ -180,8 +186,8 @@ export class SqxFrameworkModule {
                 CanDeactivateGuard,
                 ClipboardService,
                 DialogService,
-                LocalStoreService,
                 LoadingService,
+                LocalStoreService,
                 MessageBus,
                 OnboardingService,
                 ResizeService,
@@ -192,14 +198,14 @@ export class SqxFrameworkModule {
                 {
                     provide: HTTP_INTERCEPTORS,
                     useClass: LoadingInterceptor,
-                    multi: true
+                    multi: true,
                 },
                 {
                     provide: HTTP_INTERCEPTORS,
                     useClass: CachingInterceptor,
-                    multi: true
-                }
-            ]
+                    multi: true,
+                },
+            ],
         };
     }
- }
+}

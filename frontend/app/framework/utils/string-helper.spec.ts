@@ -9,7 +9,6 @@ import { StringHelper } from './string-helper';
 
 describe('StringHelper', () => {
     it('should return empty text if value is null or undefined', () => {
-
         expect(StringHelper.firstNonEmpty(null!)).toBe('');
         expect(StringHelper.firstNonEmpty(undefined!)).toBe('');
     });
@@ -39,13 +38,21 @@ describe('StringHelper', () => {
         expect(StringHelper.firstNonEmpty(null!, undefined!, '')).toBe('');
     });
 
-    it('should append query string to url when url already contains query', () => {
+    it('should append dot if not added', () => {
+        expect(StringHelper.appendLast('text', '.')).toBe('text.');
+    });
+
+    it('should not append dot if already added', () => {
+        expect(StringHelper.appendLast('text.', '.')).toBe('text.');
+    });
+
+    it('should append query string to url if url already contains query', () => {
         const url = StringHelper.appendToUrl('http://squidex.io?query=value', 'other', 1);
 
         expect(url).toEqual('http://squidex.io?query=value&other=1');
     });
 
-    it('should append query string to url when url already contains no query', () => {
+    it('should append query string to url if url already contains no query', () => {
         const url = StringHelper.appendToUrl('http://squidex.io', 'other', 1);
 
         expect(url).toEqual('http://squidex.io?other=1');

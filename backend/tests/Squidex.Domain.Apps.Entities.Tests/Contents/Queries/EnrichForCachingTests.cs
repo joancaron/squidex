@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using FakeItEasy;
+using Squidex.Domain.Apps.Core.Schemas;
 using Squidex.Domain.Apps.Entities.Contents.Queries.Steps;
 using Squidex.Domain.Apps.Entities.Schemas;
 using Squidex.Domain.Apps.Entities.TestHelpers;
@@ -24,8 +25,8 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
         private readonly ISchemaEntity schema;
         private readonly IRequestCache requestCache = A.Fake<IRequestCache>();
         private readonly Context requestContext;
-        private readonly NamedId<Guid> appId = NamedId.Of(Guid.NewGuid(), "my-app");
-        private readonly NamedId<Guid> schemaId = NamedId.Of(Guid.NewGuid(), "my-schema");
+        private readonly NamedId<DomainId> appId = NamedId.Of(DomainId.NewGuid(), "my-app");
+        private readonly NamedId<DomainId> schemaId = NamedId.Of(DomainId.NewGuid(), "my-schema");
         private readonly ProvideSchema schemaProvider;
         private readonly EnrichForCaching sut;
 
@@ -34,7 +35,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
             requestContext = new Context(Mocks.ApiUser(), Mocks.App(appId));
 
             schema = Mocks.Schema(appId, schemaId);
-            schemaProvider = x => Task.FromResult(schema);
+            schemaProvider = x => Task.FromResult((schema, ResolvedComponents.Empty));
 
             sut = new EnrichForCaching(requestCache);
         }
@@ -47,7 +48,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
             A.CallTo(() => requestCache.AddHeader(A<string>._))
                 .Invokes(new Action<string>(header => headers.Add(header)));
 
-            await sut.EnrichAsync(requestContext);
+            await sut.EnrichAsync(requestContext, default);
 
             Assert.Equal(new List<string>
             {
@@ -67,21 +68,21 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
         {
             var content = CreateContent();
 
-            await sut.EnrichAsync(requestContext, Enumerable.Repeat(content, 1), schemaProvider);
+            await sut.EnrichAsync(requestContext, Enumerable.Repeat(content, 1), schemaProvider, default);
 
-            A.CallTo(() => requestCache.AddDependency(content.Id, content.Version))
+            A.CallTo(() => requestCache.AddDependency(content.UniqueId, content.Version))
                 .MustHaveHappened();
 
-            A.CallTo(() => requestCache.AddDependency(schema.Id, schema.Version))
+            A.CallTo(() => requestCache.AddDependency(schema.UniqueId, schema.Version))
                 .MustHaveHappened();
 
-            A.CallTo(() => requestCache.AddDependency(requestContext.App.Id, requestContext.App.Version))
+            A.CallTo(() => requestCache.AddDependency(requestContext.App.UniqueId, requestContext.App.Version))
                 .MustHaveHappened();
         }
 
         private ContentEntity CreateContent()
         {
-            return new ContentEntity { Id = Guid.NewGuid(), SchemaId = schemaId, Version = 13 };
+            return new ContentEntity { AppId = appId, Id = DomainId.NewGuid(), SchemaId = schemaId, Version = 13 };
         }
     }
 }

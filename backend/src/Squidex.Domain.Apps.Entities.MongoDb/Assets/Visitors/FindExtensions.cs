@@ -1,15 +1,14 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using MongoDB.Bson;
 using MongoDB.Driver;
+using Squidex.Infrastructure;
 using Squidex.Infrastructure.MongoDb.Queries;
 using Squidex.Infrastructure.Queries;
 
@@ -19,39 +18,48 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Assets.Visitors
     {
         private static readonly FilterDefinitionBuilder<MongoAssetEntity> Filter = Builders<MongoAssetEntity>.Filter;
 
-        public static ClrQuery AdjustToModel(this ClrQuery query)
+        public static ClrQuery AdjustToModel(this ClrQuery query, DomainId appId)
         {
             if (query.Filter != null)
             {
                 query.Filter = FirstPascalPathConverter<ClrValue>.Transform(query.Filter);
             }
 
-            query.Sort = query.Sort
-                .Select(x =>
-                    new SortNode(
-                        x.Path.ToFirstPascalCase(),
-                        x.Order))
-                    .ToList();
+            if (query.Filter != null)
+            {
+                query.Filter = AdaptIdVisitor.AdaptFilter(query.Filter, appId);
+            }
+
+            if (query.Sort != null)
+            {
+                query.Sort = query.Sort.Select(x => new SortNode(x.Path.ToFirstPascalCase(), x.Order)).ToList();
+            }
 
             return query;
         }
 
-        public static FilterDefinition<MongoAssetEntity> BuildFilter(this ClrQuery query, Guid appId, Guid? parentId)
+        public static FilterDefinition<MongoAssetEntity> BuildFilter(this ClrQuery query, DomainId appId, DomainId? parentId)
         {
             var filters = new List<FilterDefinition<MongoAssetEntity>>
             {
-                Filter.Eq(x => x.IndexedAppId, appId),
-                Filter.Eq(x => x.IsDeleted, false)
+                Filter.Exists(x => x.LastModified),
+                Filter.Exists(x => x.Id),
+                Filter.Eq(x => x.IndexedAppId, appId)
             };
 
-            if (parentId.HasValue)
+            if (!query.HasFilterField("IsDeleted"))
             {
-                if (parentId == Guid.Empty)
+                filters.Add(Filter.Eq(x => x.IsDeleted, false));
+            }
+
+            if (parentId != null)
+            {
+                if (parentId == DomainId.Empty)
                 {
                     filters.Add(
                         Filter.Or(
                             Filter.Exists(x => x.ParentId, false),
-                            Filter.Eq(x => x.ParentId, Guid.Empty)));
+                            Filter.Eq(x => x.ParentId, DomainId.Empty)));
                 }
                 else
                 {
@@ -73,18 +81,7 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Assets.Visitors
                 }
             }
 
-            if (filters.Count > 1)
-            {
-                return Filter.And(filters);
-            }
-            else if (filters.Count == 1)
-            {
-                return filters[0];
-            }
-            else
-            {
-                return new BsonDocument();
-            }
+            return Filter.And(filters);
         }
     }
 }

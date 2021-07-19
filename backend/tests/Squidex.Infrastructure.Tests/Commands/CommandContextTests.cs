@@ -1,11 +1,10 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using FakeItEasy;
 using Squidex.Infrastructure.TestHelpers;
 using Xunit;
@@ -30,13 +29,13 @@ namespace Squidex.Infrastructure.Commands
             Assert.Null(sut.PlainResult);
             Assert.Null(sut.Result<string>());
 
-            Assert.NotEqual(Guid.Empty, sut.ContextId);
+            Assert.NotEqual(DomainId.Empty, sut.ContextId);
 
             Assert.False(sut.IsCompleted);
         }
 
         [Fact]
-        public void Should_be_handled_when_succeeded()
+        public void Should_be_handled_if_succeeded()
         {
             sut.Complete();
 
@@ -44,7 +43,7 @@ namespace Squidex.Infrastructure.Commands
         }
 
         [Fact]
-        public void Should_provide_result_when_succeeded_with_value()
+        public void Should_provide_result_if_succeeded_with_value()
         {
             sut.Complete("RESULT");
 
@@ -52,7 +51,7 @@ namespace Squidex.Infrastructure.Commands
         }
 
         [Fact]
-        public void Should_provide_plain_result_when_succeeded_with_value()
+        public void Should_provide_plain_result_if_succeeded_with_value()
         {
             sut.Complete("RESULT");
 

@@ -6,7 +6,7 @@
  */
 
 import { UserDto, UsersDto, UsersService } from '@app/features/administration/internal';
-import { DialogService, LocalStoreService, Pager } from '@app/shared';
+import { DialogService } from '@app/shared';
 import { of, throwError } from 'rxjs';
 import { onErrorResumeNext } from 'rxjs/operators';
 import { IMock, It, Mock, Times } from 'typemoq';
@@ -22,17 +22,14 @@ describe('UsersState', () => {
     const newUser = createUser(3);
 
     let dialogs: IMock<DialogService>;
-    let localStore: IMock<LocalStoreService>;
     let usersService: IMock<UsersService>;
     let usersState: UsersState;
 
     beforeEach(() => {
         dialogs = Mock.ofType<DialogService>();
 
-        localStore = Mock.ofType<LocalStoreService>();
-
         usersService = Mock.ofType<UsersService>();
-        usersState = new UsersState(dialogs.object, localStore.object, usersService.object);
+        usersState = new UsersState(dialogs.object, usersService.object);
     });
 
     afterEach(() => {
@@ -46,33 +43,24 @@ describe('UsersState', () => {
 
             usersState.load().subscribe();
 
+            expect(usersState.snapshot.users).toEqual([user1, user2]);
             expect(usersState.snapshot.isLoaded).toBeTruthy();
             expect(usersState.snapshot.isLoading).toBeFalsy();
-            expect(usersState.snapshot.users).toEqual([user1, user2]);
-            expect(usersState.snapshot.usersPager.numberOfItems).toEqual(200);
+            expect(usersState.snapshot.total).toEqual(200);
 
             dialogs.verify(x => x.notifyInfo(It.isAnyString()), Times.never());
         });
 
-        it('should reset loading when loading failed', () => {
+        it('should reset loading state if loading failed', () => {
             usersService.setup(x => x.getUsers(10, 0, undefined))
-                .returns(() => throwError('error'));
+                .returns(() => throwError(() => 'Service Error'));
 
             usersState.load().pipe(onErrorResumeNext()).subscribe();
 
             expect(usersState.snapshot.isLoading).toBeFalsy();
         });
 
-        it('should load page size from local store', () => {
-            localStore.setup(x => x.getInt('users.pageSize', 10))
-                .returns(() => 25);
-
-            const state = new UsersState(dialogs.object, localStore.object, usersService.object);
-
-            expect(state.snapshot.usersPager.pageSize).toBe(25);
-        });
-
-        it('should show notification on load when reload is true', () => {
+        it('should show notification on load if reload is true', () => {
             usersService.setup(x => x.getUsers(10, 0, undefined))
                 .returns(() => of(oldUsers)).verifiable();
 
@@ -83,52 +71,22 @@ describe('UsersState', () => {
             dialogs.verify(x => x.notifyInfo(It.isAnyString()), Times.once());
         });
 
-        it('should replace selected user when reloading', () => {
-            const newUsers = [
-                createUser(1, '_new'),
-                createUser(2, '_new')
-            ];
-
-            usersService.setup(x => x.getUsers(10, 0, undefined))
-                .returns(() => of(oldUsers)).verifiable(Times.exactly(2));
-
-            usersService.setup(x => x.getUsers(10, 0, undefined))
-                .returns(() => of(new UsersDto(200, newUsers)));
-
-            usersState.load().subscribe();
-            usersState.select(user1.id).subscribe();
-            usersState.load().subscribe();
-
-            expect(usersState.snapshot.selectedUser).toEqual(newUsers[0]);
-        });
-
-        it('should load with new pagination when paging', () => {
+        it('should load with new pagination if paging', () => {
             usersService.setup(x => x.getUsers(10, 10, undefined))
                 .returns(() => of(new UsersDto(200, []))).verifiable();
 
-            usersState.setPager(new Pager(200, 1, 10)).subscribe();
+            usersState.page({ page: 1, pageSize: 10 }).subscribe();
 
             expect().nothing();
         });
 
-        it('should update page size in local store', () => {
-            usersService.setup(x => x.getUsers(50, 0, undefined))
-                .returns(() => of(new UsersDto(200, []))).verifiable();
-
-            usersState.setPager(new Pager(0, 0, 50));
-
-            localStore.verify(x => x.setInt('users.pageSize', 50), Times.atLeastOnce());
-
-            expect().nothing();
-        });
-
-        it('should load with query when searching', () => {
+        it('should load with query if searching', () => {
             usersService.setup(x => x.getUsers(10, 0, 'my-query'))
                 .returns(() => of(new UsersDto(0, []))).verifiable();
 
             usersState.search('my-query').subscribe();
 
-            expect(usersState.snapshot.usersQuery).toEqual('my-query');
+            expect(usersState.snapshot.query).toEqual('my-query');
         });
     });
 
@@ -140,7 +98,7 @@ describe('UsersState', () => {
             usersState.load().subscribe();
         });
 
-        it('should return user on select and not load when already loaded', () => {
+        it('should return user on select and not load if already loaded', () => {
             let selectedUser: UserDto;
 
             usersState.select(user1.id).subscribe(x => {
@@ -151,92 +109,46 @@ describe('UsersState', () => {
             expect(usersState.snapshot.selectedUser).toEqual(user1);
         });
 
-        it('should return user on select and load when not loaded', () => {
+        it('should return user on select and load if not loaded', () => {
             usersService.setup(x => x.getUser('id3'))
                 .returns(() => of(newUser));
 
-            let selectedUser: UserDto;
+            let userSelected: UserDto;
 
             usersState.select('id3').subscribe(x => {
-                selectedUser = x!;
+                userSelected = x!;
             });
 
-            expect(selectedUser!).toEqual(newUser);
+            expect(userSelected!).toEqual(newUser);
             expect(usersState.snapshot.selectedUser).toEqual(newUser);
         });
 
-        it('should return null on select when unselecting user', () => {
-            let selectedUser: UserDto;
+        it('should return null on select if unselecting user', () => {
+            let userSelected: UserDto;
 
             usersState.select(null).subscribe(x => {
-                selectedUser = x!;
+                userSelected = x!;
             });
 
-            expect(selectedUser!).toBeNull();
+            expect(userSelected!).toBeNull();
             expect(usersState.snapshot.selectedUser).toBeNull();
         });
 
-        it('should return null on select when user is not found', () => {
+        it('should return null on select if user is not found', () => {
             usersService.setup(x => x.getUser('unknown'))
-                .returns(() => throwError({})).verifiable();
+                .returns(() => throwError(() => 'Service Error')).verifiable();
 
-            let selectedUser: UserDto;
+            let userSelected: UserDto;
 
-            usersState.select('unknown').subscribe(x => {
-                selectedUser = x!;
+            usersState.select('unknown').pipe(onErrorResumeNext()).subscribe(x => {
+                userSelected = x!;
             }).unsubscribe();
 
-            expect(selectedUser!).toBeNull();
+            expect(userSelected!).toBeNull();
             expect(usersState.snapshot.selectedUser).toBeNull();
         });
 
-        it('should update user and selected user when locked', () => {
-            const updated = createUser(2, '_new');
-
-            usersService.setup(x => x.lockUser(user2))
-                .returns(() => of(updated)).verifiable();
-
-            usersState.select(user2.id).subscribe();
-            usersState.lock(user2).subscribe();
-
-            const user2New = usersState.snapshot.users[1];
-
-            expect(user2New).toBe(usersState.snapshot.selectedUser!);
-        });
-
-        it('should update user and selected user when unlocked', () => {
-            const updated = createUser(2, '_new');
-
-            usersService.setup(x => x.unlockUser(user2))
-                .returns(() => of(updated)).verifiable();
-
-            usersState.select(user2.id).subscribe();
-            usersState.unlock(user2).subscribe();
-
-            const user2New = usersState.snapshot.users[1];
-
-            expect(user2New).toEqual(updated);
-            expect(user2New).toBe(usersState.snapshot.selectedUser!);
-        });
-
-        it('should update user and selected user when updated', () => {
-            const request = { email: 'new@mail.com', displayName: 'New', permissions: ['Permission1'] };
-
-            const updated = createUser(2, '_new');
-
-            usersService.setup(x => x.putUser(user2, request))
-                .returns(() => of(updated)).verifiable();
-
-            usersState.select(user2.id).subscribe();
-            usersState.update(user2, request).subscribe();
-
-            const user2New = usersState.snapshot.users[1];
-
-            expect(user2New).toEqual(updated);
-            expect(user2New).toBe(usersState.snapshot.selectedUser!);
-        });
-
-        it('should add user to snapshot when created', () => {
+        it('should add user to snapshot if created', () => {
             const request = { ...newUser, password: 'password' };
 
             usersService.setup(x => x.postUser(request))
@@ -245,7 +157,114 @@ describe('UsersState', () => {
             usersState.create(request).subscribe();
 
             expect(usersState.snapshot.users).toEqual([newUser, user1, user2]);
-            expect(usersState.snapshot.usersPager.numberOfItems).toBe(201);
+            expect(usersState.snapshot.total).toBe(201);
+        });
+
+        it('should update user if updated', () => {
+            const request = {};
+
+            const updated = createUser(2, '_new');
+
+            usersService.setup(x => x.putUser(user2, request))
+                .returns(() => of(updated)).verifiable();
+
+            usersState.update(user2, request).subscribe();
+
+            expect(usersState.snapshot.users).toEqual([user1, updated]);
+        });
+
+        it('should update user if locked', () => {
+            const updated = createUser(2, '_new');
+
+            usersService.setup(x => x.lockUser(user2))
+                .returns(() => of(updated)).verifiable();
+
+            usersState.lock(user2).subscribe();
+
+            expect(usersState.snapshot.users).toEqual([user1, updated]);
+        });
+
+        it('should update user if locked', () => {
+            const updated = createUser(2, '_new');
+
+            usersService.setup(x => x.unlockUser(user2))
+                .returns(() => of(updated)).verifiable();
+
+            usersState.unlock(user2).subscribe();
+
+            expect(usersState.snapshot.users).toEqual([user1, updated]);
+        });
+
+        it('should remove user from snapshot if delete', () => {
+            usersService.setup(x => x.deleteUser(user1))
+                .returns(() => of(newUser)).verifiable();
+
+            usersState.delete(user1).subscribe();
+
+            expect(usersState.snapshot.users).toEqual([user2]);
+            expect(usersState.snapshot.total).toBe(199);
+        });
+
+        it('should truncate users if page size reached', () => {
+            const request = { ...newUser, password: 'password' };
+
+            usersService.setup(x => x.getUsers(2, 0, undefined))
+                .returns(() => of(new UsersDto(200, [user1, user2]))).verifiable();
+
+            usersService.setup(x => x.postUser(request))
+                .returns(() => of(newUser)).verifiable();
+
+            usersState.page({ page: 0, pageSize: 2 }).subscribe();
+            usersState.create(request).subscribe();
+
+            expect(usersState.snapshot.users).toEqual([newUser, user1]);
+            expect(usersState.snapshot.total).toBe(201);
+        });
+    });
+
+    describe('Selection', () => {
+        beforeEach(() => {
+            usersService.setup(x => x.getUsers(10, 0, undefined))
+                .returns(() => of(oldUsers)).verifiable(Times.atLeastOnce());
+
+            usersState.load().subscribe();
+            usersState.select(user2.id).subscribe();
+        });
+
+        it('should update selected user if reloaded', () => {
+            const newUsers = [
+                createUser(1, '_new'),
+                createUser(2, '_new'),
+            ];
+
+            usersService.setup(x => x.getUsers(10, 0, undefined))
+                .returns(() => of(new UsersDto(2, newUsers)));
+
+            usersState.load().subscribe();
+
+            expect(usersState.snapshot.selectedUser).toEqual(newUsers[1]);
+        });
+
+        it('should update selected user if updated', () => {
+            const request = {};
+
+            const updated = createUser(2, '_new');
+
+            usersService.setup(x => x.putUser(user2, request))
+                .returns(() => of(updated)).verifiable();
+
+            usersState.update(user2, request).subscribe();
+
+            expect(usersState.snapshot.selectedUser).toEqual(updated);
+        });
+
+        it('should remove selected user from snapshot if deleted', () => {
+            usersService.setup(x => x.deleteUser(user2))
+                .returns(() => of(true)).verifiable();
+
+            usersState.delete(user2).subscribe();
+
+            expect(usersState.snapshot.selectedUser).toBeNull();
         });
     });
 });

@@ -7,7 +7,7 @@
 
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Host, Input, OnChanges, OnDestroy, Optional } from '@angular/core';
 import { AbstractControl, FormArray, FormGroupDirective } from '@angular/forms';
-import { fadeAnimation, StatefulComponent, Types } from '@app/framework/internal';
+import { fadeAnimation, LocalizerService, StatefulComponent, Types } from '@app/framework/internal';
 import { merge } from 'rxjs';
 import { formatError } from './error-formatting';
 
@@ -21,14 +21,14 @@ interface State {
     styleUrls: ['./control-errors.component.scss'],
     templateUrl: './control-errors.component.html',
     animations: [
-        fadeAnimation
+        fadeAnimation,
     ],
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ControlErrorsComponent extends StatefulComponent<State> implements OnChanges, OnDestroy {
     private displayFieldName: string;
     private control: AbstractControl;
-    private originalMarkAsTouched: any;
+    private controlOriginalMarkAsTouched: any;
 
     @Input()
     public for: string | AbstractControl;
@@ -36,20 +36,16 @@ export class ControlErrorsComponent extends StatefulComponent<State> implements 
     @Input()
     public fieldName: string;
 
-    @Input()
-    public errors: string;
-
-    @Input()
-    public submitted: boolean;
-
-    @Input()
-    public submitOnly = false;
+    public get isTouched() {
+        return this.control.touched || Types.is(this.control, FormArray);
+    }
 
     constructor(changeDetector: ChangeDetectorRef,
-        @Optional() @Host() private readonly formGroupDirective: FormGroupDirective
+        @Optional() @Host() private readonly formGroupDirective: FormGroupDirective,
+        private readonly localizer: LocalizerService,
     ) {
         super(changeDetector, {
-            errorMessages: []
+            errorMessages: [],
         });
     }
 
@@ -64,9 +60,15 @@ export class ControlErrorsComponent extends StatefulComponent<State> implements 
             this.displayFieldName = this.fieldName;
         } else if (this.for) {
             if (Types.isString(this.for)) {
-                this.displayFieldName = this.for.substr(0, 1).toUpperCase() + this.for.substr(1);
+                let translation = this.localizer.get(`common.${this.for}`)!;
+
+                if (!translation) {
+                    translation = this.for.substr(0, 1).toUpperCase() + this.for.substr(1);
+                }
+
+                this.displayFieldName = translation;
             } else {
-                this.displayFieldName = 'field';
+                this.displayFieldName = this.localizer.get('common.field')!;
             }
         }
 
@@ -93,12 +95,15 @@ export class ControlErrorsComponent extends StatefulComponent<State> implements 
                             this.createMessages();
                         }));
 
-                this.originalMarkAsTouched = this.control.markAsTouched;
+                this.controlOriginalMarkAsTouched = this.control.markAsTouched;
 
+                // eslint-disable-next-line @typescript-eslint/no-this-alias
                 const self = this;
 
+                // eslint-disable-next-line func-names
                 this.control['markAsTouched'] = function () {
-                    self.originalMarkAsTouched.apply(this, arguments);
+                    // eslint-disable-next-line prefer-rest-params
+                    self.controlOriginalMarkAsTouched.apply(this, arguments);
 
                     self.createMessages();
                 };
@@ -109,32 +114,30 @@ export class ControlErrorsComponent extends StatefulComponent<State> implements 
     }
 
     private unsetCustomMarkAsTouchedFunction() {
-        if (this.control && this.originalMarkAsTouched) {
-            this.control['markAsTouched'] = this.originalMarkAsTouched;
+        if (this.control && this.controlOriginalMarkAsTouched) {
+            this.control['markAsTouched'] = this.controlOriginalMarkAsTouched;
         }
     }
 
     private createMessages() {
-        const errors: string[] = [];
+        const errorMessages: string[] = [];
 
-        if (this.control && this.control.invalid && ((this.isTouched() && !this.submitOnly) || this.submitted) && this.control.errors) {
-            for (const key in <any>this.control.errors) {
+        if (this.control && this.control.invalid && this.isTouched && this.control.errors) {
+            for (const key in this.control.errors) {
                 if (this.control.errors.hasOwnProperty(key)) {
-                    const message = formatError(this.displayFieldName, key, this.control.errors[key], this.control.value, this.errors);
+                    const message = formatError(this.localizer, this.displayFieldName, key, this.control.errors[key], this.control.value);
 
-                    if (message) {
-                        errors.push(message);
+                    if (Types.isString(message)) {
+                        errorMessages.push(message);
+                    } else if (Types.isArray(message)) {
+                        for (const error of message) {
+                            errorMessages.push(error);
+                        }
                     }
                 }
             }
         }
 
-        if (errors.length !== this.snapshot.errorMessages.length || errors.length > 0) {
-            this.next(s => ({ ...s, errorMessages: errors }));
-        }
-    }
-
-    private isTouched() {
-        return this.control.touched || Types.is(this.control, FormArray);
+        this.next({ errorMessages });
     }
 }

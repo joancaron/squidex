@@ -1,14 +1,14 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using Squidex.Domain.Apps.Entities.Apps;
 using Squidex.Domain.Apps.Entities.Apps.Plans;
+using Squidex.Infrastructure.Validation;
 
 namespace Squidex.Areas.Api.Controllers.Plans.Models
 {
@@ -17,7 +17,7 @@ namespace Squidex.Areas.Api.Controllers.Plans.Models
         /// <summary>
         /// The available plans.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public PlanDto[] Plans { get; set; }
 
         /// <summary>

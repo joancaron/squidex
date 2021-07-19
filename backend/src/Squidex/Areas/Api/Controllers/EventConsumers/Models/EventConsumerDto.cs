@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -16,6 +16,8 @@ namespace Squidex.Areas.Api.Controllers.EventConsumers.Models
         public bool IsStopped { get; set; }
 
         public bool IsResetting { get; set; }
+
+        public int Count { get; set; }
 
         public string Name { get; set; }
 

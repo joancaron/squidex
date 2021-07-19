@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Squidex Headless CMS
  *
  * @license
@@ -7,7 +7,7 @@
 
 export class UIOptions {
     constructor(
-        private readonly value: any
+        private readonly value: any,
     ) {
     }
 
@@ -39,7 +39,7 @@ export class ApiUrlConfig {
 
     constructor(value: string) {
         if (value.indexOf('/', value.length - 1) < 0) {
-            value = value + '/';
+            value = `${value}/`;
         }
 
         this.value = value;
@@ -58,7 +58,7 @@ export class CurrencyConfig {
     constructor(
         public readonly code: string,
         public readonly symbol: string,
-        public readonly showAfter: boolean = true
+        public readonly showAfter: boolean = true,
     ) {
     }
 }

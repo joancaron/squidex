@@ -5,8 +5,6 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
- // tslint:disable: readonly-array
-
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { FilterLogical, FilterNode, LanguageDto, QueryModel } from '@app/shared/internal';
 
@@ -14,7 +12,7 @@ import { FilterLogical, FilterNode, LanguageDto, QueryModel } from '@app/shared/
     selector: 'sqx-filter-logical',
     styleUrls: ['./filter-logical.component.scss'],
     templateUrl: './filter-logical.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FilterLogicalComponent {
     private filterValue: FilterLogical;
@@ -32,16 +30,16 @@ export class FilterLogicalComponent {
     public level = 0;
 
     @Input()
-    public isRoot = false;
+    public isRoot?: boolean | null;
 
     @Input()
     public model: QueryModel;
 
     @Input()
-    public set filter(filter: FilterLogical) {
-        this.filterValue = filter;
+    public set filter(filter: FilterLogical | undefined | null) {
+        this.filterValue = filter || {};
 
-        this.updateFilters(filter);
+        this.updateFilters(this.filterValue);
     }
 
     public get filter() {
@@ -49,11 +47,11 @@ export class FilterLogicalComponent {
     }
 
     public get isAnd() {
-        return !!this.filter.and;
+        return !!this.filterValue.and;
     }
 
     public get isOr() {
-        return !!this.filter.or;
+        return !!this.filterValue.or;
     }
 
     public get nestedLevel() {

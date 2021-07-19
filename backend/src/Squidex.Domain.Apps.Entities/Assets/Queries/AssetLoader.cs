@@ -5,11 +5,11 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Threading.Tasks;
 using Orleans;
+using Squidex.Domain.Apps.Entities.Assets.DomainObject;
 using Squidex.Infrastructure;
-using Squidex.Infrastructure.Log;
+using Squidex.Log;
 
 namespace Squidex.Domain.Apps.Entities.Assets.Queries
 {
@@ -19,23 +19,23 @@ namespace Squidex.Domain.Apps.Entities.Assets.Queries
 
         public AssetLoader(IGrainFactory grainFactory)
         {
-            Guard.NotNull(grainFactory, nameof(grainFactory));
-
             this.grainFactory = grainFactory;
         }
 
-        public async Task<IAssetEntity> GetAsync(Guid id, long version)
+        public async Task<IAssetEntity?> GetAsync(DomainId appId, DomainId id, long version)
         {
             using (Profiler.TraceMethod<AssetLoader>())
             {
-                var assetGrain = grainFactory.GetGrain<IAssetGrain>(id);
+                var key = DomainId.Combine(appId, id);
+
+                var assetGrain = grainFactory.GetGrain<IAssetGrain>(key.ToString());
                 var assetState = await assetGrain.GetStateAsync(version);
 
                 var asset = assetState.Value;
 
                 if (asset == null || asset.Version <= EtagVersion.Empty || (version > EtagVersion.Any && asset.Version != version))
                 {
-                    throw new DomainObjectNotFoundException(id.ToString(), typeof(IAssetEntity));
+                    return null;
                 }
 
                 return asset;

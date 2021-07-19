@@ -6,16 +6,16 @@
  */
 
 import { Component, OnInit } from '@angular/core';
-import { AppLanguageDto, LanguagesState } from '@app/shared';
+import { LanguagesState, SnapshotLanguage } from '@app/shared';
 
 @Component({
     selector: 'sqx-languages-page',
     styleUrls: ['./languages-page.component.scss'],
-    templateUrl: './languages-page.component.html'
+    templateUrl: './languages-page.component.html',
 })
 export class LanguagesPageComponent implements OnInit {
     constructor(
-        public readonly languagesState: LanguagesState
+        public readonly languagesState: LanguagesState,
     ) {
     }
 
@@ -27,7 +27,7 @@ export class LanguagesPageComponent implements OnInit {
         this.languagesState.load(true);
     }
 
-    public trackByLanguage(index: number, language: { language: AppLanguageDto }) {
+    public trackByLanguage(_index: number, language: SnapshotLanguage) {
         return language.language.iso2Code;
     }
 }

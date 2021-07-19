@@ -8,17 +8,17 @@
 import { Component, OnInit } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
 import { Router } from '@angular/router';
-import { AppDto, AppsState, ResourceOwner, Types, UpdateAppForm } from '@app/shared';
+import { AppDto, AppsState, defined, ResourceOwner, Types, UpdateAppForm } from '@app/shared';
 
 @Component({
     selector: 'sqx-more-page',
     styleUrls: ['./more-page.component.scss'],
-    templateUrl: './more-page.component.html'
+    templateUrl: './more-page.component.html',
 })
 export class MorePageComponent extends ResourceOwner implements OnInit {
     public app: AppDto;
 
-    public isEditable: boolean;
+    public isEditable = false;
     public isImageEditable: boolean;
     public isDeletable: boolean;
 
@@ -30,14 +30,14 @@ export class MorePageComponent extends ResourceOwner implements OnInit {
     constructor(
         private readonly appsState: AppsState,
         private readonly formBuilder: FormBuilder,
-        private readonly router: Router
+        private readonly router: Router,
     ) {
         super();
     }
 
     public ngOnInit() {
         this.own(
-            this.appsState.selectedApp
+            this.appsState.selectedApp.pipe(defined())
                 .subscribe(app => {
                     this.app = app;
 
@@ -49,7 +49,7 @@ export class MorePageComponent extends ResourceOwner implements OnInit {
                     this.updateForm.setEnabled(this.isEditable);
                 }));
 
-        this.appsState.reloadSelected();
+        this.appsState.reloadApps();
     }
 
     public save() {

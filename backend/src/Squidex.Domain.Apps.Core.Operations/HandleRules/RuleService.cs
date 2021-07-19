@@ -1,29 +1,31 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
 using NodaTime;
 using Squidex.Domain.Apps.Core.Rules;
+using Squidex.Domain.Apps.Core.Rules.EnrichedEvents;
 using Squidex.Domain.Apps.Events;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.EventSourcing;
 using Squidex.Infrastructure.Json;
-using Squidex.Infrastructure.Log;
 using Squidex.Infrastructure.Reflection;
 using Squidex.Infrastructure.Tasks;
+using Squidex.Log;
 
 namespace Squidex.Domain.Apps.Core.HandleRules
 {
-    public class RuleService
+    public sealed class RuleService : IRuleService
     {
         private readonly Dictionary<Type, IRuleActionHandler> ruleActionHandlers;
         private readonly Dictionary<Type, IRuleTriggerHandler> ruleTriggerHandlers;
@@ -44,15 +46,6 @@ namespace Squidex.Domain.Apps.Core.HandleRules
             ISemanticLog log,
             TypeNameRegistry typeNameRegistry)
         {
-            Guard.NotNull(jsonSerializer, nameof(jsonSerializer));
-            Guard.NotNull(ruleOptions, nameof(ruleOptions));
-            Guard.NotNull(ruleTriggerHandlers, nameof(ruleTriggerHandlers));
-            Guard.NotNull(ruleActionHandlers, nameof(ruleActionHandlers));
-            Guard.NotNull(typeNameRegistry, nameof(typeNameRegistry));
-            Guard.NotNull(eventEnricher, nameof(eventEnricher));
-            Guard.NotNull(clock, nameof(clock));
-            Guard.NotNull(log, nameof(log));
-
             this.typeNameRegistry = typeNameRegistry;
 
             this.ruleOptions = ruleOptions.Value;
@@ -67,37 +60,134 @@ namespace Squidex.Domain.Apps.Core.HandleRules
             this.log = log;
         }
 
-        public virtual async Task<List<RuleJob>> CreateJobsAsync(Rule rule, Guid ruleId, Envelope<IEvent> @event, bool ignoreStale = false)
+        public bool CanCreateSnapshotEvents(RuleContext context)
         {
-            Guard.NotNull(rule, nameof(rule));
-            Guard.NotNull(@event, nameof(@event));
+            Guard.NotNull(context.Rule, nameof(context.Rule));
 
-            var result = new List<RuleJob>();
-
-            try
+            if (!ruleTriggerHandlers.TryGetValue(context.Rule.Trigger.GetType(), out var triggerHandler))
             {
-                if (!rule.IsEnabled)
+                return false;
+            }
+
+            return triggerHandler.CanCreateSnapshotEvents;
+        }
+
+        public async IAsyncEnumerable<JobResult> CreateSnapshotJobsAsync(RuleContext context,
+            [EnumeratorCancellation] CancellationToken ct = default)
+        {
+            Guard.NotNull(context.Rule, nameof(context.Rule));
+
+            var rule = context.Rule;
+
+            if (!rule.IsEnabled)
+            {
+                yield break;
+            }
+
+            if (!ruleTriggerHandlers.TryGetValue(rule.Trigger.GetType(), out var triggerHandler))
+            {
+                yield break;
+            }
+
+            if (!ruleActionHandlers.TryGetValue(rule.Action.GetType(), out var actionHandler))
+            {
+                yield break;
+            }
+
+            if (!triggerHandler.CanCreateSnapshotEvents)
+            {
+                yield break;
+            }
+
+            var now = clock.GetCurrentInstant();
+
+            await foreach (var enrichedEvent in triggerHandler.CreateSnapshotEventsAsync(context, ct))
+            {
+                JobResult? job;
+                try
                 {
-                    return result;
+                    await eventEnricher.EnrichAsync(enrichedEvent, null);
+
+                    if (!triggerHandler.Trigger(enrichedEvent, context))
+                    {
+                        continue;
+                    }
+
+                    job = await CreateJobAsync(actionHandler, enrichedEvent, context, now);
+                }
+                catch (Exception ex)
+                {
+                    job = new JobResult(null, ex);
                 }
 
-                if (!(@event.Payload is AppEvent))
+                yield return job;
+            }
+        }
+
+        public async IAsyncEnumerable<JobResult> CreateJobsAsync(Envelope<IEvent> @event, RuleContext context,
+            [EnumeratorCancellation] CancellationToken ct = default)
+        {
+            Guard.NotNull(@event, nameof(@event));
+
+            var jobs = new List<JobResult>();
+
+            await AddJobsAsync(jobs, @event, context, ct);
+
+            foreach (var job in jobs)
+            {
+                if (ct.IsCancellationRequested)
                 {
-                    return result;
+                    break;
+                }
+
+                yield return job;
+            }
+        }
+
+        private async Task AddJobsAsync(List<JobResult> jobs, Envelope<IEvent> @event, RuleContext context, CancellationToken ct)
+        {
+            try
+            {
+                var rule = context.Rule;
+
+                if (!rule.IsEnabled)
+                {
+                    jobs.Add(JobResult.Disabled);
+                    return;
+                }
+
+                if (@event.Payload is not AppEvent)
+                {
+                    jobs.Add(JobResult.EventMismatch);
+                    return;
                 }
 
                 var typed = @event.To<AppEvent>();
+
+                if (typed.Payload.FromRule)
+                {
+                    jobs.Add(JobResult.FromRule);
+                    return;
+                }
 
                 var actionType = rule.Action.GetType();
 
                 if (!ruleTriggerHandlers.TryGetValue(rule.Trigger.GetType(), out var triggerHandler))
                 {
-                    return result;
+                    jobs.Add(JobResult.NoTrigger);
+                    return;
+                }
+
+                if (!triggerHandler.Handles(typed.Payload))
+                {
+                    jobs.Add(JobResult.WrongEventForTrigger);
+                    return;
                 }
 
                 if (!ruleActionHandlers.TryGetValue(actionType, out var actionHandler))
                 {
-                    return result;
+                    jobs.Add(JobResult.NoAction);
+                    return;
                 }
 
                 var now = clock.GetCurrentInstant();
@@ -107,56 +197,50 @@ namespace Squidex.Domain.Apps.Core.HandleRules
                     @event.Headers.Timestamp() :
                     now;
 
-                if (!ignoreStale && eventTime.Plus(Constants.StaleTime) < now)
+                if (context.IgnoreStale && eventTime.Plus(Constants.StaleTime) < now)
                 {
-                    return result;
+                    jobs.Add(JobResult.TooOld);
+                    return;
                 }
 
-                var expires = eventTime.Plus(Constants.ExpirationTime);
-
-                if (!triggerHandler.Trigger(typed.Payload, rule.Trigger, ruleId))
+                if (!triggerHandler.Trigger(typed, context))
                 {
-                    return result;
+                    jobs.Add(JobResult.ConditionDoesNotMatch);
+                    return;
                 }
 
-                var appEventEnvelope = @event.To<AppEvent>();
-
-                var enrichedEvents = await triggerHandler.CreateEnrichedEventsAsync(appEventEnvelope);
-
-                foreach (var enrichedEvent in enrichedEvents)
+                await foreach (var enrichedEvent in triggerHandler.CreateEnrichedEventsAsync(typed, context, ct))
                 {
+                    if (string.IsNullOrWhiteSpace(enrichedEvent.Name))
+                    {
+                        enrichedEvent.Name = GetName(typed.Payload);
+                    }
+
                     try
                     {
                         await eventEnricher.EnrichAsync(enrichedEvent, typed);
 
-                        if (!triggerHandler.Trigger(enrichedEvent, rule.Trigger))
+                        if (!triggerHandler.Trigger(enrichedEvent, context))
                         {
+                            if (jobs.Count == 0)
+                            {
+                                jobs.Add(JobResult.ConditionDoesNotMatch);
+                            }
+
                             continue;
                         }
 
-                        var actionName = typeNameRegistry.GetName(actionType);
-                        var actionData = await actionHandler.CreateJobAsync(enrichedEvent, rule.Action);
+                        var job = await CreateJobAsync(actionHandler, enrichedEvent, context, now);
 
-                        var json = jsonSerializer.Serialize(actionData.Data);
-
-                        var job = new RuleJob
-                        {
-                            Id = Guid.NewGuid(),
-                            ActionData = json,
-                            ActionName = actionName,
-                            AppId = enrichedEvent.AppId.Id,
-                            Created = now,
-                            Description = actionData.Description,
-                            EventName = enrichedEvent.Name,
-                            ExecutionPartition = enrichedEvent.Partition,
-                            Expires = expires,
-                            RuleId = ruleId
-                        };
-
-                        result.Add(job);
+                        jobs.Add(job);
                     }
                     catch (Exception ex)
                     {
+                        if (jobs.Count == 0)
+                        {
+                            jobs.Add(new JobResult(null, ex, SkipReason.Failed));
+                        }
+
                         log.LogError(ex, w => w
                             .WriteProperty("action", "createRuleJobFromEvent")
                             .WriteProperty("status", "Failed"));
@@ -165,15 +249,72 @@ namespace Squidex.Domain.Apps.Core.HandleRules
             }
             catch (Exception ex)
             {
+                jobs.Add(new JobResult(null, ex, SkipReason.Failed));
+
                 log.LogError(ex, w => w
                     .WriteProperty("action", "createRuleJob")
                     .WriteProperty("status", "Failed"));
             }
-
-            return result;
         }
 
-        public virtual async Task<(Result Result, TimeSpan Elapsed)> InvokeAsync(string actionName, string job)
+        private async Task<JobResult> CreateJobAsync(IRuleActionHandler actionHandler, EnrichedEvent enrichedEvent, RuleContext context, Instant now)
+        {
+            var actionName = typeNameRegistry.GetName(context.Rule.Action.GetType());
+
+            var expires = now.Plus(Constants.ExpirationTime);
+
+            var job = new RuleJob
+            {
+                Id = DomainId.NewGuid(),
+                ActionData = string.Empty,
+                ActionName = actionName,
+                AppId = enrichedEvent.AppId.Id,
+                Created = now,
+                EventName = enrichedEvent.Name,
+                ExecutionPartition = enrichedEvent.Partition,
+                Expires = expires,
+                RuleId = context.RuleId
+            };
+
+            try
+            {
+                var (description, data) = await actionHandler.CreateJobAsync(enrichedEvent, context.Rule.Action);
+
+                var json = jsonSerializer.Serialize(data);
+
+                job.ActionData = json;
+                job.ActionName = actionName;
+                job.Description = description;
+
+                return new JobResult(job, null);
+            }
+            catch (Exception ex)
+            {
+                job.Description = "Failed to create job";
+
+                return new JobResult(job, ex);
+            }
+        }
+
+        public string GetName(AppEvent @event)
+        {
+            foreach (var handler in ruleTriggerHandlers.Values)
+            {
+                if (handler.Handles(@event))
+                {
+                    var name = handler.GetName(@event);
+
+                    if (!string.IsNullOrWhiteSpace(name))
+                    {
+                        return name;
+                    }
+                }
+            }
+
+            return @event.GetType().Name;
+        }
+
+        public async Task<(Result Result, TimeSpan Elapsed)> InvokeAsync(string actionName, string job)
         {
             var actionWatch = ValueStopwatch.StartNew();
 

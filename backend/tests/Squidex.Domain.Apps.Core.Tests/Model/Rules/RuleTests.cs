@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -11,6 +11,7 @@ using System.Linq;
 using FluentAssertions;
 using Squidex.Domain.Apps.Core.Rules;
 using Squidex.Domain.Apps.Core.Rules.Triggers;
+using Squidex.Domain.Apps.Core.TestHelpers;
 using Squidex.Infrastructure.Migrations;
 using Squidex.Infrastructure.Reflection;
 using Xunit;
@@ -30,7 +31,7 @@ namespace Squidex.Domain.Apps.Core.Model.Rules
 
         private readonly Rule rule_0 = new Rule(new ContentChangedTriggerV2(), new TestAction1());
 
-        public sealed class OtherTrigger : RuleTrigger
+        public sealed record OtherTrigger : RuleTrigger
         {
             public override T Accept<T>(IRuleTriggerVisitor<T> visitor)
             {
@@ -38,7 +39,7 @@ namespace Squidex.Domain.Apps.Core.Model.Rules
             }
         }
 
-        public sealed class MigratedTrigger : RuleTrigger, IMigrated<RuleTrigger>
+        public sealed record MigratedTrigger : RuleTrigger, IMigrated<RuleTrigger>
         {
             public override T Accept<T>(IRuleTriggerVisitor<T> visitor)
             {
@@ -52,13 +53,13 @@ namespace Squidex.Domain.Apps.Core.Model.Rules
         }
 
         [TypeName(nameof(TestAction1))]
-        public sealed class TestAction1 : RuleAction
+        public sealed record TestAction1 : RuleAction
         {
             public string Property { get; set; }
         }
 
         [TypeName(nameof(TestAction2))]
-        public sealed class TestAction2 : RuleAction
+        public sealed record TestAction2 : RuleAction
         {
             public string Property { get; set; }
         }
@@ -77,7 +78,7 @@ namespace Squidex.Domain.Apps.Core.Model.Rules
         }
 
         [Fact]
-        public void Should_set_enabled_to_true_when_enabling()
+        public void Should_set_enabled_to_true_if_enabling()
         {
             var rule_1 = rule_0.Disable();
             var rule_2 = rule_1.Enable();
@@ -94,7 +95,7 @@ namespace Squidex.Domain.Apps.Core.Model.Rules
         }
 
         [Fact]
-        public void Should_set_enabled_to_false_when_disabling()
+        public void Should_set_enabled_to_false_if_disabling()
         {
             var rule_1 = rule_0.Disable();
             var rule_2 = rule_1.Disable();
@@ -108,7 +109,7 @@ namespace Squidex.Domain.Apps.Core.Model.Rules
         }
 
         [Fact]
-        public void Should_replace_name_when_renaming()
+        public void Should_replace_name_if_renaming()
         {
             var rule_1 = rule_0.Rename("MyName");
             var rule_2 = rule_1.Rename("MyName");
@@ -121,7 +122,7 @@ namespace Squidex.Domain.Apps.Core.Model.Rules
         }
 
         [Fact]
-        public void Should_replace_trigger_when_updating()
+        public void Should_replace_trigger_if_updating()
         {
             var newTrigger1 = new ContentChangedTriggerV2 { HandleAll = true };
             var newTrigger2 = new ContentChangedTriggerV2 { HandleAll = true };
@@ -137,13 +138,13 @@ namespace Squidex.Domain.Apps.Core.Model.Rules
         }
 
         [Fact]
-        public void Should_throw_exception_when_new_trigger_has_other_type()
+        public void Should_throw_exception_if_new_trigger_has_other_type()
         {
             Assert.Throws<ArgumentException>(() => rule_0.Update(new OtherTrigger()));
         }
 
         [Fact]
-        public void Should_replace_action_when_updating()
+        public void Should_replace_action_if_updating()
         {
             var newAction1 = new TestAction1 { Property = "NewValue" };
             var newAction2 = new TestAction1 { Property = "NewValue" };
@@ -159,7 +160,7 @@ namespace Squidex.Domain.Apps.Core.Model.Rules
         }
 
         [Fact]
-        public void Should_throw_exception_when_new_action_has_other_type()
+        public void Should_throw_exception_if_new_action_has_other_type()
         {
             Assert.Throws<ArgumentException>(() => rule_0.Update(new TestAction2()));
         }
@@ -182,13 +183,6 @@ namespace Squidex.Domain.Apps.Core.Model.Rules
             var serialized = rule_X.SerializeAndDeserialize();
 
             Assert.IsType<OtherTrigger>(serialized.Trigger);
-        }
-
-        [Theory]
-        [MemberData(nameof(Triggers))]
-        public void Should_freeze_triggers(RuleTrigger trigger)
-        {
-            TestUtils.TestFreeze(trigger);
         }
     }
 }

@@ -1,15 +1,15 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using Squidex.Domain.Apps.Core.Apps;
 using Squidex.Domain.Apps.Entities.Apps;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.Validation;
 using Squidex.Web;
 
 namespace Squidex.Areas.Api.Controllers.Apps.Models
@@ -19,19 +19,19 @@ namespace Squidex.Areas.Api.Controllers.Apps.Models
         /// <summary>
         /// The iso code of the language.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public string Iso2Code { get; set; }
 
         /// <summary>
         /// The english name of the language.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public string EnglishName { get; set; }
 
         /// <summary>
         /// The fallback languages.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public Language[] Fallback { get; set; }
 
         /// <summary>
@@ -58,9 +58,9 @@ namespace Squidex.Areas.Api.Controllers.Apps.Models
             return result;
         }
 
-        public AppLanguageDto WithLinks(Resources resources, IAppEntity app)
+        public AppLanguageDto CreateLinks(Resources resources, IAppEntity app)
         {
-            var values = new { app = app.Name, language = Iso2Code };
+            var values = new { app = resources.App, language = Iso2Code };
 
             if (!IsMaster)
             {
@@ -69,7 +69,7 @@ namespace Squidex.Areas.Api.Controllers.Apps.Models
                     AddPutLink("update", resources.Url<AppLanguagesController>(x => nameof(x.PutLanguage), values));
                 }
 
-                if (resources.CanDeleteLanguage && app.LanguagesConfig.Languages.Count > 1)
+                if (resources.CanDeleteLanguage && app.Languages.Languages.Count > 1)
                 {
                     AddDeleteLink("delete", resources.Url<AppLanguagesController>(x => nameof(x.DeleteLanguage), values));
                 }

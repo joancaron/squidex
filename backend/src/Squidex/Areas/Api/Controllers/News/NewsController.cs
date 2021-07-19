@@ -6,6 +6,7 @@
 // ==========================================================================
 
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Squidex.Areas.Api.Controllers.News.Models;
 using Squidex.Areas.Api.Controllers.News.Service;
@@ -37,9 +38,9 @@ namespace Squidex.Areas.Api.Controllers.News
         /// </returns>
         [HttpGet]
         [Route("news/features/")]
-        [ProducesResponseType(typeof(FeaturesDto), 200)]
+        [ProducesResponseType(typeof(FeaturesDto), StatusCodes.Status200OK)]
         [ApiPermission]
-        public async Task<IActionResult> GetLanguages([FromQuery] int version = 0)
+        public async Task<IActionResult> GetNews([FromQuery] int version = 0)
         {
             var features = await featuresService.GetFeaturesAsync(version);
 

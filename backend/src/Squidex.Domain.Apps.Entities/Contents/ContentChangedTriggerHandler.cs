@@ -1,98 +1,166 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
-using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Threading;
 using Squidex.Domain.Apps.Core.Contents;
 using Squidex.Domain.Apps.Core.HandleRules;
 using Squidex.Domain.Apps.Core.Rules.EnrichedEvents;
 using Squidex.Domain.Apps.Core.Rules.Triggers;
 using Squidex.Domain.Apps.Core.Scripting;
+using Squidex.Domain.Apps.Entities.Contents.Repositories;
+using Squidex.Domain.Apps.Events;
 using Squidex.Domain.Apps.Events.Contents;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.EventSourcing;
 using Squidex.Infrastructure.Reflection;
+using Squidex.Text;
 
 namespace Squidex.Domain.Apps.Entities.Contents
 {
-    public sealed class ContentChangedTriggerHandler : RuleTriggerHandler<ContentChangedTriggerV2, ContentEvent, EnrichedContentEvent>
+    public sealed class ContentChangedTriggerHandler : IRuleTriggerHandler
     {
         private readonly IScriptEngine scriptEngine;
         private readonly IContentLoader contentLoader;
+        private readonly IContentRepository contentRepository;
 
-        public ContentChangedTriggerHandler(IScriptEngine scriptEngine, IContentLoader contentLoader)
+        public bool CanCreateSnapshotEvents => true;
+
+        public Type TriggerType => typeof(ContentChangedTriggerV2);
+
+        public bool Handles(AppEvent appEvent)
         {
-            Guard.NotNull(scriptEngine, nameof(scriptEngine));
-            Guard.NotNull(contentLoader, nameof(contentLoader));
-
-            this.scriptEngine = scriptEngine;
-
-            this.contentLoader = contentLoader;
+            return appEvent is ContentEvent;
         }
 
-        protected override async Task<EnrichedContentEvent?> CreateEnrichedEventAsync(Envelope<ContentEvent> @event)
+        public ContentChangedTriggerHandler(
+            IScriptEngine scriptEngine,
+            IContentLoader contentLoader,
+            IContentRepository contentRepository)
         {
+            this.scriptEngine = scriptEngine;
+            this.contentLoader = contentLoader;
+            this.contentRepository = contentRepository;
+        }
+
+        public async IAsyncEnumerable<EnrichedEvent> CreateSnapshotEventsAsync(RuleContext context,
+            [EnumeratorCancellation] CancellationToken ct = default)
+        {
+            var trigger = (ContentChangedTriggerV2)context.Rule.Trigger;
+
+            var schemaIds =
+                trigger.Schemas?.Count > 0 ?
+                trigger.Schemas.Select(x => x.SchemaId).Distinct().ToHashSet() :
+                null;
+
+            await foreach (var content in contentRepository.StreamAll(context.AppId.Id, schemaIds, ct))
+            {
+                var result = new EnrichedContentEvent
+                {
+                    Type = EnrichedContentEventType.Created
+                };
+
+                SimpleMapper.Map(content, result);
+
+                result.Actor = content.LastModifiedBy;
+                result.Name = $"ContentQueried({content.SchemaId.Name.ToPascalCase()})";
+
+                yield return result;
+            }
+        }
+
+        public async IAsyncEnumerable<EnrichedEvent> CreateEnrichedEventsAsync(Envelope<AppEvent> @event, RuleContext context,
+            [EnumeratorCancellation] CancellationToken ct = default)
+        {
+            var contentEvent = (ContentEvent)@event.Payload;
+
             var result = new EnrichedContentEvent();
 
             var content =
                 await contentLoader.GetAsync(
-                    @event.Headers.AggregateId(),
+                    contentEvent.AppId.Id,
+                    contentEvent.ContentId,
                     @event.Headers.EventStreamNumber());
 
-            SimpleMapper.Map(content, result);
+            if (content != null)
+            {
+                SimpleMapper.Map(content, result);
+            }
 
             switch (@event.Payload)
             {
-                case ContentCreated _:
+                case ContentCreated:
                     result.Type = EnrichedContentEventType.Created;
                     break;
-                case ContentDeleted _:
+                case ContentDeleted:
                     result.Type = EnrichedContentEventType.Deleted;
                     break;
-
-                case ContentStatusChanged statusChanged:
+                case ContentStatusChanged e when e.Change == StatusChange.Published:
+                    result.Type = EnrichedContentEventType.Published;
+                    break;
+                case ContentStatusChanged e when e.Change == StatusChange.Unpublished:
+                    result.Type = EnrichedContentEventType.Unpublished;
+                    break;
+                case ContentStatusChanged e when e.Change == StatusChange.Change:
+                    result.Type = EnrichedContentEventType.StatusChanged;
+                    break;
+                case ContentUpdated:
                     {
-                        switch (statusChanged.Change)
+                        result.Type = EnrichedContentEventType.Updated;
+
+                        if (content != null)
                         {
-                            case StatusChange.Published:
-                                result.Type = EnrichedContentEventType.Published;
-                                break;
-                            case StatusChange.Unpublished:
-                                result.Type = EnrichedContentEventType.Unpublished;
-                                break;
-                            default:
-                                result.Type = EnrichedContentEventType.StatusChanged;
-                                break;
+                            var previousContent =
+                                await contentLoader.GetAsync(
+                                    content.AppId.Id,
+                                    content.Id,
+                                    content.Version - 1);
+
+                            if (previousContent != null)
+                            {
+                                result.DataOld = previousContent.Data;
+                            }
                         }
 
                         break;
                     }
-
-                case ContentUpdated _:
-                    {
-                        result.Type = EnrichedContentEventType.Updated;
-
-                        var previousContent =
-                            await contentLoader.GetAsync(
-                                content.Id,
-                                content.Version - 1);
-
-                        result.DataOld = previousContent.Data;
-                        break;
-                    }
             }
 
-            result.Name = $"{content.SchemaId.Name.ToPascalCase()}{result.Type}";
-
-            return result;
+            yield return result;
         }
 
-        protected override bool Trigger(ContentEvent @event, ContentChangedTriggerV2 trigger, Guid ruleId)
+        public string? GetName(AppEvent @event)
         {
+            switch (@event)
+            {
+                case ContentCreated e:
+                    return $"{e.SchemaId.Name.ToPascalCase()}Created";
+                case ContentDeleted e:
+                    return $"{e.SchemaId.Name.ToPascalCase()}Deleted";
+                case ContentStatusChanged e when e.Change == StatusChange.Published:
+                    return $"{e.SchemaId.Name.ToPascalCase()}Published";
+                case ContentStatusChanged e when e.Change == StatusChange.Unpublished:
+                    return $"{e.SchemaId.Name.ToPascalCase()}Unpublished";
+                case ContentStatusChanged e when e.Change == StatusChange.Change:
+                    return $"{e.SchemaId.Name.ToPascalCase()}StatusChanged";
+                case ContentUpdated e:
+                    return $"{e.SchemaId.Name.ToPascalCase()}Updated";
+            }
+
+            return null;
+        }
+
+        public bool Trigger(Envelope<AppEvent> @event, RuleContext context)
+        {
+            var trigger = (ContentChangedTriggerV2)context.Rule.Trigger;
+
             if (trigger.HandleAll)
             {
                 return true;
@@ -100,9 +168,11 @@ namespace Squidex.Domain.Apps.Entities.Contents
 
             if (trigger.Schemas != null)
             {
+                var contentEvent = (ContentEvent)@event.Payload;
+
                 foreach (var schema in trigger.Schemas)
                 {
-                    if (MatchsSchema(schema, @event.SchemaId))
+                    if (MatchsSchema(schema, contentEvent.SchemaId))
                     {
                         return true;
                     }
@@ -112,8 +182,10 @@ namespace Squidex.Domain.Apps.Entities.Contents
             return false;
         }
 
-        protected override bool Trigger(EnrichedContentEvent @event, ContentChangedTriggerV2 trigger)
+        public bool Trigger(EnrichedEvent @event, RuleContext context)
         {
+            var trigger = (ContentChangedTriggerV2)context.Rule.Trigger;
+
             if (trigger.HandleAll)
             {
                 return true;
@@ -121,9 +193,11 @@ namespace Squidex.Domain.Apps.Entities.Contents
 
             if (trigger.Schemas != null)
             {
+                var contentEvent = (EnrichedContentEvent)@event;
+
                 foreach (var schema in trigger.Schemas)
                 {
-                    if (MatchsSchema(schema, @event.SchemaId) && MatchsCondition(schema, @event))
+                    if (MatchsSchema(schema, contentEvent.SchemaId) && MatchsCondition(schema, contentEvent))
                     {
                         return true;
                     }
@@ -133,9 +207,9 @@ namespace Squidex.Domain.Apps.Entities.Contents
             return false;
         }
 
-        private static bool MatchsSchema(ContentChangedTriggerSchemaV2 schema, NamedId<Guid> eventId)
+        private static bool MatchsSchema(ContentChangedTriggerSchemaV2? schema, NamedId<DomainId> eventId)
         {
-            return eventId.Id == schema.SchemaId;
+            return eventId.Id == schema?.SchemaId;
         }
 
         private bool MatchsCondition(ContentChangedTriggerSchemaV2 schema, EnrichedSchemaEventBase @event)
@@ -145,12 +219,12 @@ namespace Squidex.Domain.Apps.Entities.Contents
                 return true;
             }
 
-            var context = new ScriptContext
+            var vars = new ScriptVars
             {
                 ["event"] = @event
             };
 
-            return scriptEngine.Evaluate(context, schema.Condition);
+            return scriptEngine.Evaluate(vars, schema.Condition);
         }
     }
 }

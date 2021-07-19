@@ -5,17 +5,25 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
+using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
+using Squidex.Infrastructure;
 
 namespace Squidex.Domain.Apps.Entities.Rules.Runner
 {
     public interface IRuleRunnerService
     {
-        Task RunAsync(Guid appId, Guid ruleId);
+        Task<List<SimulatedRuleEvent>> SimulateAsync(IRuleEntity rule, CancellationToken ct);
 
-        Task CancelAsync(Guid appId);
+        Task RunAsync(DomainId appId, DomainId ruleId, bool fromSnapshots = false);
 
-        Task<Guid?> GetRunningRuleIdAsync(Guid appId);
+        Task CancelAsync(DomainId appId);
+
+        bool CanRunRule(IRuleEntity rule);
+
+        bool CanRunFromSnapshots(IRuleEntity rule);
+
+        Task<DomainId?> GetRunningRuleIdAsync(DomainId appId);
     }
 }

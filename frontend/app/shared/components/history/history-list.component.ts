@@ -12,13 +12,13 @@ import { HistoryEventDto } from '@app/shared/internal';
     selector: 'sqx-history-list',
     styleUrls: ['./history-list.component.scss'],
     templateUrl: './history-list.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HistoryListComponent {
     @Input()
-    public events: ReadonlyArray<HistoryEventDto>;
+    public events: ReadonlyArray<HistoryEventDto> | undefined | null;
 
-    public trackByEvent(index: number, event: HistoryEventDto) {
+    public trackByEvent(_index: number, event: HistoryEventDto) {
         return event.eventId;
     }
 }

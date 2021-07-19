@@ -11,9 +11,9 @@ import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
     selector: 'sqx-logo',
     styleUrls: ['./logo.component.scss'],
     templateUrl: './logo.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LogoComponent {
     @Input()
-    public isLoading = false;
+    public isLoading?: boolean | null;
 }

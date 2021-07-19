@@ -11,15 +11,12 @@ import { NG_VALUE_ACCESSOR } from '@angular/forms';
 import { AppLanguageDto, AppsState, ContentDto, ContentsService, DialogModel, sorted, StatefulControlComponent, Types } from '@app/shared';
 
 export const SQX_REFERENCES_EDITOR_CONTROL_VALUE_ACCESSOR: any = {
-    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => ReferencesEditorComponent), multi: true
+    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => ReferencesEditorComponent), multi: true,
 };
 
 interface State {
     // The content items to show.
     contentItems: ReadonlyArray<ContentDto>;
-
-    // The maximum number of columns.
-    columns: number;
 
     // True, when width less than 600 pixels.
     isCompact?: boolean;
@@ -30,9 +27,9 @@ interface State {
     styleUrls: ['./references-editor.component.scss'],
     templateUrl: './references-editor.component.html',
     providers: [
-        SQX_REFERENCES_EDITOR_CONTROL_VALUE_ACCESSOR
+        SQX_REFERENCES_EDITOR_CONTROL_VALUE_ACCESSOR,
     ],
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ReferencesEditorComponent extends StatefulControlComponent<State, ReadonlyArray<string>> {
     @Input()
@@ -45,16 +42,26 @@ export class ReferencesEditorComponent extends StatefulControlComponent<State, R
     public languages: ReadonlyArray<AppLanguageDto>;
 
     @Input()
-    public allowDuplicates = true;
+    public formContext: any;
+
+    @Input()
+    public allowDuplicates?: boolean | null = true;
+
+    @Input()
+    public set disabled(value: boolean | null | undefined) {
+        this.setDisabledState(value === true);
+    }
+
+    public clonedContent?: ContentDto;
 
     public contentCreatorDialog = new DialogModel();
     public contentSelectorDialog = new DialogModel();
 
     constructor(changeDetector: ChangeDetectorRef,
         private readonly appsState: AppsState,
-        private readonly contentsService: ContentsService
+        private readonly contentsService: ContentsService,
     ) {
-        super(changeDetector, { contentItems: [], columns: 0 });
+        super(changeDetector, { contentItems: [] });
     }
 
     public writeValue(obj: any) {
@@ -79,13 +86,7 @@ export class ReferencesEditorComponent extends StatefulControlComponent<State, R
     }
 
     public setContentItems(contentItems: ReadonlyArray<ContentDto>) {
-        let columns = 1;
-
-        for (const content of contentItems) {
-            columns = Math.max(columns, content.referenceFields.length);
-        }
-
-        this.next(s => ({ ...s, contentItems, columns }));
+        this.next({ contentItems });
     }
 
     public select(contents: ReadonlyArray<ContentDto>) {
@@ -115,6 +116,12 @@ export class ReferencesEditorComponent extends StatefulControlComponent<State, R
         }
     }
 
+    public createContent(clone?: ContentDto) {
+        this.clonedContent = clone;
+
+        this.contentCreatorDialog.show();
+    }
+
     private updateValue() {
         const ids = this.snapshot.contentItems.map(x => x.id);
 
@@ -128,10 +135,10 @@ export class ReferencesEditorComponent extends StatefulControlComponent<State, R
     }
 
     public setCompact(isCompact: boolean) {
-        this.next(s => ({ ...s, isCompact }));
+        this.next({ isCompact });
     }
 
-    public trackByContent(index: number, content: ContentDto) {
+    public trackByContent(_index: number, content: ContentDto) {
         return content.id;
     }
 }

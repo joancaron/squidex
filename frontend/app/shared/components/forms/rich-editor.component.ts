@@ -5,41 +5,39 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable: prefer-for-of
-
-import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, forwardRef, OnDestroy, Output, ViewChild } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, forwardRef, Input, OnDestroy, Output, ViewChild } from '@angular/core';
 import { NG_VALUE_ACCESSOR } from '@angular/forms';
-import { ApiUrlConfig, AssetDto, AssetUploaderState, DialogModel, ResourceLoaderService, StatefulControlComponent, Types, UploadCanceled } from '@app/shared/internal';
+import { ApiUrlConfig, AssetDto, AssetUploaderState, DialogModel, LocalizerService, ResourceLoaderService, StatefulControlComponent, Types, UploadCanceled } from '@app/shared/internal';
 
-declare var tinymce: any;
+declare const tinymce: any;
 
 export const SQX_RICH_EDITOR_CONTROL_VALUE_ACCESSOR: any = {
-    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => RichEditorComponent), multi: true
+    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => RichEditorComponent), multi: true,
 };
-
-const ImageTypes: ReadonlyArray<any> = [
-    'image/jpeg',
-    'image/png',
-    'image/jpg',
-    'image/gif'
-];
 
 @Component({
     selector: 'sqx-rich-editor',
     styleUrls: ['./rich-editor.component.scss'],
     templateUrl: './rich-editor.component.html',
     providers: [
-        SQX_RICH_EDITOR_CONTROL_VALUE_ACCESSOR
+        SQX_RICH_EDITOR_CONTROL_VALUE_ACCESSOR,
     ],
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class RichEditorComponent extends StatefulControlComponent<undefined, string> implements AfterViewInit, OnDestroy {
+export class RichEditorComponent extends StatefulControlComponent<{}, string> implements AfterViewInit, OnDestroy {
     private tinyEditor: any;
     private value: string;
-    private isDisabled = false;
 
     @Output()
     public assetPluginClick = new EventEmitter<any>();
+
+    @Input()
+    public folderId: string;
+
+    @Input()
+    public set disabled(value: boolean | null | undefined) {
+        this.setDisabledState(value === true);
+    }
 
     @ViewChild('editor', { static: false })
     public editor: ElementRef;
@@ -49,9 +47,10 @@ export class RichEditorComponent extends StatefulControlComponent<undefined, str
     constructor(changeDetector: ChangeDetectorRef,
         private readonly apiUrl: ApiUrlConfig,
         private readonly assetUploader: AssetUploaderState,
-        private readonly resourceLoader: ResourceLoaderService
+        private readonly resourceLoader: ResourceLoaderService,
+        private readonly localizer: LocalizerService,
     ) {
-        super(changeDetector, undefined);
+        super(changeDetector, {});
     }
 
     public ngOnDestroy() {
@@ -62,7 +61,7 @@ export class RichEditorComponent extends StatefulControlComponent<undefined, str
     }
 
     public ngAfterViewInit() {
-        this.resourceLoader.loadScript('https://cdnjs.cloudflare.com/ajax/libs/tinymce/5.2.0/tinymce.min.js').then(() => {
+        this.resourceLoader.loadLocalScript('dependencies/tinymce/tinymce.min.js').then(() => {
             const timer = setInterval(() => {
                 const target = this.editor.nativeElement;
 
@@ -84,14 +83,15 @@ export class RichEditorComponent extends StatefulControlComponent<undefined, str
     }
 
     private showSelector = () => {
-        if (this.isDisabled) {
+        if (this.snapshot.isDisabled) {
             return;
         }
 
         this.assetsDialog.show();
-    }
+    };
 
     private getEditorOptions(target: any): any {
+        // eslint-disable-next-line @typescript-eslint/no-this-alias
         const self = this;
 
         return {
@@ -117,7 +117,7 @@ export class RichEditorComponent extends StatefulControlComponent<undefined, str
                     onAction: self.showSelector,
                     icon: 'gallery',
                     text: '',
-                    tooltip: 'Insert Assets'
+                    tooltip: this.localizer.getOrKey('assets.insertAssets'),
                 });
 
                 editor.on('init', () => {
@@ -128,36 +128,50 @@ export class RichEditorComponent extends StatefulControlComponent<undefined, str
                 });
 
                 editor.on('change', () => {
-                    const value = editor.getContent();
-
-                    if (this.value !== value) {
-                        this.value = value;
-
-                        self.callChange(value);
-                    }
+                    self.onValueChanged();
                 });
 
                 editor.on('paste', (event: ClipboardEvent) => {
+                    let hasFileDropped = false;
+
                     if (event.clipboardData) {
                         for (let i = 0; i < event.clipboardData.items.length; i++) {
                             const file = event.clipboardData.items[i].getAsFile();
 
-                            if (file && ImageTypes.indexOf(file.type) >= 0) {
+                            if (file) {
                                 self.uploadFile(file);
+
+                                hasFileDropped = true;
                             }
                         }
                     }
+
+                    if (!hasFileDropped) {
+                        self.onValueChanged();
+                    } else {
+                        return false;
+                    }
+
+                    return undefined;
                 });
 
                 editor.on('drop', (event: DragEvent) => {
+                    let hasFileDropped = false;
+
                     if (event.dataTransfer) {
                         for (let i = 0; i < event.dataTransfer.files.length; i++) {
                             const file = event.dataTransfer.files.item(i);
 
-                            if (file && ImageTypes.indexOf(file.type) >= 0) {
+                            if (file) {
                                 self.uploadFile(file);
+
+                                hasFileDropped = true;
                             }
                         }
+                    }
+
+                    if (!hasFileDropped) {
+                        self.onValueChanged();
                     }
 
                     return false;
@@ -168,8 +182,18 @@ export class RichEditorComponent extends StatefulControlComponent<undefined, str
                 });
             },
 
-            target
+            target,
         };
+    }
+
+    private onValueChanged() {
+        const value = this.tinyEditor.getContent();
+
+        if (this.value !== value) {
+            this.value = value;
+
+            this.callChange(value);
+        }
     }
 
     public writeValue(obj: any) {
@@ -180,9 +204,7 @@ export class RichEditorComponent extends StatefulControlComponent<undefined, str
         }
     }
 
-    public setDisabledState(isDisabled: boolean): void {
-        this.isDisabled = isDisabled;
-
+    public onDisabled() {
         if (this.tinyEditor && this.tinyEditor.initialized) {
             this.setReadOnly();
         }
@@ -193,25 +215,11 @@ export class RichEditorComponent extends StatefulControlComponent<undefined, str
     }
 
     private setReadOnly() {
-        this.tinyEditor.setMode(this.isDisabled ? 'readonly' : 'design');
+        this.tinyEditor.setMode(this.snapshot.isDisabled ? 'readonly' : 'design');
     }
 
     public insertAssets(assets: ReadonlyArray<AssetDto>) {
-        let content = '';
-
-        for (const asset of assets) {
-            switch (asset.type) {
-                case 'Image':
-                    content += `<img src="${asset.fullUrl(this.apiUrl)}" alt="${asset.fileName}" />`;
-                    break;
-                case 'Video':
-                    content += `<video src="${asset.fullUrl(this.apiUrl)}" />`;
-                    break;
-                default:
-                    content += `<a href="${asset.fullUrl(this.apiUrl)}" alt="${asset.fileName}">${asset.fileName}</a>`;
-                    break;
-            }
-        }
+        const content = this.buildMarkups(assets);
 
         if (content.length > 0) {
             this.tinyEditor.execCommand('mceInsertContent', false, content);
@@ -232,25 +240,43 @@ export class RichEditorComponent extends StatefulControlComponent<undefined, str
         this.tinyEditor.execCommand('mceInsertContent', false, uploadText);
 
         const replaceText = (replacement: string) => {
-            const content =  this.tinyEditor.getContent().replace(uploadText, replacement);
+            const content = this.tinyEditor.getContent().replace(uploadText, replacement);
 
             this.tinyEditor.setContent(content);
         };
 
-        this.assetUploader.uploadFile(file)
+        this.assetUploader.uploadFile(file, undefined, this.folderId)
             .subscribe(asset => {
                 if (Types.is(asset, AssetDto)) {
-                    if (asset.type === 'Video') {
-                        replaceText(`<video src="${asset.fullUrl(this.apiUrl)}" />`);
-                    } else {
-                        replaceText(`<img src="${asset.fullUrl(this.apiUrl)}" alt="${asset.fileName}" />`);
-                    }
+                    replaceText(this.buildMarkup(asset));
                 }
             }, error => {
                 if (!Types.is(error, UploadCanceled)) {
                     replaceText('FAILED');
                 }
             });
+    }
+
+    private buildMarkups(assets: readonly AssetDto[]) {
+        let content = '';
+
+        for (const asset of assets) {
+            content += this.buildMarkup(asset);
+        }
+
+        return content;
+    }
+
+    private buildMarkup(asset: AssetDto) {
+        const name = asset.fileNameWithoutExtension;
+
+        if (asset.type === 'Image' || asset.mimeType === 'image/svg+xml' || asset.fileName.endsWith('.svg')) {
+            return `<img src="${asset.fullUrl(this.apiUrl)}" alt="${name}" />`;
+        } else if (asset.type === 'Video') {
+            return `<video src="${asset.fullUrl(this.apiUrl)}" />`;
+        } else {
+            return `<a href="${asset.fullUrl(this.apiUrl)}" alt="${name}">${name}</a>`;
+        }
     }
 }
 
@@ -263,5 +289,5 @@ const DEFAULT_PROPS = {
     max_height: 800,
     removed_menuitems: 'newdocument',
     resize: true,
-    toolbar: 'undo redo | styleselect | bold italic | alignleft aligncenter | bullist numlist outdent indent | link image media | assets'
+    toolbar: 'undo redo | styleselect | bold italic | alignleft aligncenter | bullist numlist outdent indent | link image media | assets',
 };

@@ -8,43 +8,50 @@
 import { CdkDragDrop } from '@angular/cdk/drag-drop';
 import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
-import { createProperties, DialogModel, EditFieldForm, fadeAnimation, ModalModel, NestedFieldDto, PatternDto, RootFieldDto, SchemaDetailsDto, SchemasState, sorted } from '@app/shared';
+import { AppSettingsDto, createProperties, DialogModel, EditFieldForm, fadeAnimation, LanguageDto, ModalModel, NestedFieldDto, RootFieldDto, SchemaDto, SchemasState, sorted } from '@app/shared';
 
 @Component({
     selector: 'sqx-field',
     styleUrls: ['./field.component.scss'],
     templateUrl: './field.component.html',
     animations: [
-        fadeAnimation
-    ]
+        fadeAnimation,
+    ],
 })
 export class FieldComponent implements OnChanges {
     @Input()
     public field: NestedFieldDto | RootFieldDto;
 
     @Input()
-    public schema: SchemaDetailsDto;
+    public schema: SchemaDto;
 
     @Input()
     public parent: RootFieldDto;
 
     @Input()
-    public patterns: ReadonlyArray<PatternDto>;
+    public languages: ReadonlyArray<LanguageDto>;
+
+    @Input()
+    public settings: AppSettingsDto;
+
+    public get isLocalizable() {
+        return (this.parent && this.parent.isLocalizable) || this.field['isLocalizable'];
+    }
 
     public dropdown = new ModalModel();
 
-    public trackByFieldFn: (index: number, field: NestedFieldDto) => any;
+    public trackByFieldFn: (_index: number, field: NestedFieldDto) => any;
 
     public isEditing = false;
-    public isEditable = false;
+    public isEditable?: boolean | null;
 
-    public editForm = new EditFieldForm(this.formBuilder);
+    public editForm: EditFieldForm;
 
     public addFieldDialog = new DialogModel();
 
     constructor(
         private readonly formBuilder: FormBuilder,
-        private readonly schemasState: SchemasState
+        private readonly schemasState: SchemasState,
     ) {
         this.trackByFieldFn = this.trackByField.bind(this);
     }
@@ -53,6 +60,7 @@ export class FieldComponent implements OnChanges {
         if (changes['field']) {
             this.isEditable = this.field.canUpdate;
 
+            this.editForm = new EditFieldForm(this.formBuilder, this.field.properties);
             this.editForm.load(this.field.properties);
         }
     }
@@ -86,7 +94,7 @@ export class FieldComponent implements OnChanges {
     }
 
     public sortFields(event: CdkDragDrop<ReadonlyArray<NestedFieldDto>>) {
-        this.schemasState.orderFields(this.schema, sorted(event), <any>this.field).subscribe();
+        this.schemasState.orderFields(this.schema, sorted(event), this.field as any).subscribe();
     }
 
     public lockField() {
@@ -112,7 +120,7 @@ export class FieldComponent implements OnChanges {
         }
     }
 
-    public trackByField(index: number, field: NestedFieldDto) {
+    public trackByField(_index: number, field: NestedFieldDto) {
         return field.fieldId + this.schema.id;
     }
 }

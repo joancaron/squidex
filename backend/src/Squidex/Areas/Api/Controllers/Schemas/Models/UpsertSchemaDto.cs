@@ -8,6 +8,7 @@
 using System.Collections.Generic;
 using Squidex.Domain.Apps.Core.Schemas;
 using Squidex.Domain.Apps.Entities.Schemas.Commands;
+using Squidex.Infrastructure.Collections;
 using Squidex.Infrastructure.Reflection;
 
 namespace Squidex.Areas.Api.Controllers.Schemas.Models
@@ -27,22 +28,27 @@ namespace Squidex.Areas.Api.Controllers.Schemas.Models
         /// <summary>
         /// The names of the fields that should be used in references.
         /// </summary>
-        public List<string>? FieldsInReferences { get; set; }
+        public FieldNames? FieldsInReferences { get; set; }
 
         /// <summary>
         /// The names of the fields that should be shown in lists, including meta fields.
         /// </summary>
-        public List<string>? FieldsInLists { get; set; }
+        public FieldNames? FieldsInLists { get; set; }
 
         /// <summary>
         /// Optional fields.
         /// </summary>
-        public List<UpsertSchemaFieldDto?>? Fields { get; set; }
+        public UpsertSchemaFieldDto[]? Fields { get; set; }
 
         /// <summary>
         /// The optional preview urls.
         /// </summary>
-        public Dictionary<string, string>? PreviewUrls { get; set; }
+        public ImmutableDictionary<string, string>? PreviewUrls { get; set; }
+
+        /// <summary>
+        /// The optional field Rules.
+        /// </summary>
+        public List<FieldRuleDto>? FieldRules { get; set; }
 
         /// <summary>
         /// The category.
@@ -54,7 +60,7 @@ namespace Squidex.Areas.Api.Controllers.Schemas.Models
         /// </summary>
         public bool IsPublished { get; set; }
 
-        public static TCommand ToCommand<TCommand, TDto>(TDto dto, TCommand command) where TCommand : UpsertCommand where TDto : UpsertSchemaDto
+        public static T ToCommand<T, TSoure>(TSoure dto, T command) where T : SchemaCommand, IUpsertCommand where TSoure : UpsertSchemaDto
         {
             SimpleMapper.Map(dto, command);
 
@@ -72,19 +78,9 @@ namespace Squidex.Areas.Api.Controllers.Schemas.Models
                 SimpleMapper.Map(dto.Scripts, command.Scripts);
             }
 
-            if (dto.FieldsInLists != null)
+            if (dto.Fields?.Length > 0)
             {
-                command.FieldsInLists = new FieldNames(dto.FieldsInLists);
-            }
-
-            if (dto.FieldsInReferences != null)
-            {
-                command.FieldsInReferences = new FieldNames(dto.FieldsInReferences);
-            }
-
-            if (dto.Fields != null)
-            {
-                command.Fields = new List<UpsertSchemaField>();
+                var fields = new List<UpsertSchemaField>();
 
                 foreach (var rootFieldDto in dto.Fields)
                 {
@@ -95,9 +91,9 @@ namespace Squidex.Areas.Api.Controllers.Schemas.Models
                     {
                         SimpleMapper.Map(rootFieldDto, rootField);
 
-                        if (rootFieldDto?.Nested?.Count > 0)
+                        if (rootFieldDto?.Nested?.Length > 0)
                         {
-                            rootField.Nested = new List<UpsertSchemaNestedField>();
+                            var nestedFields = new List<UpsertSchemaNestedField>();
 
                             foreach (var nestedFieldDto in rootFieldDto.Nested)
                             {
@@ -109,13 +105,29 @@ namespace Squidex.Areas.Api.Controllers.Schemas.Models
                                     SimpleMapper.Map(nestedFieldDto, nestedField);
                                 }
 
-                                rootField.Nested.Add(nestedField);
+                                nestedFields.Add(nestedField);
                             }
+
+                            rootField.Nested = nestedFields.ToArray();
                         }
                     }
 
-                    command.Fields.Add(rootField);
+                    fields.Add(rootField);
                 }
+
+                command.Fields = fields.ToArray();
+            }
+
+            if (dto.FieldRules?.Count > 0)
+            {
+                var fieldRuleCommands = new List<FieldRuleCommand>();
+
+                foreach (var fieldRule in dto.FieldRules)
+                {
+                    fieldRuleCommands.Add(fieldRule.ToCommand());
+                }
+
+                command.FieldRules = fieldRuleCommands.ToArray();
             }
 
             return command;

@@ -1,18 +1,17 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System.Threading.Tasks;
+using GraphQL;
 
 namespace Squidex.Domain.Apps.Entities.Contents.GraphQL
 {
     public interface IGraphQLService
     {
-        Task<(bool HasError, object Response)> QueryAsync(Context context, params GraphQLQuery[] queries);
-
-        Task<(bool HasError, object Response)> QueryAsync(Context context, GraphQLQuery query);
+        Task<ExecutionResult> ExecuteAsync(ExecutionOptions options);
     }
 }

@@ -14,11 +14,11 @@ import { LanguagesState } from './../state/languages.state';
 @Injectable()
 export class LoadLanguagesGuard implements CanActivate {
     constructor(
-        private readonly languagesState: LanguagesState
+        private readonly languagesState: LanguagesState,
     ) {
     }
 
     public canActivate(): Observable<boolean> {
-        return this.languagesState.load().pipe(map(a => true));
+        return this.languagesState.load().pipe(map(_ => true));
     }
 }

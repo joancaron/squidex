@@ -5,12 +5,9 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable: readonly-array
-
-import { Types } from '@app/framework';
-import { StatusInfo } from './../services/contents.service';
+import { QueryParams, RouteSynchronizer, Types } from '@app/framework';
 import { LanguageDto } from './../services/languages.service';
-import { MetaFields, SchemaDetailsDto } from './../services/schemas.service';
+import { MetaFields, SchemaDto } from './../services/schemas.service';
 
 export type QueryValueType =
     'boolean' |
@@ -20,11 +17,15 @@ export type QueryValueType =
     'reference' |
     'status' |
     'string' |
-    'tags';
+    'tags' |
+    'user';
+
+export type StatusInfo =
+    Readonly<{ status: string; color: string }>;
 
 export interface FilterOperator {
     // The optional display value.
-    name?: string;
+    name: string;
 
     // The operator value.
     value: string;
@@ -86,6 +87,11 @@ export interface QuerySorting {
     order: SortMode;
 }
 
+export const SORT_MODES: ReadonlyArray<SortMode> = [
+    'ascending',
+    'descending',
+];
+
 export type SortMode = 'ascending' | 'descending';
 
 export interface Query {
@@ -107,12 +113,64 @@ export interface Query {
 
 const DEFAULT_QUERY = {
     filter: {
-        and: []
+        and: [],
     },
-    sort: []
+    sort: [],
 };
 
-export function sanitize(query?: Query) {
+export class QueryFullTextSynchronizer implements RouteSynchronizer {
+    public static readonly INSTANCE = new QueryFullTextSynchronizer();
+
+    public readonly keys = ['query'];
+
+    public parseFromRoute(params: QueryParams) {
+        const query = params['query'];
+
+        if (Types.isString(query)) {
+            return { query: { fullText: query } };
+        }
+
+        return undefined;
+    }
+
+    public parseFromState(state: any) {
+        const value = state['query'];
+
+        if (Types.isObject(value) && Types.isString(value.fullText) && value.fullText.length > 0) {
+            return { query: value.fullText };
+        }
+
+        return undefined;
+    }
+}
+
+export class QuerySynchronizer implements RouteSynchronizer {
+    public static readonly INSTANCE = new QuerySynchronizer();
+
+    public readonly keys = ['query'];
+
+    public parseFromRoute(params: QueryParams) {
+        const query = params['query'];
+
+        if (Types.isString(query)) {
+            return { query: deserializeQuery(query) };
+        }
+
+        return undefined;
+    }
+
+    public parseFromState(state: any) {
+        const value = state['query'];
+
+        if (Types.isObject(value)) {
+            return { query: serializeQuery(value) };
+        }
+
+        return undefined;
+    }
+}
+
+export function sanitize(query?: Query | null) {
     if (!query) {
         return DEFAULT_QUERY;
     }
@@ -128,16 +186,20 @@ export function sanitize(query?: Query) {
     return query;
 }
 
-export function equalsQuery(lhs?: Query, rhs?: Query) {
+export function equalsQuery(lhs?: Query | null, rhs?: Query | null) {
     return Types.equals(sanitize(lhs), sanitize(rhs));
 }
 
-export function encodeQuery(query?: Query) {
-    return encodeURIComponent(JSON.stringify(sanitize(query)));
+export function serializeQuery(query?: Query | null) {
+    return JSON.stringify(sanitize(query));
 }
 
-export function decodeQuery(raw?: string): Query | undefined {
-    let query: Query | undefined = undefined;
+export function encodeQuery(query?: Query | null) {
+    return encodeURIComponent(serializeQuery(query));
+}
+
+export function deserializeQuery(raw?: string): Query | undefined {
+    let query: Query | undefined;
 
     try {
         if (Types.isString(raw)) {
@@ -154,108 +216,122 @@ export function decodeQuery(raw?: string): Query | undefined {
     return query;
 }
 
-export function hasFilter(query?: Query) {
+export function hasFilter(query?: Query | null) {
     return !!query && !Types.isEmpty(query.filter);
 }
 
 const EqualOperators: ReadonlyArray<FilterOperator> = [
-    { name: 'is equals to', value: 'eq' },
-    { name: 'is not equals to', value: 'ne' }
+    { name: 'i18n:common.queryOperators.eq', value: 'eq' },
+    { name: 'i18n:common.queryOperators.ne', value: 'ne' },
 ];
 
 const CompareOperator: ReadonlyArray<FilterOperator> = [
-    { name: 'is less than', value: 'lt' },
-    { name: 'is less than or equals to', value: 'le' },
-    { name: 'is greater than', value: 'gt' },
-    { name: 'is greater than or equals to', value: 'ge' }
+    { name: 'i18n:common.queryOperators.lt', value: 'lt' },
+    { name: 'i18n:common.queryOperators.le', value: 'le' },
+    { name: 'i18n:common.queryOperators.gt', value: 'gt' },
+    { name: 'i18n:common.queryOperators.ge', value: 'ge' },
 ];
 
 const StringOperators: ReadonlyArray<FilterOperator> = [
-    { name: 'starts with', value: 'startsWith' },
-    { name: 'ends with', value: 'endsWith' },
-    { name: 'contains', value: 'contains' }
+    { name: 'i18n:common.queryOperators.matchs', value: 'matchs' },
+    { name: 'i18n:common.queryOperators.startsWith', value: 'startsWith' },
+    { name: 'i18n:common.queryOperators.endsWith', value: 'endsWith' },
+    { name: 'i18n:common.queryOperators.contains', value: 'contains' },
 ];
 
 const ArrayOperators: ReadonlyArray<FilterOperator> = [
-    { value: 'is empty', noValue: true }
+    { name: 'i18n:common.queryOperators.empty', value: 'empty', noValue: true },
+    { name: 'i18n:common.queryOperators.exists', value: 'exists', noValue: true },
 ];
 
 const TypeBoolean: QueryFieldModel = {
     type: 'boolean',
-    operators: EqualOperators
+    operators: EqualOperators,
 };
 
 const TypeDateTime: QueryFieldModel = {
     type: 'datetime',
-    operators: [...EqualOperators, ...CompareOperator]
+    operators: [...EqualOperators, ...CompareOperator],
 };
 
 const TypeNumber: QueryFieldModel = {
     type: 'number',
-    operators: [...EqualOperators, ...CompareOperator]
+    operators: [...EqualOperators, ...CompareOperator],
 };
 
 const TypeReference: QueryFieldModel = {
     type: 'reference',
-    operators: [...EqualOperators, ...ArrayOperators]
+    operators: [...EqualOperators, ...ArrayOperators],
 };
 
 const TypeStatus: QueryFieldModel = {
     type: 'status',
-    operators: EqualOperators
+    operators: EqualOperators,
+};
+
+const TypeUser: QueryFieldModel = {
+    type: 'user',
+    operators: EqualOperators,
 };
 
 const TypeString: QueryFieldModel = {
     type: 'string',
-    operators: [...EqualOperators, ...CompareOperator, ...StringOperators, ...ArrayOperators]
+    operators: [...EqualOperators, ...CompareOperator, ...StringOperators, ...ArrayOperators],
 };
 
 const TypeTags: QueryFieldModel = {
     type: 'string',
-    operators: EqualOperators
+    operators: EqualOperators,
 };
 
 const DEFAULT_FIELDS: QueryModelFields = {
     created: {
         ...TypeDateTime,
         displayName: MetaFields.created,
-        description: 'The date time when the content item was created.'
+        description: 'i18n:contents.createFieldDescription',
     },
     createdBy: {
-        ...TypeString,
+        ...TypeUser,
         displayName: 'meta.createdBy',
-        description: 'The user who created the content item.'
+        description: 'i18n:contents.createdByFieldDescription',
     },
     lastModified: {
         ...TypeDateTime,
         displayName: MetaFields.lastModified,
-        description: 'The date time when the content item was modified the last time.'
+        description: 'i18n:contents.lastModifiedFieldDescription',
     },
     lastModifiedBy: {
-        ...TypeString,
+        ...TypeUser,
         displayName: 'meta.lastModifiedBy',
-        description: 'The user who modified the content item the last time.'
+        description: 'i18n:contents.lastModifiedByFieldDescription',
     },
     version: {
         ...TypeNumber,
         displayName: MetaFields.version,
-        description: 'The version of the content item'
-    }
+        description: 'i18n:contents.versionFieldDescription',
+    },
 };
 
-export function queryModelFromSchema(schema: SchemaDetailsDto, languages: ReadonlyArray<LanguageDto>, statuses: ReadonlyArray<StatusInfo> | undefined) {
+export function queryModelFromSchema(schema: SchemaDto, languages: ReadonlyArray<LanguageDto>, statuses: ReadonlyArray<StatusInfo> | undefined) {
     const languagesCodes = languages.map(x => x.iso2Code);
 
     const model: QueryModel = {
-        fields: { ...DEFAULT_FIELDS }
+        fields: { ...DEFAULT_FIELDS },
     };
 
     if (statuses) {
         model.fields['status'] = {
-             ...TypeStatus,
-             displayName: MetaFields.status,
-             description: 'The status of the content item.',
-             extra: statuses
+            ...TypeStatus,
+            displayName: MetaFields.status,
+            description: 'i18n:contents.statusFieldDescription',
+            extra: statuses,
+        };
+
+        model.fields['newStatus'] = {
+            ...TypeStatus,
+            displayName: MetaFields.statusNext,
+            description: 'i18n:contents.newStatusFieldDescription',
+            extra: statuses,
         };
     }
 
@@ -283,7 +359,8 @@ export function queryModelFromSchema(schema: SchemaDetailsDto, languages: Readon
                 for (const code of languagesCodes) {
                     const infos = {
                         displayName: `${field.name} (${code})`,
-                        description: `The '${field.displayName}' field of the content item (localized).`
+                        description: 'i18n:contents.localizedFieldDescription',
+                        fieldName: field.displayName,
                     };
 
                     model.fields[`data.${field.name}.${code}`] = { ...type, ...infos };
@@ -291,7 +368,8 @@ export function queryModelFromSchema(schema: SchemaDetailsDto, languages: Readon
             } else {
                 const infos = {
                     displayName: field.name,
-                    description: `The '${field.displayName}' field of the content item.`
+                    description: 'i18n:contents.invariantFieldDescription',
+                    fieldName: field.displayName,
                 };
 
                 model.fields[`data.${field.name}.iv`] = { ...type, ...infos };

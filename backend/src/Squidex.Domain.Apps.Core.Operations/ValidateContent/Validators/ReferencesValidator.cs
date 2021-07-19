@@ -1,58 +1,105 @@
-﻿// ==========================================================================
+// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Squidex.Domain.Apps.Core.Contents;
+using Squidex.Domain.Apps.Core.Schemas;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.Translations;
 
 namespace Squidex.Domain.Apps.Core.ValidateContent.Validators
 {
-    public delegate Task<IReadOnlyList<(Guid SchemaId, Guid Id)>> CheckContentsByIds(HashSet<Guid> ids);
+    public delegate Task<IReadOnlyList<(DomainId SchemaId, DomainId Id, Status Status)>> CheckContentsByIds(HashSet<DomainId> ids);
 
     public sealed class ReferencesValidator : IValidator
     {
-        private readonly IEnumerable<Guid>? schemaIds;
+        private readonly ReferencesFieldProperties properties;
+        private readonly CollectionValidator? collectionValidator;
+        private readonly UniqueValuesValidator<DomainId>? uniqueValidator;
         private readonly CheckContentsByIds checkReferences;
 
-        public ReferencesValidator(IEnumerable<Guid>? schemaIds, CheckContentsByIds checkReferences)
+        public ReferencesValidator(bool isRequired, ReferencesFieldProperties properties, CheckContentsByIds checkReferences)
         {
+            Guard.NotNull(properties, nameof(properties));
             Guard.NotNull(checkReferences, nameof(checkReferences));
 
-            this.schemaIds = schemaIds;
+            this.properties = properties;
+
+            if (isRequired || properties.MinItems != null || properties.MaxItems != null)
+            {
+                collectionValidator = new CollectionValidator(isRequired, properties.MinItems, properties.MaxItems);
+            }
+
+            if (!properties.AllowDuplicates)
+            {
+                uniqueValidator = new UniqueValuesValidator<DomainId>();
+            }
 
             this.checkReferences = checkReferences;
         }
 
         public async Task ValidateAsync(object? value, ValidationContext context, AddError addError)
         {
-            if (context.Mode == ValidationMode.Optimized)
-            {
-                return;
-            }
+            var foundIds = new List<DomainId>();
 
-            if (value is ICollection<Guid> contentIds)
+            if (value is ICollection<DomainId> { Count: > 0 } contentIds)
             {
-                var foundIds = await checkReferences(contentIds.ToHashSet());
+                var references = await checkReferences(contentIds.ToHashSet());
+                var index = 0;
 
                 foreach (var id in contentIds)
                 {
-                    var (schemaId, _) = foundIds.FirstOrDefault(x => x.Id == id);
+                    index++;
 
-                    if (schemaId == Guid.Empty)
+                    var path = context.Path.Enqueue($"[{index}]");
+
+                    var (schemaId, _, status) = references.FirstOrDefault(x => x.Id == id);
+
+                    if (schemaId == DomainId.Empty)
                     {
-                        addError(context.Path, $"Contains invalid reference '{id}'.");
+                        if (context.Action == ValidationAction.Upsert)
+                        {
+                            addError(path, T.Get("contents.validation.referenceNotFound", new { id }));
+                        }
+
+                        continue;
                     }
-                    else if (schemaIds?.Any() == true && !schemaIds.Contains(schemaId))
+
+                    var isValid = true;
+
+                    if (properties.SchemaIds?.Any() == true && !properties.SchemaIds.Contains(schemaId))
                     {
-                        addError(context.Path, $"Contains reference '{id}' to invalid schema.");
+                        if (context.Action == ValidationAction.Upsert)
+                        {
+                            addError(path, T.Get("contents.validation.referenceToInvalidSchema", new { id }));
+                        }
+
+                        isValid = false;
+                    }
+
+                    isValid &= !properties.MustBePublished || status == Status.Published;
+
+                    if (isValid)
+                    {
+                        foundIds.Add(id);
                     }
                 }
+            }
+
+            if (collectionValidator != null)
+            {
+                await collectionValidator.ValidateAsync(foundIds, context, addError);
+            }
+
+            if (uniqueValidator != null)
+            {
+                await uniqueValidator.ValidateAsync(foundIds, context, addError);
             }
         }
     }

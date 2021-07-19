@@ -5,20 +5,20 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, forwardRef, Renderer2, ViewChild } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, forwardRef, Input, Renderer2, ViewChild } from '@angular/core';
 import { NG_VALUE_ACCESSOR } from '@angular/forms';
 import { ApiUrlConfig, AssetDto, AssetUploaderState, DialogModel, ResourceLoaderService, StatefulControlComponent, Types, UploadCanceled } from '@app/shared/internal';
 import marked from 'marked';
 
-declare var SimpleMDE: any;
+declare const SimpleMDE: any;
 
 export const SQX_MARKDOWN_EDITOR_CONTROL_VALUE_ACCESSOR: any = {
-    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => MarkdownEditorComponent), multi: true
+    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => MarkdownEditorComponent), multi: true,
 };
 
 interface State {
     // True, when the editor is shown as fullscreen.
-    isFullscreen: false;
+    isFullscreen: boolean;
 }
 
 @Component({
@@ -26,14 +26,21 @@ interface State {
     styleUrls: ['./markdown-editor.component.scss'],
     templateUrl: './markdown-editor.component.html',
     providers: [
-        SQX_MARKDOWN_EDITOR_CONTROL_VALUE_ACCESSOR
+        SQX_MARKDOWN_EDITOR_CONTROL_VALUE_ACCESSOR,
     ],
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MarkdownEditorComponent extends StatefulControlComponent<State, string> implements AfterViewInit {
     private simplemde: any;
     private value: string;
-    private isDisabled = false;
+
+    @Input()
+    public folderId?: string;
+
+    @Input()
+    public set disabled(value: boolean | null | undefined) {
+        this.setDisabledState(value === true);
+    }
 
     @ViewChild('editor', { static: false })
     public editor: ElementRef;
@@ -50,10 +57,10 @@ export class MarkdownEditorComponent extends StatefulControlComponent<State, str
         private readonly apiUrl: ApiUrlConfig,
         private readonly assetUploader: AssetUploaderState,
         private readonly renderer: Renderer2,
-        private readonly resourceLoader: ResourceLoaderService
+        private readonly resourceLoader: ResourceLoaderService,
     ) {
         super(changeDetector, {
-            isFullscreen: false
+            isFullscreen: false,
         });
     }
 
@@ -65,111 +72,114 @@ export class MarkdownEditorComponent extends StatefulControlComponent<State, str
         }
     }
 
-    public setDisabledState(isDisabled: boolean): void {
-        this.isDisabled = isDisabled;
-
+    public onDisabled(isDisabled: boolean) {
         if (this.simplemde) {
             this.simplemde.codemirror.setOption('readOnly', isDisabled);
         }
     }
 
     private showSelector = () => {
-        if (this.isDisabled) {
+        if (this.snapshot.isDisabled) {
             return;
         }
 
         this.assetsDialog.show();
-    }
+    };
 
     public ngAfterViewInit() {
-        this.resourceLoader.loadStyle('https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.css');
-        this.resourceLoader.loadScript('https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.js').then(() => {
+        Promise.all([
+            this.resourceLoader.loadLocalStyle('dependencies/simplemde/simplemde.min.css'),
+            this.resourceLoader.loadLocalStyle('dependencies/font-awesome/css/font-awesome.min.css'),
+            this.resourceLoader.loadLocalScript('dependencies/simplemde/simplemde.min.js'),
+        ]).then(() => {
             this.simplemde = new SimpleMDE({
                 previewRender: (text: string) => {
                     return marked(text, { pedantic: true });
                 },
                 autoDownloadFontAwesome: true,
+                spellChecker: false,
+                status: ['lines', 'words', 'cursor'],
                 toolbar: [
                     {
                         name: 'bold',
                         action: SimpleMDE.toggleBold,
                         className: 'fa fa-bold',
-                        title: 'Bold'
+                        title: 'Bold',
                     }, {
                         name: 'italic',
                         action: SimpleMDE.toggleItalic,
                         className: 'fa fa-italic',
-                        title: 'Italic'
+                        title: 'Italic',
                     }, {
                         name: 'heading',
                         action: SimpleMDE.toggleHeadingSmaller,
                         className: 'fa fa-header',
-                        title: 'Heading'
+                        title: 'Heading',
                     }, {
                         name: 'quote',
                         action: SimpleMDE.toggleBlockquote,
                         className: 'fa fa-quote-left',
-                        title: 'Quote'
+                        title: 'Quote',
                     }, {
                         name: 'unordered-list',
                         action: SimpleMDE.toggleUnorderedList,
                         className: 'fa fa-list-ul',
-                        title: 'Generic List'
+                        title: 'Generic List',
                     }, {
                         name: 'ordered-list',
                         action: SimpleMDE.toggleOrderedList,
                         className: 'fa fa-list-ol',
-                        title: 'Numbered List'
+                        title: 'Numbered List',
                     },
                     '|',
                     {
                         name: 'link',
                         action: SimpleMDE.drawLink,
                         className: 'fa fa-link',
-                        title: 'Create Link'
+                        title: 'Create Link',
                     }, {
                         name: 'image',
                         action: SimpleMDE.drawImage,
                         className: 'fa fa-picture-o',
-                        title: 'Insert Image'
+                        title: 'Insert Image',
                     },
                     '|',
                     {
                         name: 'preview',
                         action: SimpleMDE.togglePreview,
                         className: 'fa fa-eye no-disable',
-                        title: 'Toggle Preview'
+                        title: 'Toggle Preview',
                     }, {
                         name: 'fullscreen',
                         action: SimpleMDE.toggleFullScreen,
                         className: 'fa fa-arrows-alt no-disable no-mobile',
-                        title: 'Toggle Fullscreen'
+                        title: 'Toggle Fullscreen',
                     }, {
                         name: 'side-by-side',
                         action: SimpleMDE.toggleSideBySide,
                         className: 'fa fa-columns no-disable no-mobile',
-                        title: 'Toggle Side by Side'
+                        title: 'Toggle Side by Side',
                     },
                     '|',
                     {
                         name: 'guide',
                         action: 'https://simplemde.com/markdown-guide',
                         className: 'fa fa-question-circle',
-                        title: 'Markdown Guide'
+                        title: 'Markdown Guide',
                     },
                     '|',
                     {
                         name: 'assets',
                         action: this.showSelector,
                         className: 'icon-assets icon-bold',
-                        title: 'Insert Assets'
-                    }
+                        title: 'Insert Assets',
+                    },
                 ],
-                element: this.editor.nativeElement
+                element: this.editor.nativeElement,
             });
 
             this.simplemde.value(this.value || '');
-            this.simplemde.codemirror.setOption('readOnly', this.isDisabled);
+            this.simplemde.codemirror.setOption('readOnly', this.snapshot.isDisabled);
 
             this.simplemde.codemirror.on('change', () => {
                 const value = this.simplemde.value();
@@ -184,15 +194,7 @@ export class MarkdownEditorComponent extends StatefulControlComponent<State, str
             this.simplemde.codemirror.on('refresh', () => {
                 const isFullscreen = this.simplemde.isFullscreenActive();
 
-                let target = this.container.nativeElement;
-
-                if (isFullscreen) {
-                    target = document.body;
-                }
-
-                this.renderer.appendChild(target, this.inner.nativeElement);
-
-                this.next(s => ({ ...s, isFullscreen }));
+                this.toggleFullscreen(isFullscreen);
             });
 
             this.simplemde.codemirror.on('blur', () => {
@@ -202,21 +204,7 @@ export class MarkdownEditorComponent extends StatefulControlComponent<State, str
     }
 
     public insertAssets(assets: ReadonlyArray<AssetDto>) {
-        let content = '';
-
-        for (const asset of assets) {
-            switch (asset.type) {
-                case 'Image':
-                    content += `![${asset.fileName}](${asset.fullUrl(this.apiUrl)} '${asset.fileName}')`;
-                    break;
-                case 'Video':
-                    content += `[${asset.fileName}](${asset.fullUrl(this.apiUrl)}')`;
-                    break;
-                default:
-                    content += `[${asset.fileName}](${asset.fullUrl(this.apiUrl)}')`;
-                    break;
-            }
-        }
+        const content = this.buildMarkups(assets);
 
         if (content.length > 0) {
             this.simplemde.codemirror.replaceSelection(content);
@@ -234,7 +222,7 @@ export class MarkdownEditorComponent extends StatefulControlComponent<State, str
     }
 
     private uploadFile(doc: any, file: File) {
-        if (this.isDisabled) {
+        if (this.snapshot.isDisabled) {
             return;
         }
 
@@ -259,15 +247,49 @@ export class MarkdownEditorComponent extends StatefulControlComponent<State, str
             }
         };
 
-        this.assetUploader.uploadFile(file)
+        this.assetUploader.uploadFile(file, undefined, this.folderId)
             .subscribe(asset => {
                 if (Types.is(asset, AssetDto)) {
-                    replaceText(`![${asset.fileName}](${asset.fullUrl(this.apiUrl)} '${asset.fileName}')`);
+                    replaceText(this.buildMarkup(asset));
                 }
             }, error => {
                 if (!Types.is(error, UploadCanceled)) {
                     replaceText('FAILED');
                 }
             });
+    }
+
+    private toggleFullscreen(isFullscreen: boolean) {
+        let target = this.container.nativeElement;
+
+        if (isFullscreen) {
+            target = document.body;
+        }
+
+        this.renderer.appendChild(target, this.inner.nativeElement);
+
+        this.next({ isFullscreen });
+    }
+
+    private buildMarkups(assets: readonly AssetDto[]) {
+        let content = '';
+
+        for (const asset of assets) {
+            content += this.buildMarkup(asset);
+        }
+
+        return content;
+    }
+
+    private buildMarkup(asset: AssetDto) {
+        const name = asset.fileNameWithoutExtension;
+
+        if (asset.type === 'Image' || asset.mimeType === 'image/svg+xml' || asset.fileName.endsWith('.svg')) {
+            return `![${name}](${asset.fullUrl(this.apiUrl)} '${name}')`;
+        } else if (asset.type === 'Video') {
+            return `[${name}](${asset.fullUrl(this.apiUrl)}')`;
+        } else {
+            return `[${name}](${asset.fullUrl(this.apiUrl)}')`;
+        }
     }
 }

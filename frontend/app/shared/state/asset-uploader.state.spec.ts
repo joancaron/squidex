@@ -6,7 +6,7 @@
  */
 
 import { AssetDto, AssetsService, AssetsState, AssetUploaderState, DialogService, ofForever, Types } from '@app/shared/internal';
-import { never, of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { onErrorResumeNext } from 'rxjs/operators';
 import { IMock, Mock } from 'typemoq';
 import { createAsset } from './../services/assets.service.spec';
@@ -15,7 +15,7 @@ import { TestValues } from './_test-helpers';
 describe('AssetUploaderState', () => {
     const {
         app,
-        appsState
+        appsState,
     } = TestValues;
 
     let assetsService: IMock<AssetsService>;
@@ -35,11 +35,11 @@ describe('AssetUploaderState', () => {
         assetsService.verifyAll();
     });
 
-    it('should create initial state when uploading file', () => {
+    it('should create initial state if uploading file', () => {
         const file: File = <any>{ name: 'my-file' };
 
         assetsService.setup(x => x.postAssetFile(app, file, undefined))
-            .returns(() => never()).verifiable();
+            .returns(() => NEVER).verifiable();
 
         assetUploader.uploadFile(file).subscribe();
 
@@ -58,14 +58,14 @@ describe('AssetUploaderState', () => {
         const file: File = <any>{ name: 'my-file' };
 
         assetsService.setup(x => x.postAssetFile(app, file, 'parent1'))
-            .returns(() => never()).verifiable();
+            .returns(() => NEVER).verifiable();
 
         assetUploader.uploadFile(file, assetsState.object).subscribe();
 
         expect().nothing();
     });
 
-    it('should update progress when uploading file makes progress', () => {
+    it('should update progress if uploading file makes progress', () => {
         const file: File = <any>{ name: 'my-file' };
 
         assetsService.setup(x => x.postAssetFile(app, file, undefined))
@@ -79,11 +79,11 @@ describe('AssetUploaderState', () => {
         expect(upload.progress).toBe(20);
     });
 
-    it('should update status when uploading file failed', () => {
+    it('should update status if uploading file failed', () => {
         const file: File = <any>{ name: 'my-file' };
 
         assetsService.setup(x => x.postAssetFile(app, file, undefined))
-            .returns(() => throwError('Error')).verifiable();
+            .returns(() => throwError(() => 'Service Error')).verifiable();
 
         assetUploader.uploadFile(file).pipe(onErrorResumeNext()).subscribe();
 
@@ -93,7 +93,7 @@ describe('AssetUploaderState', () => {
         expect(upload.progress).toBe(1);
     });
 
-    it('should update status when uploading file completes', (cb) => {
+    it('should update status if uploading file completes', (cb) => {
         const file: File = <any>{ name: 'my-file' };
 
         assetsService.setup(x => x.postAssetFile(app, file, undefined))
@@ -116,11 +116,11 @@ describe('AssetUploaderState', () => {
         expect(uploadedAsset!).toEqual(asset);
     });
 
-    it('should create initial state when uploading asset', () => {
+    it('should create initial state if uploading asset', () => {
         const file: File = <any>{ name: 'my-file' };
 
         assetsService.setup(x => x.putAssetFile(app, asset, file, asset.version))
-            .returns(() => never()).verifiable();
+            .returns(() => NEVER).verifiable();
 
         assetUploader.uploadAsset(asset, file).subscribe();
 
@@ -130,7 +130,7 @@ describe('AssetUploaderState', () => {
         expect(upload.progress).toBe(1);
     });
 
-    it('should update progress when uploading asset makes progress', () => {
+    it('should update progress if uploading asset makes progress', () => {
         const file: File = <any>{ name: 'my-file' };
 
         assetsService.setup(x => x.putAssetFile(app, asset, file, asset.version))
@@ -144,11 +144,11 @@ describe('AssetUploaderState', () => {
         expect(upload.progress).toBe(20);
     });
 
-    it('should update status when uploading asset failed', () => {
+    it('should update status if uploading asset failed', () => {
         const file: File = <any>{ name: 'my-file' };
 
         assetsService.setup(x => x.putAssetFile(app, asset, file, asset.version))
-            .returns(() => throwError('Error')).verifiable();
+            .returns(() => throwError(() => 'Service Error')).verifiable();
 
         assetUploader.uploadAsset(asset, file).pipe(onErrorResumeNext()).subscribe();
 
@@ -158,10 +158,10 @@ describe('AssetUploaderState', () => {
         expect(upload.progress).toBe(1);
     });
 
-    it('should update status when uploading asset completes', () => {
+    it('should update status if uploading asset completes', () => {
         const file: File = <any>{ name: 'my-file' };
 
-        let updated = createAsset(1, undefined, '_new');
+        const updated = createAsset(1, undefined, '_new');
 
         assetsService.setup(x => x.putAssetFile(app, asset, file, asset.version))
             .returns(() => of(10, 20, updated)).verifiable();

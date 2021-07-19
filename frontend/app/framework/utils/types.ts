@@ -5,15 +5,13 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable: readonly-array
-
 export module Types {
     export function isString(value: any): value is string {
         return typeof value === 'string' || value instanceof String;
     }
 
     export function isNumber(value: any): value is number {
-        return typeof value === 'number' && isFinite(value);
+        return typeof value === 'number' && Number.isFinite(value);
     }
 
     export function isArray(value: any): value is Array<any> {
@@ -53,11 +51,15 @@ export module Types {
     }
 
     export function isArrayOfNumber(value: any): value is Array<number> {
-        return isArrayOf(value, v => isNumber(v));
+        return isArrayOf(value, isNumber);
+    }
+
+    export function isArrayOfObject(value: any): value is Array<Object> {
+        return isArrayOf(value, isObject);
     }
 
     export function isArrayOfString(value: any): value is Array<string> {
-        return isArrayOf(value, v => isString(v));
+        return isArrayOf(value, isString);
     }
 
     export function isArrayOf(value: any, validator: (v: any) => boolean): boolean {
@@ -97,6 +99,7 @@ export module Types {
             return true;
         }
 
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-boolean-literal-compare
         return Types.isUndefined(value) === true || Types.isNull(value) === true;
     }
 
@@ -114,7 +117,7 @@ export module Types {
         } else if (Types.isObject(lhs)) {
             const result = {};
 
-            for (let key in any) {
+            for (const key in any) {
                 if (any.hasOwnProperty(key)) {
                     result[key] = clone(lhs[key]);
                 }
@@ -127,6 +130,7 @@ export module Types {
     }
 
     export function equals(lhs: any, rhs: any, lazyString = false) {
+        // eslint-disable-next-line no-self-compare
         if (lhs === rhs || (lhs !== lhs && rhs !== rhs)) {
             return true;
         }
@@ -158,15 +162,15 @@ export module Types {
 
             return true;
         } else if (Types.isObject(lhs) && Types.isObject(rhs)) {
-            if (Object.keys(lhs).length !== Object.keys(rhs).length) {
+            const lhsKeys = Object.keys(lhs);
+
+            if (lhsKeys.length !== Object.keys(rhs).length) {
                 return false;
             }
 
-            for (let key in lhs) {
-                if (lhs.hasOwnProperty(key)) {
-                    if (!equals(lhs[key], rhs[key], lazyString)) {
-                        return false;
-                    }
+            for (const key of lhsKeys) {
+                if (!equals(lhs[key], rhs[key], lazyString)) {
+                    return false;
                 }
             }
 
@@ -176,7 +180,7 @@ export module Types {
         return false;
     }
 
-    export function mergeInto(target: object, source: object) {
+    export function mergeInto(target: {}, source: {} | undefined | null) {
         if (!Types.isObject(target) || !Types.isObject(source)) {
             return source;
         }

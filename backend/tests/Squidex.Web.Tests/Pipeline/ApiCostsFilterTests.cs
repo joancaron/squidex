@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Routing;
+using Squidex.Domain.Apps.Entities;
 using Squidex.Domain.Apps.Entities.Apps;
 using Squidex.Domain.Apps.Entities.Apps.Plans;
 using Xunit;
@@ -36,13 +37,13 @@ namespace Squidex.Web.Pipeline
                 new ActionExecutingContext(
                     new ActionContext(httpContext, new RouteData(),
                         new ActionDescriptor()),
-                    new List<IFilterMetadata>(), new Dictionary<string, object>(), null);
+                    new List<IFilterMetadata>(), new Dictionary<string, object>(), null!);
 
             next = () =>
             {
                 isNextCalled = true;
 
-                return Task.FromResult<ActionExecutedContext?>(null);
+                return Task.FromResult<ActionExecutedContext>(null!);
             };
 
             sut = new ApiCostsFilter(usageGate);
@@ -55,7 +56,7 @@ namespace Squidex.Web.Pipeline
 
             SetupApp();
 
-            A.CallTo(() => usageGate.IsBlockedAsync(appEntity, DateTime.Today))
+            A.CallTo(() => usageGate.IsBlockedAsync(appEntity, A<string>._, DateTime.Today))
                 .Returns(true);
 
             await sut.OnActionExecutionAsync(actionContext, next);
@@ -71,7 +72,7 @@ namespace Squidex.Web.Pipeline
 
             SetupApp();
 
-            A.CallTo(() => usageGate.IsBlockedAsync(appEntity, DateTime.Today))
+            A.CallTo(() => usageGate.IsBlockedAsync(appEntity, A<string>._, DateTime.Today))
                 .Returns(false);
 
             await sut.OnActionExecutionAsync(actionContext, next);
@@ -90,7 +91,7 @@ namespace Squidex.Web.Pipeline
 
             Assert.True(isNextCalled);
 
-            A.CallTo(() => usageGate.IsBlockedAsync(appEntity, DateTime.Today))
+            A.CallTo(() => usageGate.IsBlockedAsync(appEntity, A<string>._, DateTime.Today))
                 .MustNotHaveHappened();
         }
 
@@ -103,13 +104,13 @@ namespace Squidex.Web.Pipeline
 
             Assert.True(isNextCalled);
 
-            A.CallTo(() => usageGate.IsBlockedAsync(appEntity, DateTime.Today))
+            A.CallTo(() => usageGate.IsBlockedAsync(appEntity, A<string>._, DateTime.Today))
                 .MustNotHaveHappened();
         }
 
         private void SetupApp()
         {
-            httpContext.Context().App = appEntity;
+            httpContext.Features.Set(Context.Anonymous(appEntity));
         }
     }
 }

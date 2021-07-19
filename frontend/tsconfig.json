@@ -20,7 +20,7 @@
         "sourceMap": true,
         "strictNullChecks": true,
         "suppressImplicitAnyIndexErrors": true,
-        "target": "es5",
+        "target": "es2015",
         "paths": {
             "@app*": [
                 "app*"
@@ -30,7 +30,9 @@
     "angularCompilerOptions": {
         "disableTypeScriptVersionCheck": true,
         "fullTemplateTypeCheck": true,
+        "strictDomEventTypes": false,
         "strictInjectionParameters": true,
-        "strictTemplate": true
+        "strictInputTypes": true,
+        "strictTemplates": true
     }
 }

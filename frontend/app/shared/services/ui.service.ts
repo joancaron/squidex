@@ -11,20 +11,19 @@ import { ApiUrlConfig } from '@app/framework';
 import { Observable, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
-export interface UISettingsDto {
-    readonly canCreateApps: boolean;
-}
+export type UISettingsDto =
+    Readonly<{ canCreateApps: boolean }>;
 
 @Injectable()
 export class UIService {
     constructor(
         private readonly http: HttpClient,
-        private readonly apiUrl: ApiUrlConfig
+        private readonly apiUrl: ApiUrlConfig,
     ) {
     }
 
     public getCommonSettings(): Observable<UISettingsDto> {
-        const url = this.apiUrl.buildUrl(`api/ui/settings`);
+        const url = this.apiUrl.buildUrl('api/ui/settings');
 
         return this.http.get<UISettingsDto>(url).pipe(
             catchError(() => {
@@ -32,19 +31,19 @@ export class UIService {
             }));
     }
 
-    public getSharedSettings(appName: string): Observable<object> {
+    public getSharedSettings(appName: string): Observable<{}> {
         const url = this.apiUrl.buildUrl(`api/apps/${appName}/ui/settings`);
 
-        return this.http.get<object>(url).pipe(
+        return this.http.get<{}>(url).pipe(
             catchError(() => {
                 return of({});
             }));
     }
 
-    public getUserSettings(appName: string): Observable<object> {
+    public getUserSettings(appName: string): Observable<{}> {
         const url = this.apiUrl.buildUrl(`api/apps/${appName}/ui/settings/me`);
 
-        return this.http.get<object>(url).pipe(
+        return this.http.get<{}>(url).pipe(
             catchError(() => {
                 return of({});
             }));

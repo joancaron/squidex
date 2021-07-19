@@ -1,19 +1,18 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
-using Orleans;
-using Orleans.Concurrency;
-using Squidex.Infrastructure.Log;
 using Squidex.Infrastructure.Orleans;
-using Squidex.Infrastructure.Reflection;
 using Squidex.Infrastructure.Tasks;
+using Squidex.Log;
 
 namespace Squidex.Infrastructure.EventSourcing.Grains
 {
@@ -24,9 +23,16 @@ namespace Squidex.Infrastructure.EventSourcing.Grains
         private readonly IEventDataFormatter eventDataFormatter;
         private readonly IEventStore eventStore;
         private readonly ISemanticLog log;
+        private readonly SemaphoreSlim semaphore = new SemaphoreSlim(1);
         private TaskScheduler? scheduler;
-        private IEventSubscription? currentSubscription;
+        private BatchSubscriber? currentSubscriber;
         private IEventConsumer? eventConsumer;
+
+        private EventConsumerState State
+        {
+            get => state.Value;
+            set => state.Value = value;
+        }
 
         public EventConsumerGrain(
             EventConsumerFactory eventConsumerFactory,
@@ -35,12 +41,6 @@ namespace Squidex.Infrastructure.EventSourcing.Grains
             IEventDataFormatter eventDataFormatter,
             ISemanticLog log)
         {
-            Guard.NotNull(eventStore, nameof(eventStore));
-            Guard.NotNull(eventDataFormatter, nameof(eventDataFormatter));
-            Guard.NotNull(eventConsumerFactory, nameof(eventConsumerFactory));
-            Guard.NotNull(state, nameof(state));
-            Guard.NotNull(log, nameof(log));
-
             this.eventStore = eventStore;
             this.eventDataFormatter = eventDataFormatter;
             this.eventConsumerFactory = eventConsumerFactory;
@@ -58,42 +58,49 @@ namespace Squidex.Infrastructure.EventSourcing.Grains
             return Task.CompletedTask;
         }
 
-        public Task<Immutable<EventConsumerInfo>> GetStateAsync()
+        public override Task OnDeactivateAsync()
+        {
+            CompleteAsync().Forget();
+
+            return Task.CompletedTask;
+        }
+
+        public async Task CompleteAsync()
+        {
+            if (currentSubscriber != null)
+            {
+                await currentSubscriber.CompleteAsync();
+            }
+        }
+
+        public Task<EventConsumerInfo> GetStateAsync()
         {
             return Task.FromResult(CreateInfo());
         }
 
-        private Immutable<EventConsumerInfo> CreateInfo()
+        private EventConsumerInfo CreateInfo()
         {
-            return state.Value.ToInfo(eventConsumer!.Name).AsImmutable();
+            return State.ToInfo(eventConsumer!.Name);
         }
 
-        public Task OnEventAsync(Immutable<IEventSubscription> subscription, Immutable<StoredEvent> storedEvent)
+        public Task OnEventsAsync(object sender, IReadOnlyList<Envelope<IEvent>> events, string position)
         {
-            if (subscription.Value != currentSubscription)
+            if (!ReferenceEquals(sender, currentSubscriber?.Sender))
             {
                 return Task.CompletedTask;
             }
 
             return DoAndUpdateStateAsync(async () =>
             {
-                if (eventConsumer!.Handles(storedEvent.Value))
-                {
-                    var @event = ParseKnownEvent(storedEvent.Value);
+                await DispatchAsync(events);
 
-                    if (@event != null)
-                    {
-                        await DispatchConsumerAsync(@event);
-                    }
-                }
-
-                state.Value = state.Value.Handled(storedEvent.Value.EventPosition);
-            });
+                State = State.Handled(position, events.Count);
+            }, State.Position);
         }
 
-        public Task OnErrorAsync(Immutable<IEventSubscription> subscription, Immutable<Exception> exception)
+        public Task OnErrorAsync(object sender, Exception exception)
         {
-            if (subscription.Value != currentSubscription)
+            if (!ReferenceEquals(sender, currentSubscriber?.Sender))
             {
                 return Task.CompletedTask;
             }
@@ -102,40 +109,47 @@ namespace Squidex.Infrastructure.EventSourcing.Grains
             {
                 Unsubscribe();
 
-                state.Value = state.Value.Failed(exception.Value);
-            });
+                State = State.Stopped(exception);
+            }, State.Position);
         }
 
-        public Task ActivateAsync()
+        public async Task ActivateAsync()
         {
-            if (!state.Value.IsStopped)
+            if (State.IsFailed)
             {
-                Subscribe(state.Value.Position);
-            }
+                await DoAndUpdateStateAsync(() =>
+                {
+                    Subscribe();
 
-            return Task.CompletedTask;
+                    State = State.Started();
+                }, State.Position);
+            }
+            else if (!State.IsStopped)
+            {
+                Subscribe();
+            }
         }
 
-        public async Task<Immutable<EventConsumerInfo>> StartAsync()
+        public async Task<EventConsumerInfo> StartAsync()
         {
-            if (!state.Value.IsStopped)
+            if (!State.IsStopped)
             {
                 return CreateInfo();
             }
 
             await DoAndUpdateStateAsync(() =>
             {
-                Subscribe(state.Value.Position);
+                Subscribe();
 
-                state.Value = state.Value.Started();
-            });
+                State = State.Started();
+            }, State.Position);
 
             return CreateInfo();
         }
 
-        public async Task<Immutable<EventConsumerInfo>> StopAsync()
+        public async Task<EventConsumerInfo> StopAsync()
         {
-            if (state.Value.IsStopped)
+            if (State.IsStopped)
             {
                 return CreateInfo();
             }
@@ -144,13 +158,13 @@ namespace Squidex.Infrastructure.EventSourcing.Grains
             {
                 Unsubscribe();
 
-                state.Value = state.Value.Stopped();
-            });
+                State = State.Stopped();
+            }, State.Position);
 
             return CreateInfo();
         }
 
-        public async Task<Immutable<EventConsumerInfo>> ResetAsync()
+        public async Task<EventConsumerInfo> ResetAsync()
         {
             await DoAndUpdateStateAsync(async () =>
             {
@@ -158,50 +172,77 @@ namespace Squidex.Infrastructure.EventSourcing.Grains
 
                 await ClearAsync();
 
-                Subscribe(null);
+                State = EventConsumerState.Initial;
 
-                state.Value = state.Value.Reset();
-            });
+                Subscribe();
+            }, State.Position);
 
             return CreateInfo();
         }
 
-        private Task DoAndUpdateStateAsync(Action action, [CallerMemberName] string? caller = null)
+        private async Task DispatchAsync(IReadOnlyList<Envelope<IEvent>> events)
         {
-            return DoAndUpdateStateAsync(() => { action(); return Task.CompletedTask; }, caller);
+            if (events.Count > 0)
+            {
+                await eventConsumer!.On(events);
+            }
         }
 
-        private async Task DoAndUpdateStateAsync(Func<Task> action, [CallerMemberName] string? caller = null)
+        private Task DoAndUpdateStateAsync(Action action, string? position, [CallerMemberName] string? caller = null)
         {
+            return DoAndUpdateStateAsync(() =>
+            {
+                action();
+
+                return Task.CompletedTask;
+            }, position, caller);
+        }
+
+        private async Task DoAndUpdateStateAsync(Func<Task> action, string? position, [CallerMemberName] string? caller = null)
+        {
+            await semaphore.WaitAsync();
             try
             {
-                await action();
-            }
-            catch (Exception ex)
-            {
+                var previousState = State;
+
                 try
                 {
-                    Unsubscribe();
+                    await action();
                 }
-                catch (Exception unsubscribeException)
+                catch (Exception ex)
                 {
-                    ex = new AggregateException(ex, unsubscribeException);
+                    try
+                    {
+                        Unsubscribe();
+                    }
+                    catch (Exception unsubscribeException)
+                    {
+                        ex = new AggregateException(ex, unsubscribeException);
+                    }
+
+                    log.LogFatal(ex, w => w
+                        .WriteProperty("action", caller)
+                        .WriteProperty("status", "Failed")
+                        .WriteProperty("eventPosition", position)
+                        .WriteProperty("eventConsumer", eventConsumer!.Name));
+
+                    State = previousState.Stopped(ex);
                 }
 
-                log.LogFatal(ex, w => w
-                    .WriteProperty("action", caller)
-                    .WriteProperty("status", "Failed")
-                    .WriteProperty("eventConsumer", eventConsumer!.Name));
-
-                state.Value = state.Value.Failed(ex);
+                if (State != previousState)
+                {
+                    await state.WriteAsync();
+                }
             }
-
-            await state.WriteAsync();
+            finally
+            {
+                semaphore.Release();
+            }
         }
 
         private async Task ClearAsync()
         {
-            var logContext = (actionId: Guid.NewGuid().ToString(), consumer: eventConsumer.Name);
+            var logContext = (actionId: Guid.NewGuid().ToString(), consumer: eventConsumer!.Name);
 
             log.LogDebug(logContext, (ctx, w) => w
                 .WriteProperty("action", "EventConsumerReset")
@@ -219,87 +260,43 @@ namespace Squidex.Infrastructure.EventSourcing.Grains
             }
         }
 
-        private async Task DispatchConsumerAsync(Envelope<IEvent> @event)
-        {
-            var eventId = @event.Headers.EventId().ToString();
-            var eventType = @event.Payload.GetType().Name;
-
-            var logContext = (eventId, eventType, consumer: eventConsumer.Name);
-
-            log.LogDebug(logContext, (ctx, w) => w
-                .WriteProperty("action", "HandleEvent")
-                .WriteProperty("actionId", ctx.eventId)
-                .WriteProperty("status", "Started")
-                .WriteProperty("eventId", ctx.eventId)
-                .WriteProperty("eventType", ctx.eventType)
-                .WriteProperty("eventConsumer", ctx.consumer));
-
-            using (log.MeasureInformation(logContext, (ctx, w) => w
-                .WriteProperty("action", "HandleEvent")
-                .WriteProperty("actionId", ctx.eventId)
-                .WriteProperty("status", "Completed")
-                .WriteProperty("eventId", ctx.eventId)
-                .WriteProperty("eventType", ctx.eventType)
-                .WriteProperty("eventConsumer", ctx.consumer)))
-            {
-                await eventConsumer.On(@event);
-            }
-        }
-
         private void Unsubscribe()
         {
-            if (currentSubscription != null)
-            {
-                currentSubscription.StopAsync().Forget();
-                currentSubscription = null;
-            }
+            var subscription = Interlocked.Exchange(ref currentSubscriber, null);
+
+            subscription?.Unsubscribe();
         }
 
-        private void Subscribe(string? position)
+        private void Subscribe()
         {
-            if (currentSubscription == null)
+            if (currentSubscriber == null)
             {
-                currentSubscription?.StopAsync().Forget();
-                currentSubscription = CreateSubscription(eventConsumer!.EventsFilter, position);
+                currentSubscriber = CreateSubscription();
             }
             else
             {
-                currentSubscription.WakeUp();
+                currentSubscriber.WakeUp();
             }
         }
 
-        private Envelope<IEvent>? ParseKnownEvent(StoredEvent message)
+        protected virtual TaskScheduler GetScheduler()
         {
-            try
-            {
-                var @event = eventDataFormatter.Parse(message.Data);
-
-                @event.SetEventPosition(message.EventPosition);
-                @event.SetEventStreamNumber(message.EventStreamNumber);
-
-                return @event;
-            }
-            catch (TypeNameNotFoundException)
-            {
-                log.LogDebug(w => w.WriteProperty("oldEventFound", message.Data.Type));
-
-                return null;
-            }
+            return scheduler!;
         }
 
-        protected virtual IEventConsumerGrain GetSelf()
+        private BatchSubscriber CreateSubscription()
         {
-            return this.AsReference<IEventConsumerGrain>();
+            return new BatchSubscriber(this, eventDataFormatter, eventConsumer!, CreateRetrySubscription, GetScheduler());
         }
 
-        protected virtual IEventSubscription CreateSubscription(IEventStore store, IEventSubscriber subscriber, string streamFilter, string? position)
+        protected virtual IEventSubscription CreateRetrySubscription(IEventSubscriber subscriber)
         {
-            return new RetrySubscription(store, subscriber, streamFilter, position);
+            return new RetrySubscription(subscriber, CreateSubscription);
         }
 
-        private IEventSubscription CreateSubscription(string streamFilter, string? position)
+        protected virtual IEventSubscription CreateSubscription(IEventSubscriber subscriber)
         {
-            return CreateSubscription(eventStore, new WrapperSubscription(GetSelf(), scheduler!), streamFilter, position);
+            return eventStore.CreateSubscription(subscriber, eventConsumer!.EventsFilter, State.Position);
         }
     }
 }

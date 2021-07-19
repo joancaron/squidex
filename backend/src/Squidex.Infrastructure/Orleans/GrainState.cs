@@ -25,7 +25,7 @@ namespace Squidex.Infrastructure.Orleans
 
         public long Version
         {
-            get { return persistence.Version; }
+            get => persistence.Version;
         }
 
         public GrainState(IGrainActivationContext context)
@@ -44,23 +44,25 @@ namespace Squidex.Infrastructure.Orleans
                 return Task.CompletedTask;
             }
 
+            DomainId key;
+
             if (context.GrainIdentity.PrimaryKeyString != null)
             {
-                var store = context.ActivationServices.GetService<IStore<string>>();
-
-                persistence = store.WithSnapshots<T>(GetType(), context.GrainIdentity.PrimaryKeyString, ApplyState);
+                key = DomainId.Create(context.GrainIdentity.PrimaryKeyString);
             }
             else
             {
-                var store = context.ActivationServices.GetService<IStore<Guid>>();
-
-                persistence = store.WithSnapshots<T>(GetType(), context.GrainIdentity.PrimaryKey, ApplyState);
+                key = DomainId.Create(context.GrainIdentity.PrimaryKey);
             }
+
+            var factory = context.ActivationServices.GetRequiredService<IPersistenceFactory<T>>();
+
+            persistence = factory.WithSnapshots(GetType(), key, ApplyState);
 
             return persistence.ReadAsync();
         }
 
-        private void ApplyState(T value)
+        private void ApplyState(T value, long version)
         {
             Value = value;
         }

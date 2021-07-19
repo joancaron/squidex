@@ -1,16 +1,16 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Squidex.Domain.Apps.Entities.Apps;
 using Squidex.Domain.Apps.Entities.Apps.Plans;
+using Squidex.Infrastructure.Validation;
 using Squidex.Shared.Users;
 using Squidex.Web;
 
@@ -21,7 +21,7 @@ namespace Squidex.Areas.Api.Controllers.Apps.Models
         /// <summary>
         /// The contributors.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public ContributorDto[] Items { get; set; }
 
         /// <summary>
@@ -41,27 +41,26 @@ namespace Squidex.Areas.Api.Controllers.Apps.Models
 
             var result = new ContributorsDto
             {
-                Items =
-                    app.Contributors
-                        .Select(x => ContributorDto.FromIdAndRole(x.Key, x.Value))
-                        .Select(x => x.WithUser(users))
-                        .Select(x => x.WithLinks(resources))
-                        .OrderBy(x => x.ContributorName)
-                        .ToArray()
+                Items = app.Contributors
+                    .Select(x => ContributorDto.FromIdAndRole(x.Key, x.Value))
+                    .Select(x => x.CreateUser(users))
+                    .Select(x => x.CreateLinks(resources))
+                    .OrderBy(x => x.ContributorName)
+                    .ToArray()
             };
 
-            result.WithInvited(invited);
-            result.WithPlan(app, plans);
+            result.CreateInvited(invited);
+            result.CreatePlan(app, plans);
 
-            return result.CreateLinks(resources, app.Name);
+            return result.CreateLinks(resources);
         }
 
-        private void WithPlan(IAppEntity app, IAppPlansProvider plans)
+        private void CreatePlan(IAppEntity app, IAppPlansProvider plans)
         {
             MaxContributors = plans.GetPlanForApp(app).Plan.MaxContributors;
         }
 
-        private void WithInvited(bool isInvited)
+        private void CreateInvited(bool isInvited)
         {
             if (isInvited)
             {
@@ -72,9 +71,9 @@ namespace Squidex.Areas.Api.Controllers.Apps.Models
             }
         }
 
-        private ContributorsDto CreateLinks(Resources resources, string app)
+        private ContributorsDto CreateLinks(Resources resources)
         {
-            var values = new { app };
+            var values = new { app = resources.App };
 
             AddSelfLink(resources.Url<AppContributorsController>(x => nameof(x.GetContributors), values));
 

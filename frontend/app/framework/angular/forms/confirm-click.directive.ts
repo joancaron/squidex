@@ -5,65 +5,36 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable: readonly-array
-
-import { Directive, EventEmitter, HostListener, Input, OnDestroy, Output } from '@angular/core';
-import { DialogService } from '@app/framework/internal';
-
-class DelayEventEmitter<T> extends EventEmitter<T> {
-    private delayedNexts: any[] | null = [];
-
-    public delayEmit() {
-        if (this.delayedNexts) {
-            for (const callback of this.delayedNexts) {
-                callback();
-            }
-        }
-    }
-
-    public clear() {
-        this.delayedNexts = null;
-    }
-
-    public subscribe(generatorOrNext?: any, error?: any, complete?: any): any {
-        if (this.delayedNexts) {
-            this.delayedNexts.push(generatorOrNext);
-        }
-
-        return super.subscribe(generatorOrNext, error, complete);
-    }
-}
+import { Directive, EventEmitter, HostListener, Input, Output } from '@angular/core';
+import { DialogService, Types } from '@app/framework/internal';
+import { Subscriber } from 'rxjs';
+import { take } from 'rxjs/operators';
 
 @Directive({
-    selector: '[sqxConfirmClick]'
+    selector: '[sqxConfirmClick]',
 })
-export class ConfirmClickDirective implements OnDestroy {
-    private isOpen = false;
-    private isDestroyed = false;
+export class ConfirmClickDirective {
+    @Input()
+    public confirmTitle: string | undefined | null;
 
     @Input()
-    public confirmTitle: string;
+    public confirmText: string | undefined | null;
 
     @Input()
-    public confirmText: string;
+    public confirmRememberKey: string;
 
     @Input()
-    public confirmRequired = true;
+    public confirmRequired?: boolean | null = true;
+
+    @Output()
+    public beforeClick = new EventEmitter();
 
     @Output('sqxConfirmClick')
-    public clickConfirmed = new DelayEventEmitter();
+    public clickConfirmed = new EventEmitter();
 
     constructor(
-        private readonly dialogs: DialogService
+        private readonly dialogs: DialogService,
     ) {
-    }
-
-    public ngOnDestroy() {
-        this.isDestroyed = true;
-
-        if (!this.isOpen) {
-            this.clickConfirmed.clear();
-        }
     }
 
     @HostListener('click', ['$event'])
@@ -73,24 +44,20 @@ export class ConfirmClickDirective implements OnDestroy {
             this.confirmTitle.length > 0 &&
             this.confirmText &&
             this.confirmText.length > 0) {
+            const destinations = this.clickConfirmed.observers?.map(x => (x as Subscriber<any>)['destination']) || [];
 
-            this.isOpen = true;
+            this.beforeClick.emit();
 
-            const subscription =
-                this.dialogs.confirm(this.confirmTitle, this.confirmText)
-                    .subscribe(confiormed => {
-                        this.isOpen = false;
-
-                        if (confiormed) {
-                            this.clickConfirmed.delayEmit();
+            this.dialogs.confirm(this.confirmTitle, this.confirmText, this.confirmRememberKey).pipe(take(1))
+                .subscribe(confirmed => {
+                    if (confirmed) {
+                        for (const destination of destinations) {
+                            if (Types.isFunction(destination?.next)) {
+                                destination.next(true);
+                            }
                         }
-
-                        subscription.unsubscribe();
-
-                        if (this.isDestroyed) {
-                            this.clickConfirmed.clear();
-                        }
-                    });
+                    }
+                });
         } else {
             this.clickConfirmed.emit();
         }

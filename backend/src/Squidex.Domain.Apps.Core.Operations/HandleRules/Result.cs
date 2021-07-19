@@ -12,7 +12,7 @@ namespace Squidex.Domain.Apps.Core.HandleRules
 {
     public sealed class Result
     {
-        public Exception? Exception { get; private set; }
+        public Exception? Exception { get; private init; }
 
         public string? Dump { get; private set; }
 
@@ -31,6 +31,13 @@ namespace Squidex.Domain.Apps.Core.HandleRules
             {
                 dumpBuilder.AppendLine();
                 dumpBuilder.AppendLine("Action timed out.");
+            }
+
+            if (Exception != null)
+            {
+                dumpBuilder.AppendLine();
+                dumpBuilder.Append("Error: ");
+                dumpBuilder.AppendLine(Exception.Message);
             }
 
             dumpBuilder.AppendLine();

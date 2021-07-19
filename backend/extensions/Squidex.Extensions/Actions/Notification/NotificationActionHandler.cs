@@ -13,40 +13,36 @@ using Squidex.Domain.Apps.Core.Rules.EnrichedEvents;
 using Squidex.Domain.Apps.Entities.Comments.Commands;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Commands;
-using Squidex.Infrastructure.Reflection;
 using Squidex.Shared.Users;
 
 namespace Squidex.Extensions.Actions.Notification
 {
-    public sealed class NotificationActionHandler : RuleActionHandler<NotificationAction, NotificationJob>
+    public sealed class NotificationActionHandler : RuleActionHandler<NotificationAction, CreateComment>
     {
         private const string Description = "Send a Notification";
-        private static readonly NamedId<Guid> NoApp = NamedId.Of(Guid.Empty, "none");
+        private static readonly NamedId<DomainId> NoApp = NamedId.Of(DomainId.Empty, "none");
         private readonly ICommandBus commandBus;
         private readonly IUserResolver userResolver;
 
         public NotificationActionHandler(RuleEventFormatter formatter, ICommandBus commandBus, IUserResolver userResolver)
             : base(formatter)
         {
-            Guard.NotNull(commandBus, nameof(commandBus));
-            Guard.NotNull(userResolver, nameof(userResolver));
-
             this.commandBus = commandBus;
 
             this.userResolver = userResolver;
         }
 
-        protected override async Task<(string Description, NotificationJob Data)> CreateJobAsync(EnrichedEvent @event, NotificationAction action)
+        protected override async Task<(string Description, CreateComment Data)> CreateJobAsync(EnrichedEvent @event, NotificationAction action)
         {
             if (@event is EnrichedUserEventBase userEvent)
             {
-                var text = Format(action.Text, @event);
+                var text = await FormatAsync(action.Text, @event);
 
                 var actor = userEvent.Actor;
 
                 if (!string.IsNullOrEmpty(action.Client))
                 {
-                    actor = new RefToken(RefTokenType.Client, action.Client);
+                    actor = RefToken.Client(action.Client);
                 }
 
                 var user = await userResolver.FindByIdOrEmailAsync(action.User);
@@ -56,11 +52,13 @@ namespace Squidex.Extensions.Actions.Notification
                     throw new InvalidOperationException($"Cannot find user by '{action.User}'");
                 }
 
-                var ruleJob = new NotificationJob { Actor = actor, CommentsId = user.Id, Text = text };
+                var commentsId = DomainId.Create(user.Id);
+
+                var ruleJob = new CreateComment { Actor = actor, CommentsId = commentsId, Text = text };
 
                 if (!string.IsNullOrWhiteSpace(action.Url))
                 {
-                    var url = Format(action.Url, @event);
+                    var url = await FormatAsync(action.Url, @event);
 
                     if (Uri.TryCreate(url, UriKind.RelativeOrAbsolute, out var uri))
                     {
@@ -71,32 +69,24 @@ namespace Squidex.Extensions.Actions.Notification
                 return (Description, ruleJob);
             }
 
-            return ("Ignore", new NotificationJob());
+            return ("Ignore", new CreateComment());
         }
 
-        protected override async Task<Result> ExecuteJobAsync(NotificationJob job, CancellationToken ct = default)
+        protected override async Task<Result> ExecuteJobAsync(CreateComment job, CancellationToken ct = default)
         {
-            if (string.IsNullOrWhiteSpace(job.CommentsId))
+            if (job.CommentsId == default)
             {
                 return Result.Ignored();
             }
 
-            var command = SimpleMapper.Map(job, new CreateComment { AppId = NoApp });
+            var command = job;
+
+            command.AppId = NoApp;
+            command.FromRule = true;
 
             await commandBus.PublishAsync(command);
 
             return Result.Success($"Notified: {job.Text}");
         }
-    }
-
-    public sealed class NotificationJob
-    {
-        public RefToken Actor { get; set; }
-
-        public string CommentsId { get; set; }
-
-        public string Text { get; set; }
-
-        public Uri Url { get; set; }
     }
 }

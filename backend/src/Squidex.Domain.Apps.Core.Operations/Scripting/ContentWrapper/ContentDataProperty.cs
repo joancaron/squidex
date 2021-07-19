@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -38,7 +38,7 @@ namespace Squidex.Domain.Apps.Core.Scripting.ContentWrapper
 
                     foreach (var (key, propertyDescriptor) in obj.GetOwnProperties())
                     {
-                        contentField.Put(key, propertyDescriptor.Value, true);
+                        contentField.Set(key, propertyDescriptor.Value);
                     }
 
                     this.value = contentField;
@@ -48,7 +48,7 @@ namespace Squidex.Domain.Apps.Core.Scripting.ContentWrapper
 
         public ContentFieldObject? ContentField
         {
-            get { return contentField; }
+            get => contentField;
         }
 
         public ContentDataProperty(ContentDataObject contentData, ContentFieldObject? contentField = null)

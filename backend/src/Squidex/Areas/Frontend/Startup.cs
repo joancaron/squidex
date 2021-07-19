@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -15,6 +15,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Net.Http.Headers;
 using Squidex.Areas.Frontend.Middlewares;
 using Squidex.Pipeline.Squid;
+using Squidex.Web.Pipeline;
 
 namespace Squidex.Areas.Frontend
 {
@@ -24,7 +25,14 @@ namespace Squidex.Areas.Frontend
         {
             var environment = app.ApplicationServices.GetRequiredService<IWebHostEnvironment>();
 
-            app.UseMiddleware<SquidMiddleware>();
+            app.Map("/squid.svg", builder => builder.UseMiddleware<SquidMiddleware>());
+
+            app.UseMiddleware<NotifoMiddleware>();
+
+            var indexFile =
+                environment.IsProduction() ?
+                    new PathString("/build/index.html") :
+                    new PathString("/index.html");
 
             app.Use((context, next) =>
             {
@@ -38,26 +46,22 @@ namespace Squidex.Areas.Frontend
                 }
                 else if (!Path.HasExtension(context.Request.Path.Value))
                 {
-                    if (environment.IsDevelopment())
-                    {
-                        context.Request.Path = new PathString("/index.html");
-                    }
-                    else
-                    {
-                        context.Request.Path = new PathString("/build/index.html");
-                    }
+                    context.Request.Path = indexFile;
                 }
 
                 return next();
             });
 
+            app.UseWhen(x => x.Request.Path.StartsWithSegments(indexFile), builder =>
+            {
+                builder.UseMiddleware<SetupMiddleware>();
+            });
+
+            app.UseMiddleware<IndexMiddleware>();
+
             if (environment.IsDevelopment())
             {
                 app.UseMiddleware<WebpackMiddleware>();
-            }
-            else
-            {
-                app.UseMiddleware<IndexMiddleware>();
             }
 
             app.UseStaticFiles(new StaticFileOptions

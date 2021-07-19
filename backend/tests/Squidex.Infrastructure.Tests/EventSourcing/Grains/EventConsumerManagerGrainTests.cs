@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -10,7 +10,6 @@ using System.Threading.Tasks;
 using FakeItEasy;
 using FluentAssertions;
 using Orleans;
-using Orleans.Concurrency;
 using Orleans.Core;
 using Orleans.Runtime;
 using Xunit;
@@ -91,7 +90,7 @@ namespace Squidex.Infrastructure.EventSourcing.Grains
         }
 
         [Fact]
-        public async Task Should_activate_matching_grains_when_stream_name_defined()
+        public async Task Should_activate_matching_grains_if_stream_name_defined()
         {
             await sut.ActivateAsync("a-123");
 
@@ -166,12 +165,10 @@ namespace Squidex.Infrastructure.EventSourcing.Grains
         public async Task Should_fetch_infos_from_all_grains()
         {
             A.CallTo(() => grainA.GetStateAsync())
-                .Returns(new Immutable<EventConsumerInfo>(
-                    new EventConsumerInfo { Name = "A", Error = "A-Error", IsStopped = false, Position = "123" }));
+                .Returns(new EventConsumerInfo { Name = "A", Error = "A-Error", IsStopped = false, Position = "123" });
 
             A.CallTo(() => grainB.GetStateAsync())
-                .Returns(new Immutable<EventConsumerInfo>(
-                    new EventConsumerInfo { Name = "B", Error = "B-Error", IsStopped = false, Position = "456" }));
+                .Returns(new EventConsumerInfo { Name = "B", Error = "B-Error", IsStopped = false, Position = "456" });
 
             var infos = await sut.GetConsumersAsync();
 

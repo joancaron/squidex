@@ -1,28 +1,25 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
 using System.Linq;
 using System.Reflection;
-using System.Threading;
+using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Conventions;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace Squidex.Infrastructure.MongoDb
 {
     public static class BsonJsonConvention
     {
-        private static volatile int isRegistered;
-
         public static void Register(JsonSerializer serializer)
         {
-            if (Interlocked.Increment(ref isRegistered) == 1)
+            try
             {
                 var pack = new ConventionPack();
 
@@ -37,21 +34,13 @@ namespace Squidex.Infrastructure.MongoDb
 
                         memberMap.SetSerializer((IBsonSerializer)bsonSerializer!);
                     }
-                    else if (memberMap.MemberType == typeof(JToken))
-                    {
-                        memberMap.SetSerializer(JTokenSerializer<JToken>.Instance);
-                    }
-                    else if (memberMap.MemberType == typeof(JObject))
-                    {
-                        memberMap.SetSerializer(JTokenSerializer<JObject>.Instance);
-                    }
-                    else if (memberMap.MemberType == typeof(JValue))
-                    {
-                        memberMap.SetSerializer(JTokenSerializer<JValue>.Instance);
-                    }
                 });
 
                 ConventionRegistry.Register("json", pack, t => true);
+            }
+            catch (BsonSerializationException)
+            {
+                return;
             }
         }
     }

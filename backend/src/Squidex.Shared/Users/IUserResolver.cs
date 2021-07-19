@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -18,7 +18,11 @@ namespace Squidex.Shared.Users
 
         Task<IUser?> FindByIdAsync(string idOrEmail);
 
+        Task SetClaimAsync(string id, string type, string value, bool silent = false);
+
         Task<List<IUser>> QueryByEmailAsync(string email);
+
+        Task<List<IUser>> QueryAllAsync();
 
         Task<Dictionary<string, IUser>> QueryManyAsync(string[] ids);
     }

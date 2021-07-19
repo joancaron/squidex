@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -12,6 +12,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using Squidex.Infrastructure.Validation;
+using Squidex.Text;
 
 namespace Squidex.Infrastructure
 {
@@ -164,6 +165,17 @@ namespace Squidex.Infrastructure
         }
 
         [DebuggerStepThrough]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void NotEmpty(DomainId target, string parameterName)
+        {
+            if (target == DomainId.Empty)
+            {
+                throw new ArgumentException("Value cannot be empty.", parameterName);
+            }
+        }
+
+        [DebuggerStepThrough]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void NotNull(object? target, string parameterName)
         {
             if (target == null)
@@ -200,19 +212,10 @@ namespace Squidex.Infrastructure
         {
             NotNullOrEmpty(target, parameterName);
 
-            if (target.Intersect(Path.GetInvalidFileNameChars()).Any())
+            if (target != null && target.Intersect(Path.GetInvalidFileNameChars()).Any())
             {
                 throw new ArgumentException("Value contains an invalid character.", parameterName);
             }
-        }
-
-        [DebuggerStepThrough]
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Valid(IValidatable? target, [CallerArgumentExpression("target")] string parameterName, Func<string> message)
-        {
-            NotNull(target, parameterName);
-
-            target?.Validate(message);
         }
     }
 }

@@ -11,8 +11,8 @@ using System.Threading.Tasks;
 using Squidex.Domain.Apps.Entities.Rules.Repositories;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Caching;
-using Squidex.Infrastructure.Log;
 using Squidex.Infrastructure.Reflection;
+using Squidex.Log;
 
 namespace Squidex.Domain.Apps.Entities.Rules.Queries
 {
@@ -23,9 +23,6 @@ namespace Squidex.Domain.Apps.Entities.Rules.Queries
 
         public RuleEnricher(IRuleEventRepository ruleEventRepository, IRequestCache requestCache)
         {
-            Guard.NotNull(ruleEventRepository, nameof(ruleEventRepository));
-            Guard.NotNull(requestCache, nameof(requestCache));
-
             this.ruleEventRepository = ruleEventRepository;
 
             this.requestCache = requestCache;
@@ -62,7 +59,7 @@ namespace Squidex.Domain.Apps.Entities.Rules.Queries
 
                     foreach (var rule in group)
                     {
-                        requestCache.AddDependency(rule.Id, rule.Version);
+                        requestCache.AddDependency(rule.UniqueId, rule.Version);
 
                         var statistic = statistics.FirstOrDefault(x => x.RuleId == rule.Id);
 

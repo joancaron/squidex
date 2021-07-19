@@ -11,7 +11,7 @@ import { WorkflowDto, WorkflowStep, WorkflowStepValues, WorkflowTransition, Work
 @Component({
     selector: 'sqx-workflow-step',
     styleUrls: ['./workflow-step.component.scss'],
-    templateUrl: './workflow-step.component.html'
+    templateUrl: './workflow-step.component.html',
 })
 export class WorkflowStepComponent implements OnChanges {
     public readonly onBlur: { updateOn: 'blur' } = { updateOn: 'blur' };
@@ -26,7 +26,7 @@ export class WorkflowStepComponent implements OnChanges {
     public transitionRemove = new EventEmitter<WorkflowTransition>();
 
     @Output()
-    public transitionUpdate = new EventEmitter<{ transition: WorkflowTransition, values: WorkflowTransitionValues }>();
+    public transitionUpdate = new EventEmitter<{ transition: WorkflowTransition; values: WorkflowTransitionValues }>();
 
     @Output()
     public update = new EventEmitter<WorkflowStepValues>();
@@ -47,7 +47,7 @@ export class WorkflowStepComponent implements OnChanges {
     public roles: ReadonlyArray<string>;
 
     @Input()
-    public disabled: boolean;
+    public disabled?: boolean | null;
 
     public openSteps: ReadonlyArray<WorkflowStep>;
     public openStep: WorkflowStep;
@@ -55,7 +55,7 @@ export class WorkflowStepComponent implements OnChanges {
     public transitions: ReadonlyArray<WorkflowTransitionView>;
 
     public ngOnChanges(changes: SimpleChanges) {
-        if (changes['workflow'] || changes['step'] || false) {
+        if (changes['workflow'] || changes['step']) {
             this.openSteps = this.workflow.getOpenSteps(this.step);
             this.openStep = this.openSteps[0];
 
@@ -87,7 +87,7 @@ export class WorkflowStepComponent implements OnChanges {
         this.update.emit({ noUpdateRoles });
     }
 
-    public trackByTransition(index: number, transition: WorkflowTransition) {
+    public trackByTransition(_index: number, transition: WorkflowTransitionView) {
         return transition.to;
     }
 }

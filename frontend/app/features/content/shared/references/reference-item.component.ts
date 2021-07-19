@@ -14,20 +14,32 @@ import { AppLanguageDto, ContentDto, getContentValue } from '@app/shared';
     selector: '[sqxReferenceItem]',
     styleUrls: ['./reference-item.component.scss'],
     templateUrl: './reference-item.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ReferenceItemComponent implements OnChanges {
     @Output()
     public delete = new EventEmitter();
 
+    @Output()
+    public clone = new EventEmitter();
+
     @Input()
     public language: AppLanguageDto;
 
     @Input()
-    public isCompact = false;
+    public canRemove?: boolean | null = true;
 
     @Input()
-    public isDisabled = false;
+    public isCompact?: boolean | null;
+
+    @Input()
+    public isDisabled?: boolean | null;
+
+    @Input()
+    public validations: { [id: string]: boolean };
+
+    @Input()
+    public validityVisible?: boolean | null;
 
     @Input()
     public columns = 0;
@@ -35,13 +47,13 @@ export class ReferenceItemComponent implements OnChanges {
     @Input('sqxReferenceItem')
     public content: ContentDto;
 
+    public get valid() {
+        return !this.validations ? undefined : this.validations[this.content.id];
+    }
+
     public values: ReadonlyArray<any> = [];
 
     public ngOnChanges() {
-        this.updateValues();
-    }
-
-    private updateValues() {
         const values = [];
 
         for (let i = 0; i < this.columns; i++) {

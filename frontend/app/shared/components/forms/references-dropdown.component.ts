@@ -7,10 +7,10 @@
 
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, forwardRef, Input, OnChanges, SimpleChanges } from '@angular/core';
 import { FormControl, NG_VALUE_ACCESSOR } from '@angular/forms';
-import { AppsState, ContentDto, ContentsService, getContentValue, LanguageDto, StatefulControlComponent, Types, UIOptions, value$ } from '@app/shared/internal';
+import { AppsState, ContentDto, ContentsService, getContentValue, LanguageDto, LocalizerService, StatefulControlComponent, Types, UIOptions, value$ } from '@app/shared/internal';
 
 export const SQX_REFERENCES_DROPDOWN_CONTROL_VALUE_ACCESSOR: any = {
-    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => ReferencesDropdownComponent), multi: true
+    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => ReferencesDropdownComponent), multi: true,
 };
 
 interface State {
@@ -24,7 +24,7 @@ interface State {
     selectedItem?: ContentName;
 }
 
-type ContentName = { name: string, id?: string };
+type ContentName = { name: string; id?: string };
 
 const NO_EMIT = { emitEvent: false };
 
@@ -33,14 +33,14 @@ const NO_EMIT = { emitEvent: false };
     styleUrls: ['./references-dropdown.component.scss'],
     templateUrl: './references-dropdown.component.html',
     providers: [
-        SQX_REFERENCES_DROPDOWN_CONTROL_VALUE_ACCESSOR
+        SQX_REFERENCES_DROPDOWN_CONTROL_VALUE_ACCESSOR,
     ],
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ReferencesDropdownComponent extends StatefulControlComponent<State, ReadonlyArray<string> | string> implements OnChanges {
+    private readonly itemCount: number;
     private languageField: LanguageDto;
     private selectedId: string | undefined;
-    private itemCount: number;
 
     @Input()
     public schemaId: string;
@@ -49,45 +49,52 @@ export class ReferencesDropdownComponent extends StatefulControlComponent<State,
     public mode: 'Array' | 'Single';
 
     @Input()
+    public set disabled(value: boolean | null | undefined) {
+        this.setDisabledState(value === true);
+    }
+
+    @Input()
     public set language(value: LanguageDto) {
         this.languageField = value;
 
-        this.next(s => ({ ...s, contentNames: this.createContentNames(s.contents) }));
+        this.next(s => ({
+            ...s,
+            contentNames: this.createContentNames(s.contents),
+        }));
     }
 
     public get isValid() {
         return !!this.schemaId && !!this.languageField;
     }
 
-    public selectionControl = new FormControl('');
+    public control = new FormControl('');
 
     constructor(changeDetector: ChangeDetectorRef, uiOptions: UIOptions,
         private readonly appsState: AppsState,
-        private readonly contentsService: ContentsService
+        private readonly contentsService: ContentsService,
+        private readonly localizer: LocalizerService,
     ) {
         super(changeDetector, {
             contents: [],
-            contentNames: []
+            contentNames: [],
         });
 
         this.itemCount = uiOptions.get('referencesDropdownItemCount');
 
         this.own(
-            value$(this.selectionControl)
+            value$(this.control)
                 .subscribe((value: ContentName) => {
-                    if (this.selectionControl.enabled) {
+                    if (this.control.enabled) {
                         if (value && value.id) {
                             if (this.mode === 'Single') {
                                 this.callChange(value.id);
                             } else {
                                 this.callChange([value.id]);
                             }
+                        } else if (this.mode === 'Single') {
+                            this.callChange(null);
                         } else {
-                            if (this.mode === 'Single') {
-                                this.callChange(null);
-                            } else {
-                                this.callChange([]);
-                            }
+                            this.callChange([]);
                         }
 
                         this.callTouched();
@@ -101,30 +108,27 @@ export class ReferencesDropdownComponent extends StatefulControlComponent<State,
 
             if (this.isValid) {
                 this.contentsService.getContents(this.appsState.appName, this.schemaId, { take: this.itemCount })
-                    .subscribe(contents => {
-                        const contentItems = contents.items;
-                        const contentNames = this.createContentNames(contentItems);
+                    .subscribe(({ items: contents }) => {
+                        const contentNames = this.createContentNames(contents);
 
-                        this.next(s => ({ ...s, contents: contentItems, contentNames }));
+                        this.next({ contents, contentNames });
 
                         this.selectContent();
                     }, () => {
-                        this.selectionControl.disable(NO_EMIT);
+                        this.control.disable(NO_EMIT);
                     });
             } else {
-                this.selectionControl.disable(NO_EMIT);
+                this.control.disable(NO_EMIT);
             }
         }
     }
 
-    public setDisabledState(isDisabled: boolean) {
+    public onDisabled(isDisabled: boolean) {
         if (isDisabled) {
-            this.selectionControl.disable(NO_EMIT);
+            this.control.disable(NO_EMIT);
         } else if (this.isValid) {
-            this.selectionControl.enable(NO_EMIT);
+            this.control.enable(NO_EMIT);
         }
-
-        super.setDisabledState(isDisabled);
     }
 
     public writeValue(obj: any) {
@@ -144,11 +148,11 @@ export class ReferencesDropdownComponent extends StatefulControlComponent<State,
     }
 
     private selectContent() {
-        this.selectionControl.setValue(this.snapshot.contentNames.find(x => x.id === this.selectedId), NO_EMIT);
+        this.control.setValue(this.snapshot.contentNames.find(x => x.id === this.selectedId), NO_EMIT);
     }
 
     private unselectContent() {
-        this.selectionControl.setValue(undefined, NO_EMIT);
+        this.control.setValue(undefined, NO_EMIT);
     }
 
     private createContentNames(contents: ReadonlyArray<ContentDto>): ReadonlyArray<ContentName> {
@@ -160,13 +164,13 @@ export class ReferencesDropdownComponent extends StatefulControlComponent<State,
             const name =
                 content.referenceFields
                     .map(f => getContentValue(content, this.languageField, f, false))
-                    .map(v => v.formatted || 'No value')
+                    .map(v => v.formatted || this.localizer.getOrKey('common.noValue'))
                     .filter(v => !!v)
                     .join(', ');
 
             return { name, id: content.id };
         });
 
-        return [{ name: '- No Reference -' }, ...names];
+        return [{ name: this.localizer.getOrKey('contents.noReference') }, ...names];
     }
 }

@@ -1,13 +1,14 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using Microsoft.OData.Edm;
 using Squidex.Domain.Apps.Core.Schemas;
 using Squidex.Infrastructure;
+using Squidex.Text;
 
 namespace Squidex.Domain.Apps.Core.GenerateEdmSchema
 {
@@ -25,14 +26,13 @@ namespace Squidex.Domain.Apps.Core.GenerateEdmSchema
             return field.Replace("_", "-");
         }
 
-        public static EdmComplexType BuildEdmType(this Schema schema, bool withHidden, PartitionResolver partitionResolver, EdmTypeFactory typeFactory)
+        public static EdmComplexType BuildEdmType(this Schema schema, bool withHidden, PartitionResolver partitionResolver, EdmTypeFactory typeFactory,
+            ResolvedComponents components)
         {
             Guard.NotNull(typeFactory, nameof(typeFactory));
             Guard.NotNull(partitionResolver, nameof(partitionResolver));
 
             var (edmType, _) = typeFactory("Data");
-
-            var visitor = new EdmTypeVisitor(typeFactory);
 
             foreach (var field in schema.FieldsByName.Values)
             {
@@ -41,7 +41,7 @@ namespace Squidex.Domain.Apps.Core.GenerateEdmSchema
                     continue;
                 }
 
-                var fieldEdmType = field.Accept(visitor);
+                var fieldEdmType = EdmTypeVisitor.BuildType(field, typeFactory, components);
 
                 if (fieldEdmType == null)
                 {

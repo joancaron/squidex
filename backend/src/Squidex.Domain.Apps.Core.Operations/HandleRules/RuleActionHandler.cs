@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -10,7 +10,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Squidex.Domain.Apps.Core.Rules;
 using Squidex.Domain.Apps.Core.Rules.EnrichedEvents;
-using Squidex.Infrastructure;
 
 #pragma warning disable RECS0083 // Shows NotImplementedException throws in the quick task bar
 
@@ -22,18 +21,16 @@ namespace Squidex.Domain.Apps.Core.HandleRules
 
         Type IRuleActionHandler.ActionType
         {
-            get { return typeof(TAction); }
+            get => typeof(TAction);
         }
 
         Type IRuleActionHandler.DataType
         {
-            get { return typeof(TData); }
+            get => typeof(TData);
         }
 
         protected RuleActionHandler(RuleEventFormatter formatter)
         {
-            Guard.NotNull(formatter, nameof(formatter));
-
             this.formatter = formatter;
         }
 
@@ -47,14 +44,14 @@ namespace Squidex.Domain.Apps.Core.HandleRules
             return formatter.ToEnvelope(@event);
         }
 
-        protected string? Format(Uri uri, EnrichedEvent @event)
+        protected ValueTask<string?> FormatAsync(Uri uri, EnrichedEvent @event)
         {
-            return formatter.Format(uri.ToString(), @event);
+            return formatter.FormatAsync(uri.ToString(), @event);
         }
 
-        protected string? Format(string text, EnrichedEvent @event)
+        protected ValueTask<string?> FormatAsync(string text, EnrichedEvent @event)
         {
-            return formatter.Format(text, @event);
+            return formatter.FormatAsync(text, @event);
         }
 
         async Task<(string Description, object Data)> IRuleActionHandler.CreateJobAsync(EnrichedEvent @event, RuleAction action)

@@ -5,15 +5,14 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using Squidex.Assets;
 using Squidex.Domain.Apps.Entities.Apps.Indexes;
 using Squidex.Domain.Apps.Entities.Backup;
 using Squidex.Domain.Apps.Events.Apps;
 using Squidex.Infrastructure;
-using Squidex.Infrastructure.Assets;
 using Squidex.Infrastructure.EventSourcing;
 using Squidex.Infrastructure.Json.Objects;
 
@@ -33,10 +32,6 @@ namespace Squidex.Domain.Apps.Entities.Apps
 
         public BackupApps(IAppImageStore appImageStore, IAppsIndex appsIndex, IAppUISettings appUISettings)
         {
-            Guard.NotNull(appImageStore, nameof(appImageStore));
-            Guard.NotNull(appsIndex, nameof(appsIndex));
-            Guard.NotNull(appUISettings, nameof(appUISettings));
-
             this.appsIndex = appsIndex;
             this.appImageStore = appImageStore;
             this.appUISettings = appUISettings;
@@ -49,7 +44,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
                 case AppContributorAssigned appContributorAssigned:
                     context.UserMapping.Backup(appContributorAssigned.ContributorId);
                     break;
-                case AppImageUploaded _:
+                case AppImageUploaded:
                     await WriteAssetAsync(context.AppId, context.Writer);
                     break;
             }
@@ -73,7 +68,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
                         break;
                     }
 
-                case AppImageUploaded _:
+                case AppImageUploaded:
                     {
                         await ReadAssetAsync(context.AppId, context.Reader);
 
@@ -110,12 +105,12 @@ namespace Squidex.Domain.Apps.Entities.Apps
 
         public async Task RestoreAsync(RestoreContext context)
         {
-            var json = await context.Reader.ReadJsonAttachmentAsync<JsonObject>(SettingsFile);
+            var json = await context.Reader.ReadJsonAsync<JsonObject>(SettingsFile);
 
             await appUISettings.SetAsync(context.AppId, null, json);
         }
 
-        private async Task ReserveAppAsync(Guid appId, string appName)
+        private async Task ReserveAppAsync(DomainId appId, string appName)
         {
             appReservation = await appsIndex.ReserveAsync(appId, appName);
 
@@ -125,7 +120,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
             }
         }
 
-        public async Task CleanupRestoreErrorAsync(Guid appId)
+        public async Task CleanupRestoreErrorAsync(DomainId appId)
         {
             if (appReservation != null)
             {
@@ -136,11 +131,10 @@ namespace Squidex.Domain.Apps.Entities.Apps
         public async Task CompleteRestoreAsync(RestoreContext context)
         {
             await appsIndex.AddAsync(appReservation);
-
             await appsIndex.RebuildByContributorsAsync(context.AppId, contributors);
         }
 
-        private Task WriteAssetAsync(Guid appId, IBackupWriter writer)
+        private Task WriteAssetAsync(DomainId appId, IBackupWriter writer)
         {
             return writer.WriteBlobAsync(AvatarFile, async stream =>
             {
@@ -154,7 +148,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
             });
         }
 
-        private async Task ReadAssetAsync(Guid appId, IBackupReader reader)
+        private async Task ReadAssetAsync(DomainId appId, IBackupReader reader)
         {
             try
             {

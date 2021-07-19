@@ -7,17 +7,17 @@
 
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
-import { DialogModel, hasFilter, LanguageDto, Queries, Query, QueryModel, SaveQueryForm } from '@app/shared/internal';
+import { DialogModel, equalsQuery, hasFilter, LanguageDto, Queries, Query, QueryModel, SaveQueryForm, Types } from '@app/shared/internal';
 import { Observable } from 'rxjs';
 
 @Component({
     selector: 'sqx-search-form',
     styleUrls: ['./search-form.component.scss'],
     templateUrl: './search-form.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SearchFormComponent implements OnChanges {
-    public readonly standalone = { standalone: true };
+    private previousQuery?: Query | null;
 
     @Output()
     public queryChange = new EventEmitter<Query>();
@@ -29,19 +29,24 @@ export class SearchFormComponent implements OnChanges {
     public language: LanguageDto;
 
     @Input()
-    public queryModel: QueryModel;
+    public queryModel?: QueryModel | null;
 
     @Input()
-    public query: Query | undefined;
+    public query?: Query | null;
 
     @Input()
-    public queries: Queries;
+    public queries?: Queries | null;
 
     @Input()
-    public enableShortcut = false;
+    public queriesTypes: string;
+
+    @Input()
+    public enableShortcut?: boolean | null;
 
     @Input()
     public formClass = 'form-inline search-form';
+
+    public showQueries = false;
 
     public saveKey: Observable<string | undefined>;
     public saveQueryDialog = new DialogModel();
@@ -52,20 +57,18 @@ export class SearchFormComponent implements OnChanges {
     public hasFilter: boolean;
 
     constructor(
-        private readonly formBuilder: FormBuilder
+        private readonly formBuilder: FormBuilder,
     ) {
     }
 
     public ngOnChanges(changes: SimpleChanges) {
-        if (changes['queryModel'] && !changes['query']) {
-            this.query = {};
-        }
-
         if (changes['query'] || changes['queries']) {
             this.updateSaveKey();
         }
 
         if (changes['query']) {
+            this.previousQuery = Types.clone(this.query);
+
             this.hasFilter = hasFilter(this.query);
         }
     }
@@ -73,7 +76,13 @@ export class SearchFormComponent implements OnChanges {
     public search(close = false) {
         this.hasFilter = hasFilter(this.query);
 
-        this.queryChange.emit(this.query);
+        if (this.query && !equalsQuery(this.query, this.previousQuery)) {
+            const clone = Types.clone(this.query);
+
+            this.queryChange.emit(clone);
+
+            this.previousQuery = this.query;
+        }
 
         if (close) {
             this.searchDialog.hide();
@@ -94,9 +103,8 @@ export class SearchFormComponent implements OnChanges {
             }
 
             this.saveQueryForm.submitCompleted();
+            this.saveQueryDialog.hide();
         }
-
-        this.saveQueryDialog.hide();
     }
 
     public changeQueryFullText(fullText: string) {
@@ -109,6 +117,10 @@ export class SearchFormComponent implements OnChanges {
         this.query = query;
 
         this.updateSaveKey();
+    }
+
+    public changeView(value: boolean) {
+        this.showQueries = value;
     }
 
     private updateSaveKey() {

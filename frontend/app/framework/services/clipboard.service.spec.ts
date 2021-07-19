@@ -5,15 +5,9 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { ClipboardService, ClipboardServiceFactory } from './clipboard.service';
+import { ClipboardService } from './clipboard.service';
 
 describe('ShortcutService', () => {
-    it('should instantiate from factory', () => {
-        const clipboardService = ClipboardServiceFactory();
-
-        expect(clipboardService).toBeDefined();
-    });
-
     it('should instantiate', () => {
         const clipboardService = new ClipboardService();
 
@@ -34,7 +28,7 @@ describe('ShortcutService', () => {
         expect(clipboardService.selectText()).toBe('MyContent');
     });
 
-    it('should raise subject when setting text', () => {
+    it('should raise subject if setting text', () => {
         const clipboardService = new ClipboardService();
 
         let text = '';

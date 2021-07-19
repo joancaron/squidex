@@ -16,7 +16,7 @@ export class CommentsDto extends Model<CommentsDto> {
         public readonly createdComments: ReadonlyArray<CommentDto>,
         public readonly updatedComments: ReadonlyArray<CommentDto>,
         public readonly deletedComments: ReadonlyArray<string>,
-        public readonly version: Version
+        public readonly version: Version,
     ) {
         super();
     }
@@ -28,22 +28,20 @@ export class CommentDto extends Model<CommentDto> {
         public readonly time: DateTime,
         public readonly text: string,
         public readonly url: string | undefined,
-        public readonly user: string
+        public readonly user: string,
     ) {
         super();
     }
 }
 
-export interface UpsertCommentDto {
-    readonly text: string;
-    readonly url?: string;
-}
+export type UpsertCommentDto =
+    Readonly<{ text: string; url?: string }>;
 
 @Injectable()
 export class CommentsService {
     constructor(
         private readonly http: HttpClient,
-        private readonly apiUrl: ApiUrlConfig
+        private readonly apiUrl: ApiUrlConfig,
     ) {
     }
 
@@ -52,8 +50,8 @@ export class CommentsService {
 
         const options = {
             headers: new HttpHeaders({
-                'X-Silent': '1'
-            })
+                'X-Silent': '1',
+            }),
         };
 
         return this.http.get<any>(url, options).pipe(
@@ -76,12 +74,12 @@ export class CommentsService {
                             item.user);
                     }),
                     body.deletedComments,
-                    new Version(body.version)
+                    new Version(body.version),
                 );
 
                 return comments;
             }),
-            pretifyError('Failed to load comments.'));
+            pretifyError('i18n:comments.loadFailed'));
     }
 
     public postComment(commentsUrl: string, dto: UpsertCommentDto): Observable<CommentDto> {
@@ -98,20 +96,20 @@ export class CommentsService {
 
                 return comment;
             }),
-            pretifyError('Failed to create comment.'));
+            pretifyError('i18n:comments.createFailed'));
     }
 
     public putComment(commentsUrl: string, commentId: string, dto: UpsertCommentDto): Observable<any> {
         const url = this.apiUrl.buildUrl(`api/${commentsUrl}/${commentId}`);
 
         return this.http.put(url, dto).pipe(
-            pretifyError('Failed to update comment.'));
+            pretifyError('i18n:comments.updateFailed'));
     }
 
     public deleteComment(commentsUrl: string, commentId: string): Observable<any> {
         const url = this.apiUrl.buildUrl(`api/${commentsUrl}/${commentId}`);
 
         return this.http.delete(url).pipe(
-            pretifyError('Failed to delete comment.'));
+            pretifyError('i18n:comments.deleteFailed'));
     }
 }

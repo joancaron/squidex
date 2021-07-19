@@ -56,12 +56,6 @@
     text-align: right;
 }
 
-.form-check {
-    &-input {
-        margin-top: .4rem;
-    }
-}
-
 //
 // Form alerts.
 //
@@ -119,6 +113,7 @@
         @include absolute(.25rem, 0, auto, auto);
         font-size: 1rem;
         font-weight: normal;
+        line-height: 1.75;
         max-width: 600px;
         min-width: 200px;
         padding: 1rem;
@@ -212,6 +207,12 @@
     }
 }
 
+.form-text {
+    a {
+        white-space: nowrap;
+    }
+}
+
 .col-form-label {
     font-size: 90%;
 }
@@ -224,6 +225,11 @@ label {
     }
 
     &.form-check-label {
+        font-size: 100%;
+        font-weight: normal;
+    }
+
+    &.custom-control-label {
         font-size: 100%;
         font-weight: normal;
     }
@@ -260,11 +266,14 @@ label {
     }
 }
 
+// sass-lint:disable quotes
+$select-indicator: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='4' height='5' viewBox='0 0 4 5'><path fill='#ccc' d='M2 0L0 2h4zm0 5L0 3h4z'/></svg>") !default;;
+
 // Dark form control for the dark panel.
 .form-control-dark {
     & {
         @include placeholder-color($color-dark2-placeholder);
-        background: $color-dark2-control;
+        background-color: $color-dark2-control;
         border: 1px solid $color-dark2-control;
         color: darken($color-dark-foreground, 20%);
         transition: background-color .3s ease;
@@ -275,50 +284,8 @@ label {
         border-color: lighten($color-dark2-control, 2%);
         color: $color-dark2-focus-foreground;
     }
-}
 
-input {
-    &.form-underlined {
-        & {
-            border: 0;
-            border-bottom: 1px solid $color-input;
-            border-radius: 0;
-        }
-
-        &:focus,
-        &.focus {
-            background: transparent;
-            border-bottom-color: $color-theme-blue;
-            box-shadow: none;
-            outline: none;
-        }
-
-        &:disabled {
-            background: none;
-        }
-
-        &[readonly] {
-            background: none;
-        }
-
-        &.ng-invalid {
-            &.ng-touched,
-            &.ng-dirty {
-                & {
-                    background: transparent;
-                    border-bottom-color: $color-theme-error;
-                    border-color: transparent;
-                    box-shadow: none;
-                    outline: none;
-                }
-
-                &:hover,
-                &:focus {
-                    border-bottom-color: $color-theme-error-dark;
-                    border-color: transparent;
-                    box-shadow: none;
-                }
-            }
-        }
+    &.custom-select {
+        background: $color-dark2-control escape-svg($select-indicator) no-repeat right .75rem center / 8px 10px;
     }
 }

@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -12,11 +12,13 @@ namespace Squidex.Shared.Users
 {
     public interface IUser
     {
+        bool IsLocked { get; }
+
         string Id { get; }
 
         string Email { get; }
 
-        bool IsLocked { get; }
+        object Identity { get; }
 
         IReadOnlyList<Claim> Claims { get; }
     }

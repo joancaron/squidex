@@ -5,18 +5,11 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
-using Squidex.Infrastructure;
+using Squidex.Domain.Apps.Entities.Schemas;
+
+#pragma warning disable SA1313 // Parameter names should begin with lower-case letter
 
 namespace Squidex.Web.Pipeline
 {
-    public sealed class SchemaFeature : ISchemaFeature
-    {
-        public NamedId<Guid> SchemaId { get; }
-
-        public SchemaFeature(NamedId<Guid> schemaId)
-        {
-            SchemaId = schemaId;
-        }
-    }
+    public sealed record SchemaFeature(ISchemaEntity Schema) : ISchemaFeature;
 }

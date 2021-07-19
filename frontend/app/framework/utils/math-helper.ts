@@ -1,11 +1,12 @@
-﻿/*
+/*
  * Squidex Headless CMS
  *
  * @license
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-/* tslint:disable: no-bitwise */
+/* eslint-disable no-useless-escape */
+/* eslint-disable no-bitwise */
 
 import { Types } from './types';
 
@@ -31,7 +32,7 @@ const ColorDefinitions: ReadonlyArray<ColorDefinition> = [
                 parseInt(bits[2], 10) / 255,
                 parseInt(bits[3], 10) / 255,
                 parseFloat(bits[4]));
-        }
+        },
     }, {
         regex: /^rgb\((\d{1,3}),\s*(\d{1,3}),\s*(\d{1,3})\)$/,
         process: (bits) => {
@@ -39,7 +40,7 @@ const ColorDefinitions: ReadonlyArray<ColorDefinition> = [
                 parseInt(bits[1], 10) / 255,
                 parseInt(bits[2], 10) / 255,
                 parseInt(bits[3], 10) / 255);
-        }
+        },
     }, {
         regex: /^(\w{2})(\w{2})(\w{2})$/,
         process: (bits) => {
@@ -47,7 +48,7 @@ const ColorDefinitions: ReadonlyArray<ColorDefinition> = [
                 parseInt(bits[1], 16) / 255,
                 parseInt(bits[2], 16) / 255,
                 parseInt(bits[3], 16) / 255);
-        }
+        },
     }, {
         regex: /^(\w{1})(\w{1})(\w{1})$/,
         process: (bits) => {
@@ -55,8 +56,8 @@ const ColorDefinitions: ReadonlyArray<ColorDefinition> = [
                 parseInt(bits[1] + bits[1], 16) / 255,
                 parseInt(bits[2] + bits[2], 16) / 255,
                 parseInt(bits[3] + bits[3], 16) / 255);
-        }
-    }
+        },
+    },
 ];
 
 export module MathHelper {
@@ -64,6 +65,7 @@ export module MathHelper {
 
     const CRC32_TABLE: ReadonlyArray<number> = createCrc32Table();
 
+    // eslint-disable-next-line no-inner-declarations
     function createCrc32Table() {
         const crc: number[] = [];
 
@@ -91,7 +93,7 @@ export module MathHelper {
     }
 
     export function guid(): string {
-        return s4() + s4() + '-' + s4() + '-' + s4() + '-' + s4() + '-' + s4() + s4() + s4();
+        return `${s4() + s4()}-${s4()}-${s4()}-${s4()}-${s4()}${s4()}${s4()}`;
     }
 
     export function s4(): string {
@@ -161,7 +163,7 @@ export module MathHelper {
     }
 
     export function randomColor() {
-        return colorToString(colorFromHsv(Math.random() * 360, .9, .9));
+        return colorToString(colorFromHsv(Math.random() * 360, 0.9, 0.9));
     }
 
     export function colorToString(color: Color): string {
@@ -170,16 +172,16 @@ export module MathHelper {
         let b = Math.round(color.b * 255).toString(16);
 
         if (r.length === 1) {
-            r = '0' + r;
+            r = `0${r}`;
         }
         if (g.length === 1) {
-            g = '0' + g;
+            g = `0${g}`;
         }
         if (b.length === 1) {
-            b = '0' + b;
+            b = `0${b}`;
         }
 
-        return '#' + r + g + b;
+        return `#${r}${g}${b}`;
     }
 
     export function colorFromHsv(h: number, s: number, v: number): Color {

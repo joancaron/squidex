@@ -1,11 +1,13 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
+using Squidex.Domain.Apps.Core.Rules.Triggers;
+using Squidex.Infrastructure;
+using Squidex.Infrastructure.Reflection;
 
 namespace Squidex.Areas.Api.Controllers.Rules.Models.Triggers
 {
@@ -14,11 +16,21 @@ namespace Squidex.Areas.Api.Controllers.Rules.Models.Triggers
         /// <summary>
         /// The id of the schema.
         /// </summary>
-        public Guid SchemaId { get; set; }
+        public DomainId SchemaId { get; set; }
 
         /// <summary>
         /// Javascript condition when to trigger.
         /// </summary>
         public string? Condition { get; set; }
+
+        public ContentChangedTriggerSchemaV2 ToTrigger()
+        {
+            return SimpleMapper.Map(this, new ContentChangedTriggerSchemaV2());
+        }
+
+        public static ContentChangedRuleTriggerSchemaDto FromTrigger(ContentChangedTriggerSchemaV2 trigger)
+        {
+            return SimpleMapper.Map(trigger, new ContentChangedRuleTriggerSchemaDto());
+        }
     }
 }

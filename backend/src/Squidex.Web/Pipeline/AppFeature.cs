@@ -5,18 +5,11 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
-using Squidex.Infrastructure;
+using Squidex.Domain.Apps.Entities.Apps;
+
+#pragma warning disable SA1313 // Parameter names should begin with lower-case letter
 
 namespace Squidex.Web.Pipeline
 {
-    public sealed class AppFeature : IAppFeature
-    {
-        public NamedId<Guid> AppId { get; }
-
-        public AppFeature(NamedId<Guid> appId)
-        {
-            AppId = appId;
-        }
-    }
+    public sealed record AppFeature(IAppEntity App) : IAppFeature;
 }

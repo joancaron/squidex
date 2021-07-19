@@ -1,11 +1,12 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Squidex.Areas.IdentityServer.Controllers.Account
 {
@@ -19,7 +20,7 @@ namespace Squidex.Areas.IdentityServer.Controllers.Account
 
         public bool HasPasswordAuth { get; set; }
 
-        public bool HasPasswordAndExternal { get; set; }
+        public bool HasExternalLogin => ExternalProviders.Any();
 
         public IReadOnlyList<ExternalProvider> ExternalProviders { get; set; }
     }

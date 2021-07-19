@@ -22,14 +22,12 @@ namespace Squidex.Domain.Apps.Entities.Contents
 
         string? ScheduledStatusColor { get; }
 
-        string SchemaName { get; }
-
         string SchemaDisplayName { get; }
 
         RootField[]? ReferenceFields { get; }
 
         StatusInfo[]? NextStatuses { get; }
 
-        NamedContentData? ReferenceData { get; }
+        ContentData? ReferenceData { get; }
     }
 }

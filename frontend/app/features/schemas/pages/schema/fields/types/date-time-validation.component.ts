@@ -5,19 +5,21 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { Component, Input, OnInit } from '@angular/core';
-import { FormControl, FormGroup } from '@angular/forms';
-import { DateTimeFieldPropertiesDto, FieldDto, hasNoValue$, ValidatorsEx } from '@app/shared';
+import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
+import { FormGroup } from '@angular/forms';
+import { DateTimeFieldPropertiesDto, FieldDto, hasNoValue$, LanguageDto } from '@app/shared';
 import { Observable } from 'rxjs';
+
+const CALCULATED_DEFAULT_VALUES: ReadonlyArray<string> = ['Now', 'Today'];
 
 @Component({
     selector: 'sqx-date-time-validation',
     styleUrls: ['date-time-validation.component.scss'],
-    templateUrl: 'date-time-validation.component.html'
+    templateUrl: 'date-time-validation.component.html',
 })
-export class DateTimeValidationComponent implements OnInit {
+export class DateTimeValidationComponent implements OnChanges {
     @Input()
-    public editForm: FormGroup;
+    public fieldForm: FormGroup;
 
     @Input()
     public field: FieldDto;
@@ -25,34 +27,24 @@ export class DateTimeValidationComponent implements OnInit {
     @Input()
     public properties: DateTimeFieldPropertiesDto;
 
+    @Input()
+    public languages: ReadonlyArray<LanguageDto>;
+
+    @Input()
+    public isLocalizable?: boolean | null;
+
     public showDefaultValues: Observable<boolean>;
     public showDefaultValue: Observable<boolean>;
 
-    public calculatedDefaultValues: ReadonlyArray<string> = ['Now', 'Today'];
+    public calculatedDefaultValues = CALCULATED_DEFAULT_VALUES;
 
-    public ngOnInit() {
-        this.editForm.setControl('calculatedDefaultValue',
-            new FormControl(this.properties.calculatedDefaultValue));
+    public ngOnChanges(changes: SimpleChanges) {
+        if (changes['fieldForm']) {
+            this.showDefaultValues =
+                hasNoValue$(this.fieldForm.controls['isRequired']);
 
-        this.editForm.setControl('maxValue',
-            new FormControl(this.properties.maxValue, [
-                ValidatorsEx.validDateTime()
-            ]));
-
-        this.editForm.setControl('minValue',
-            new FormControl(this.properties.minValue, [
-                ValidatorsEx.validDateTime()
-            ]));
-
-        this.editForm.setControl('defaultValue',
-            new FormControl(this.properties.defaultValue, [
-                ValidatorsEx.validDateTime()
-            ]));
-
-        this.showDefaultValues =
-            hasNoValue$(this.editForm.controls['isRequired']);
-
-        this.showDefaultValue =
-            hasNoValue$(this.editForm.controls['calculatedDefaultValue']);
+            this.showDefaultValue =
+                hasNoValue$(this.fieldForm.controls['calculatedDefaultValue']);
+        }
     }
 }

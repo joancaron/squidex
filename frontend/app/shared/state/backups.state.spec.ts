@@ -15,7 +15,7 @@ import { TestValues } from './_test-helpers';
 describe('BackupsState', () => {
     const {
         app,
-        appsState
+        appsState,
     } = TestValues;
 
     const backup1 = createBackup(12);
@@ -50,16 +50,16 @@ describe('BackupsState', () => {
             dialogs.verify(x => x.notifyInfo(It.isAnyString()), Times.never());
         });
 
-        it('should reset loading when loading failed', () => {
+        it('should reset loading state if loading failed', () => {
             backupsService.setup(x => x.getBackups(app))
-                .returns(() => throwError('error'));
+                .returns(() => throwError(() => 'Service Error'));
 
             backupsState.load().pipe(onErrorResumeNext()).subscribe();
 
             expect(backupsState.snapshot.isLoading).toBeFalsy();
         });
 
-        it('should show notification on load when reload is true', () => {
+        it('should show notification on load if reload is true', () => {
             backupsService.setup(x => x.getBackups(app))
                 .returns(() => of(new BackupsDto(2, [backup1, backup2], {}))).verifiable();
 
@@ -70,9 +70,9 @@ describe('BackupsState', () => {
             dialogs.verify(x => x.notifyInfo(It.isAnyString()), Times.once());
         });
 
-        it('should show notification on load error when silent is false', () => {
+        it('should show notification on load error if silent is false', () => {
             backupsService.setup(x => x.getBackups(app))
-                .returns(() => throwError({}));
+                .returns(() => throwError(() => 'Service Error'));
 
             backupsState.load(true, false).pipe(onErrorResumeNext()).subscribe();
 
@@ -81,9 +81,9 @@ describe('BackupsState', () => {
             dialogs.verify(x => x.notifyError(It.isAny()), Times.once());
         });
 
-        it('should not show notification on load error when silent is true', () => {
+        it('should not show notification on load error if silent is true', () => {
             backupsService.setup(x => x.getBackups(app))
-                .returns(() => throwError({}));
+                .returns(() => throwError(() => 'Service Error'));
 
             backupsState.load(true, true).pipe(onErrorResumeNext()).subscribe();
 

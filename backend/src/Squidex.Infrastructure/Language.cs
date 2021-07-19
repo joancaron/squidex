@@ -1,27 +1,22 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 
 namespace Squidex.Infrastructure
 {
-    [Equals(DoNotAddEqualityOperators = true)]
-    public sealed partial class Language
+    [TypeConverter(typeof(LanguageTypeConverter))]
+    public partial record Language
     {
         private static readonly Regex CultureRegex = new Regex("^([a-z]{2})(\\-[a-z]{2})?$", RegexOptions.IgnoreCase);
-        private static readonly Dictionary<string, Language> AllLanguagesField = new Dictionary<string, Language>(StringComparer.OrdinalIgnoreCase);
-
-        internal static Language AddLanguage(string iso2Code, string englishName)
-        {
-            return AllLanguagesField.GetOrAdd(iso2Code, englishName, (c, n) => new Language(c, n));
-        }
 
         public static Language GetLanguage(string iso2Code)
         {
@@ -39,19 +34,19 @@ namespace Squidex.Infrastructure
 
         public static IReadOnlyCollection<Language> AllLanguages
         {
-            get { return AllLanguagesField.Values; }
+            get => AllLanguagesField.Values;
         }
-
-        [IgnoreDuringEquals]
-        public string EnglishName { get; }
 
         public string Iso2Code { get; }
 
-        private Language(string iso2Code, string englishName)
+        public string EnglishName
+        {
+            get => AllLanguagesNames.GetOrDefault(Iso2Code) ?? string.Empty;
+        }
+
+        private Language(string iso2Code)
         {
             Iso2Code = iso2Code;
-
-            EnglishName = englishName;
         }
 
         public static bool IsValidLanguage(string iso2Code)

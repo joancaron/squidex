@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -42,7 +42,7 @@ namespace Squidex.Infrastructure.Reflection
         {
             public T P1
             {
-                set { Debug.WriteLine(value); }
+                set => Debug.WriteLine(value);
             }
         }
 
@@ -115,7 +115,7 @@ namespace Squidex.Infrastructure.Reflection
         }
 
         [Fact]
-        public void Should_map_when_convertible_is_null()
+        public void Should_map_if_convertible_is_null()
         {
             var obj1 = new Class1<int?, int?>
             {
@@ -133,12 +133,12 @@ namespace Squidex.Infrastructure.Reflection
         {
             var obj1 = new Class1<RefToken, RefToken>
             {
-                P1 = new RefToken("user", "1"),
-                P2 = new RefToken("user", "2")
+                P1 = RefToken.User("1"),
+                P2 = RefToken.User("2")
             };
             var obj2 = SimpleMapper.Map(obj1, new Class2<string, string>());
 
-            Assert.Equal("user:2", obj2.P2);
+            Assert.Equal("subject:2", obj2.P2);
             Assert.Null(obj2.P3);
         }
 

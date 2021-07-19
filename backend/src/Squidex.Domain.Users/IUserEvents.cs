@@ -1,18 +1,35 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
+using System.Threading.Tasks;
 using Squidex.Shared.Users;
 
 namespace Squidex.Domain.Users
 {
     public interface IUserEvents
     {
-        void OnUserRegistered(IUser user);
+        Task OnUserRegisteredAsync(IUser user)
+        {
+            return Task.CompletedTask;
+        }
 
-        void OnConsentGiven(IUser user);
+        Task OnUserUpdatedAsync(IUser user, IUser previous)
+        {
+            return Task.CompletedTask;
+        }
+
+        Task OnUserDeletedAsync(IUser user)
+        {
+            return Task.CompletedTask;
+        }
+
+        Task OnConsentGivenAsync(IUser user)
+        {
+            return Task.CompletedTask;
+        }
     }
 }

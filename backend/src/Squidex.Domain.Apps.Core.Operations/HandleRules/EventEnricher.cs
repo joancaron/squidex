@@ -18,43 +18,46 @@ namespace Squidex.Domain.Apps.Core.HandleRules
 {
     public sealed class EventEnricher : IEventEnricher
     {
-        private static readonly TimeSpan UserCacheDuration = TimeSpan.FromMinutes(10);
+        private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(10);
         private readonly IMemoryCache userCache;
         private readonly IUserResolver userResolver;
 
         public EventEnricher(IMemoryCache userCache, IUserResolver userResolver)
         {
-            Guard.NotNull(userCache, nameof(userCache));
-            Guard.NotNull(userResolver, nameof(userResolver));
-
             this.userCache = userCache;
             this.userResolver = userResolver;
         }
 
-        public async Task EnrichAsync(EnrichedEvent enrichedEvent, Envelope<AppEvent> @event)
+        public async Task EnrichAsync(EnrichedEvent enrichedEvent, Envelope<AppEvent>? @event)
         {
-            enrichedEvent.Timestamp = @event.Headers.Timestamp();
+            if (@event != null)
+            {
+                enrichedEvent.Timestamp = @event.Headers.Timestamp();
+
+                enrichedEvent.AppId = @event.Payload.AppId;
+            }
 
             if (enrichedEvent is EnrichedUserEventBase userEvent)
             {
-                if (@event.Payload is SquidexEvent squidexEvent)
+                if (@event?.Payload is SquidexEvent squidexEvent)
                 {
                     userEvent.Actor = squidexEvent.Actor;
                 }
 
-                userEvent.User = await FindUserAsync(userEvent.Actor);
+                if (userEvent.Actor != null)
+                {
+                    userEvent.User = await FindUserAsync(userEvent.Actor);
+                }
             }
-
-            enrichedEvent.AppId = @event.Payload.AppId;
         }
 
         private Task<IUser?> FindUserAsync(RefToken actor)
         {
-            var key = $"EventEnrichers_Users_{actor.Identifier}";
+            var cacheKey = $"{typeof(EventEnricher)}_Users_{actor.Identifier}";
 
-            return userCache.GetOrCreateAsync(key, async x =>
+            return userCache.GetOrCreateAsync(cacheKey, async x =>
             {
-                x.AbsoluteExpirationRelativeToNow = UserCacheDuration;
+                x.AbsoluteExpirationRelativeToNow = CacheDuration;
 
                 IUser? user;
                 try

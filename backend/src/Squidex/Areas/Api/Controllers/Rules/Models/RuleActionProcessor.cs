@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -11,9 +11,9 @@ using Namotion.Reflection;
 using NJsonSchema;
 using NSwag.Generation.Processors;
 using NSwag.Generation.Processors.Contexts;
+using Squidex.Domain.Apps.Core.GenerateJsonSchema;
 using Squidex.Domain.Apps.Core.HandleRules;
 using Squidex.Domain.Apps.Core.Rules;
-using Squidex.Infrastructure;
 
 namespace Squidex.Areas.Api.Controllers.Rules.Models
 {
@@ -23,8 +23,6 @@ namespace Squidex.Areas.Api.Controllers.Rules.Models
 
         public RuleActionProcessor(RuleRegistry ruleRegistry)
         {
-            Guard.NotNull(ruleRegistry, nameof(ruleRegistry));
-
             this.ruleRegistry = ruleRegistry;
         }
 
@@ -43,10 +41,8 @@ namespace Squidex.Areas.Api.Controllers.Rules.Models
 
                     schema.Properties["actionType"] = new JsonSchemaProperty
                     {
-                        Type = JsonObjectType.String,
-                        IsRequired = true,
-                        IsNullableRaw = null
-                    };
+                        Type = JsonObjectType.String
+                    }.SetRequired(true);
 
                     foreach (var (key, value) in ruleRegistry.Actions)
                     {

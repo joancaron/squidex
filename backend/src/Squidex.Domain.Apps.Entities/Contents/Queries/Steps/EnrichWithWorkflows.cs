@@ -7,6 +7,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Squidex.Domain.Apps.Core.Contents;
 using Squidex.Infrastructure;
@@ -21,17 +22,18 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries.Steps
 
         public EnrichWithWorkflows(IContentWorkflow contentWorkflow)
         {
-            Guard.NotNull(contentWorkflow, nameof(contentWorkflow));
-
             this.contentWorkflow = contentWorkflow;
         }
 
-        public async Task EnrichAsync(Context context, IEnumerable<ContentEntity> contents, ProvideSchema schemas)
+        public async Task EnrichAsync(Context context, IEnumerable<ContentEntity> contents, ProvideSchema schemas,
+            CancellationToken ct)
         {
-            var cache = new Dictionary<(Guid, Status), StatusInfo>();
+            var cache = new Dictionary<(DomainId, Status), StatusInfo>();
 
             foreach (var content in contents)
             {
+                ct.ThrowIfCancellationRequested();
+
                 await EnrichColorAsync(content, content, cache);
 
                 if (ShouldEnrichWithStatuses(context))
@@ -73,11 +75,11 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries.Steps
             content.CanUpdate = await contentWorkflow.CanUpdateAsync(content, editingStatus, context.User);
         }
 
-        private async Task EnrichColorAsync(ContentEntity content, ContentEntity result, Dictionary<(Guid, Status), StatusInfo> cache)
+        private async Task EnrichColorAsync(ContentEntity content, ContentEntity result, Dictionary<(DomainId, Status), StatusInfo> cache)
         {
             result.StatusColor = await GetColorAsync(content, content.Status, cache);
 
-            if (content.NewStatus.HasValue)
+            if (content.NewStatus != null)
             {
                 result.NewStatusColor = await GetColorAsync(content, content.NewStatus.Value, cache);
             }
@@ -88,7 +90,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries.Steps
             }
         }
 
-        private async Task<string> GetColorAsync(IContentEntity content, Status status, Dictionary<(Guid, Status), StatusInfo> cache)
+        private async Task<string> GetColorAsync(IContentEntity content, Status status, Dictionary<(DomainId, Status), StatusInfo> cache)
         {
             if (!cache.TryGetValue((content.SchemaId.Id, status), out var info))
             {

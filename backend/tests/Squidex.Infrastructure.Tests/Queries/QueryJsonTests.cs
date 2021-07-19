@@ -5,7 +5,7 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using Newtonsoft.Json;
+using Squidex.Infrastructure.Json;
 using Squidex.Infrastructure.Json.Objects;
 using Squidex.Infrastructure.TestHelpers;
 using Xunit;
@@ -46,6 +46,16 @@ namespace Squidex.Infrastructure.Queries
             var filter = SerializeAndDeserialize(json);
 
             Assert.Equal("empty(property)", filter.ToString());
+        }
+
+        [Fact]
+        public void Should_convert_comparison_with_radius()
+        {
+            var json = new { path = "property", op = "lt", value = new { latitude = 10, longitude = 20 } };
+
+            var filter = SerializeAndDeserialize(json);
+
+            Assert.Equal("property < {\"latitude\":10, \"longitude\":20}", filter.ToString());
         }
 
         [Fact]
@@ -156,7 +166,7 @@ namespace Squidex.Infrastructure.Queries
         }
 
         [Fact]
-        public void Should_throw_exception_for_invalid_property_after_filter()
+        public void Should_not_throw_exception_if_filter_has_unknown_property()
         {
             var json = new
             {
@@ -168,14 +178,14 @@ namespace Squidex.Infrastructure.Queries
                 additional = 1
             };
 
-            Assert.ThrowsAny<JsonException>(() => SerializeAndDeserialize(json));
+            SerializeAndDeserialize(json);
         }
 
         private static FilterNode<IJsonValue> SerializeAndDeserialize<T>(T value)
         {
-            var json = JsonHelper.DefaultSerializer.Serialize(value, true);
+            var json = TestUtils.DefaultSerializer.Serialize(value, true);
 
-            return JsonHelper.DefaultSerializer.Deserialize<FilterNode<IJsonValue>>(json);
+            return TestUtils.DefaultSerializer.Deserialize<FilterNode<IJsonValue>>(json);
         }
     }
 }

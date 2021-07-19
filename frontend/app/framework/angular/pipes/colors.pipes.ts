@@ -5,6 +5,10 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
+/* eslint-disable one-var-declaration-per-line */
+/* eslint-disable one-var */
+/* eslint-disable no-sequences */
+
 import { Pipe, PipeTransform } from '@angular/core';
 
 interface RGBColor {
@@ -31,25 +35,25 @@ const ColorDefinitions: ReadonlyArray<ColorDefinition> = [
         process: (bits) => ({
             r: parseInt(bits[1], 10) / 255,
             g: parseInt(bits[2], 10) / 255,
-            b: parseInt(bits[3], 10) / 255
-        })
+            b: parseInt(bits[3], 10) / 255,
+        }),
     },
     {
         regex: /^(\w{2})(\w{2})(\w{2})$/,
         process: (bits) => ({
             r: parseInt(bits[1], 16) / 255,
             g: parseInt(bits[2], 16) / 255,
-            b: parseInt(bits[3], 16) / 255
-        })
+            b: parseInt(bits[3], 16) / 255,
+        }),
     },
     {
         regex: /^(\w{1})(\w{1})(\w{1})$/,
         process: (bits) => ({
             r: parseInt(bits[1] + bits[1], 16) / 255,
             g: parseInt(bits[2] + bits[2], 16) / 255,
-            b: parseInt(bits[3] + bits[3], 16) / 255
-        })
-    }
+            b: parseInt(bits[3] + bits[3], 16) / 255,
+        }),
+    },
 ];
 
 function parseColor(value: string) {
@@ -97,7 +101,7 @@ function rgbToHsv({ r, g, b }: RGBColor): HSVColor {
 function hsvToRgb({ h, s, v }: HSVColor): RGBColor {
     let r = 0, g = 0, b = 0;
 
-    let i = Math.floor(h * 6);
+    const i = Math.floor(h * 6);
     const f = h * 6 - i;
     const p = v * (1 - s);
     const q = v * (1 - f * s);
@@ -121,21 +125,21 @@ function colorString({ r, g, b }: RGBColor) {
     let bs = Math.round(b * 255).toString(16);
 
     if (rs.length === 1) {
-        rs = '0' + rs;
+        rs = `0${rs}`;
     }
     if (gs.length === 1) {
-        gs = '0' + gs;
+        gs = `0${gs}`;
     }
     if (bs.length === 1) {
-        bs = '0' + bs;
+        bs = `0${bs}`;
     }
 
-    return '#' + rs + gs + bs;
+    return `#${rs}${gs}${bs}`;
 }
 
 @Pipe({
     name: 'sqxDarken',
-    pure: true
+    pure: true,
 })
 export class DarkenPipe implements PipeTransform {
     public transform(value: string, percentage: number): any {
@@ -150,7 +154,7 @@ export class DarkenPipe implements PipeTransform {
 
 @Pipe({
     name: 'sqxLighten',
-    pure: true
+    pure: true,
 })
 export class LightenPipe implements PipeTransform {
     public transform(value: string, percentage: number): any {

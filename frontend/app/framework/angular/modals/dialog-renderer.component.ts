@@ -25,22 +25,22 @@ interface State {
     styleUrls: ['./dialog-renderer.component.scss'],
     templateUrl: './dialog-renderer.component.html',
     animations: [
-        fadeAnimation
+        fadeAnimation,
     ],
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DialogRendererComponent extends StatefulComponent<State> implements OnInit {
     public dialogView = new DialogModel();
 
     constructor(changeDetector: ChangeDetectorRef,
-        private readonly dialogs: DialogService
+        private readonly dialogs: DialogService,
     ) {
         super(changeDetector, { notifications: [] });
     }
 
     public ngOnInit() {
         this.own(
-            this.dialogView.isOpen.subscribe(isOpen => {
+            this.dialogView.isOpenChanges.subscribe(isOpen => {
                 if (!isOpen) {
                     this.finishRequest(false);
                 }
@@ -50,7 +50,7 @@ export class DialogRendererComponent extends StatefulComponent<State> implements
             this.dialogs.notifications.subscribe(notification => {
                 this.next(s => ({
                     ...s,
-                    notifications: [...s.notifications, notification]
+                    notifications: [...s.notifications, notification],
                 }));
 
                 if (notification.displayTime > 0) {
@@ -67,16 +67,16 @@ export class DialogRendererComponent extends StatefulComponent<State> implements
 
                     this.dialogView.show();
 
-                    this.next(s => ({ ...s, dialogRequest }));
+                    this.next({ dialogRequest });
                 }));
 
         this.own(
             this.dialogs.tooltips
                 .subscribe(tooltip => {
                     if (tooltip.text) {
-                        this.next(s => ({ ...s, tooltip }));
+                        this.next({ tooltip });
                     } else if (!this.snapshot.tooltip || tooltip.target === this.snapshot.tooltip.target) {
-                        this.next(s => ({ ...s, tooltip: null }));
+                        this.next({ tooltip: null });
                     }
                 }));
     }
@@ -94,16 +94,15 @@ export class DialogRendererComponent extends StatefulComponent<State> implements
     }
 
     private finishRequest(value: boolean) {
-        this.next(s => {
-            if (s.dialogRequest) {
-                s.dialogRequest.complete(value);
-            }
+        this.snapshot.dialogRequest?.complete(value);
 
-            return { ...s, dialogRequest: null };
-        });
+        this.next({ dialogRequest: null });
     }
 
     public close(notification: Notification) {
-        this.next(s => ({ ...s, notifications: s.notifications.filter(n => notification !== n) }));
+        this.next(s => ({
+            ...s,
+            notifications: s.notifications.filter(n => notification !== n),
+        }));
     }
 }

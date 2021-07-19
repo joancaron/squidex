@@ -7,7 +7,8 @@
 
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { fadeAnimation, MessageBus, ModalModel, ResourceOwner, SchemaDetailsDto, SchemasState } from '@app/shared';
+import { defined, fadeAnimation, MessageBus, ModalModel, ResourceOwner, SchemaDto, SchemasState } from '@app/shared';
+import { map } from 'rxjs/operators';
 import { SchemaCloning } from './../messages';
 
 @Component({
@@ -15,16 +16,14 @@ import { SchemaCloning } from './../messages';
     styleUrls: ['./schema-page.component.scss'],
     templateUrl: './schema-page.component.html',
     animations: [
-        fadeAnimation
-    ]
+        fadeAnimation,
+    ],
 })
 export class SchemaPageComponent extends ResourceOwner implements OnInit {
     public readonly exact = { exact: true };
 
-    public schema: SchemaDetailsDto;
-
-    public selectableTabs: ReadonlyArray<string> = ['Fields', 'UI', 'Scripts', 'Json', 'More'];
-    public selectedTab = this.selectableTabs[0];
+    public schema: SchemaDto;
+    public schemaTab = this.route.queryParams.pipe(map(x => x['tab'] || 'fields'));
 
     public editOptionsDropdown = new ModalModel();
 
@@ -32,14 +31,14 @@ export class SchemaPageComponent extends ResourceOwner implements OnInit {
         public readonly schemasState: SchemasState,
         private readonly route: ActivatedRoute,
         private readonly router: Router,
-        private readonly messageBus: MessageBus
+        private readonly messageBus: MessageBus,
     ) {
         super();
     }
 
     public ngOnInit() {
         this.own(
-            this.schemasState.selectedSchema
+            this.schemasState.selectedSchema.pipe(defined())
                 .subscribe(schema => {
                     this.schema = schema;
                 }));
@@ -62,10 +61,6 @@ export class SchemaPageComponent extends ResourceOwner implements OnInit {
             .subscribe(() => {
                 this.back();
             });
-    }
-
-    public selectTab(tab: string) {
-        this.selectedTab = tab;
     }
 
     private back() {

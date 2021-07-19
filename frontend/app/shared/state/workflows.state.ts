@@ -52,14 +52,14 @@ export class WorkflowsState extends State<Snapshot> {
     constructor(
         private readonly appsState: AppsState,
         private readonly dialogs: DialogService,
-        private readonly workflowsService: WorkflowsService
+        private readonly workflowsService: WorkflowsService,
     ) {
-        super({ errors: [], workflows: [], version: Version.EMPTY });
+        super({ errors: [], workflows: [], version: Version.EMPTY }, 'Workflows');
     }
 
     public load(isReload = false): Observable<any> {
         if (!isReload) {
-            this.resetState();
+            this.resetState('Loading Initial');
         }
 
         return this.loadInternal(isReload);
@@ -71,13 +71,13 @@ export class WorkflowsState extends State<Snapshot> {
         return this.workflowsService.getWorkflows(this.appName).pipe(
             tap(({ version, payload }) => {
                 if (isReload) {
-                    this.dialogs.notifyInfo('Workflows reloaded.');
+                    this.dialogs.notifyInfo('i18n:workflows.reloaded');
                 }
 
                 this.replaceWorkflows(payload, version);
             }),
             finalize(() => {
-                this.next({ isLoading: false });
+                this.next({ isLoading: false }, 'Loading Done');
             }),
             shareSubscribed(this.dialogs));
     }
@@ -93,7 +93,7 @@ export class WorkflowsState extends State<Snapshot> {
     public update(workflow: WorkflowDto): Observable<any> {
         return this.workflowsService.putWorkflow(this.appName, workflow, workflow.serialize(), this.version).pipe(
             tap(({ version, payload }) => {
-                this.dialogs.notifyInfo('Workflow has been saved.');
+                this.dialogs.notifyInfo('i18n:workflows.saved');
 
                 this.replaceWorkflows(payload, version);
             }),
@@ -117,8 +117,8 @@ export class WorkflowsState extends State<Snapshot> {
             isLoaded: true,
             isLoading: false,
             version,
-            workflows
-        });
+            workflows,
+        }, 'Loading Success / Updated');
     }
 
     private get appName() {

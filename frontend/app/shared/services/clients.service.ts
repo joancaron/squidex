@@ -11,13 +11,6 @@ import { AnalyticsService, ApiUrlConfig, hasAnyLink, HTTP, mapVersioned, pretify
 import { Observable } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
 
-export type ClientsDto = Versioned<ClientsPayload>;
-export type ClientsPayload = {
-    readonly items: ReadonlyArray<ClientDto>;
-
-    readonly canCreate: boolean;
-} & Resource;
-
 export class ClientDto {
     public readonly _links: ResourceLinks;
 
@@ -29,7 +22,10 @@ export class ClientDto {
         public readonly id: string,
         public readonly name: string,
         public readonly secret: string,
-        public readonly role: string
+        public readonly role: string,
+        public readonly apiCallsLimit: number,
+        public readonly apiTrafficLimit: number,
+        public readonly allowAnonymous: boolean,
     ) {
         this._links = links;
 
@@ -41,26 +37,29 @@ export class ClientDto {
 export class AccessTokenDto {
     constructor(
         public readonly accessToken: string,
-        public readonly tokenType: string
+        public readonly tokenType: string,
     ) {
     }
 }
 
-export interface CreateClientDto {
-    readonly id: string;
-}
+export type ClientsDto =
+    Versioned<ClientsPayload>;
 
-export interface UpdateClientDto {
-    readonly name?: string;
-    readonly role?: string;
-}
+export type ClientsPayload =
+    Readonly<{ items: ReadonlyArray<ClientDto>; canCreate: boolean } & Resource>;
+
+export type CreateClientDto =
+    Readonly<{ id: string }>;
+
+export type UpdateClientDto =
+    Readonly<{ name?: string; role?: string; allowAnonymous?: boolean; apiCallsLimit?: number }>;
 
 @Injectable()
 export class ClientsService {
     constructor(
         private readonly http: HttpClient,
         private readonly apiUrl: ApiUrlConfig,
-        private readonly analytics: AnalyticsService
+        private readonly analytics: AnalyticsService,
     ) {
     }
 
@@ -71,7 +70,7 @@ export class ClientsService {
             mapVersioned(({ body }) => {
                 return parseClients(body);
             }),
-            pretifyError('Failed to load clients. Please reload.'));
+            pretifyError('i18n:clients.loadFailed'));
     }
 
     public postClient(appName: string, dto: CreateClientDto, version: Version): Observable<ClientsDto> {
@@ -84,7 +83,7 @@ export class ClientsService {
             tap(() => {
                 this.analytics.trackEvent('Client', 'Created', appName);
             }),
-            pretifyError('Failed to add client. Please reload.'));
+            pretifyError('i18n:clients.addFailed'));
     }
 
     public putClient(appName: string, resource: Resource, dto: UpdateClientDto, version: Version): Observable<ClientsDto> {
@@ -99,7 +98,7 @@ export class ClientsService {
             tap(() => {
                 this.analytics.trackEvent('Client', 'Updated', appName);
             }),
-            pretifyError('Failed to revoke client. Please reload.'));
+            pretifyError('i18n:clients.revokeFailed'));
     }
 
     public deleteClient(appName: string, resource: Resource, version: Version): Observable<ClientsDto> {
@@ -114,14 +113,14 @@ export class ClientsService {
             tap(() => {
                 this.analytics.trackEvent('Client', 'Deleted', appName);
             }),
-            pretifyError('Failed to revoke client. Please reload.'));
+            pretifyError('i18n:clients.revokeFailed'));
     }
 
     public createToken(appName: string, client: ClientDto): Observable<AccessTokenDto> {
         const options = {
             headers: new HttpHeaders({
-                'Content-Type': 'application/x-www-form-urlencoded', 'NoAuth': 'true'
-            })
+                'Content-Type': 'application/x-www-form-urlencoded', NoAuth: 'true',
+            }),
         };
 
         const body = `grant_type=client_credentials&scope=squidex-api&client_id=${appName}:${client.id}&client_secret=${client.secret}`;
@@ -132,7 +131,7 @@ export class ClientsService {
             map((response: any) => {
                 return new AccessTokenDto(response.access_token, response.token_type);
             }),
-            pretifyError('Failed to create token. Please retry.'));
+            pretifyError('i18n:clients.tokenFailed'));
     }
 }
 
@@ -144,7 +143,10 @@ function parseClients(response: any): ClientsPayload {
             item.id,
             item.name || item.id,
             item.secret,
-            item.role));
+            item.role,
+            item.apiCallsLimit,
+            item.apiTrafficLimit,
+            item.allowAnonymous));
 
     const _links = response._links;
 

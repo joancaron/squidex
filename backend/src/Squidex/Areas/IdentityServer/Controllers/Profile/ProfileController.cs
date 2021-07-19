@@ -1,7 +1,7 @@
-﻿// ==========================================================================
+// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -16,11 +16,14 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Squidex.Assets;
 using Squidex.Config;
 using Squidex.Domain.Users;
 using Squidex.Infrastructure;
-using Squidex.Infrastructure.Assets;
 using Squidex.Infrastructure.Reflection;
+using Squidex.Infrastructure.Tasks;
+using Squidex.Infrastructure.Translations;
+using Squidex.Infrastructure.Validation;
 using Squidex.Shared.Identity;
 using Squidex.Shared.Users;
 
@@ -30,23 +33,20 @@ namespace Squidex.Areas.IdentityServer.Controllers.Profile
     public sealed class ProfileController : IdentityServerController
     {
         private static readonly ResizeOptions ResizeOptions = new ResizeOptions { Width = 128, Height = 128, Mode = ResizeMode.Crop };
-        private readonly SignInManager<IdentityUser> signInManager;
-        private readonly UserManager<IdentityUser> userManager;
         private readonly IUserPictureStore userPictureStore;
+        private readonly IUserService userService;
         private readonly IAssetThumbnailGenerator assetThumbnailGenerator;
         private readonly MyIdentityOptions identityOptions;
 
         public ProfileController(
-            SignInManager<IdentityUser> signInManager,
-            UserManager<IdentityUser> userManager,
+            IOptions<MyIdentityOptions> identityOptions,
             IUserPictureStore userPictureStore,
-            IAssetThumbnailGenerator assetThumbnailGenerator,
-            IOptions<MyIdentityOptions> identityOptions)
+            IUserService userService,
+            IAssetThumbnailGenerator assetThumbnailGenerator)
         {
-            this.signInManager = signInManager;
             this.identityOptions = identityOptions.Value;
-            this.userManager = userManager;
             this.userPictureStore = userPictureStore;
+            this.userService = userService;
             this.assetThumbnailGenerator = assetThumbnailGenerator;
         }
 
@@ -54,9 +54,9 @@ namespace Squidex.Areas.IdentityServer.Controllers.Profile
         [Route("/account/profile/")]
         public async Task<IActionResult> Profile(string? successMessage = null)
         {
-            var user = await userManager.GetUserWithClaimsAsync(User);
+            var user = await userService.GetAsync(User);
 
-            return View(await GetProfileVM<None>(user, successMessage: successMessage));
+            return View(await GetVM<None>(user, successMessage: successMessage));
         }
 
         [HttpPost]
@@ -66,8 +66,8 @@ namespace Squidex.Areas.IdentityServer.Controllers.Profile
             await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
 
             var properties =
-                signInManager.ConfigureExternalAuthenticationProperties(provider,
-                    Url.Action(nameof(AddLoginCallback)), userManager.GetUserId(User));
+                SignInManager.ConfigureExternalAuthenticationProperties(provider,
+                    Url.Action(nameof(AddLoginCallback)), userService.GetUserId(User));
 
             return Challenge(properties, provider);
         }
@@ -76,78 +76,85 @@ namespace Squidex.Areas.IdentityServer.Controllers.Profile
         [Route("/account/profile/login-add-callback/")]
         public Task<IActionResult> AddLoginCallback()
         {
-            return MakeChangeAsync<None>(u => AddLoginAsync(u),
-                "Login added successfully.");
+            return MakeChangeAsync(u => AddLoginAsync(u),
+                T.Get("users.profile.addLoginDone"), None.Value);
         }
 
         [HttpPost]
         [Route("/account/profile/update/")]
         public Task<IActionResult> UpdateProfile(ChangeProfileModel model)
         {
-            return MakeChangeAsync(u => userManager.UpdateSafeAsync(u, model.ToValues()),
-                "Account updated successfully.", model);
+            return MakeChangeAsync(id => userService.UpdateAsync(id, model.ToValues()),
+                T.Get("users.profile.updateProfileDone"), model);
         }
 
         [HttpPost]
         [Route("/account/profile/properties/")]
         public Task<IActionResult> UpdateProperties(ChangePropertiesModel model)
         {
-            return MakeChangeAsync(u => userManager.UpdateSafeAsync(u, model.ToValues()),
-                "Account updated successfully.", model);
+            return MakeChangeAsync(id => userService.UpdateAsync(id, model.ToValues()),
+                T.Get("users.profile.updatePropertiesDone"), model);
         }
 
         [HttpPost]
         [Route("/account/profile/login-remove/")]
         public Task<IActionResult> RemoveLogin(RemoveLoginModel model)
         {
-            return MakeChangeAsync(u => userManager.RemoveLoginAsync(u, model.LoginProvider, model.ProviderKey),
-                "Login provider removed successfully.", model);
+            return MakeChangeAsync(id => userService.RemoveLoginAsync(id, model.LoginProvider, model.ProviderKey),
+                T.Get("users.profile.removeLoginDone"), model);
         }
 
         [HttpPost]
         [Route("/account/profile/password-set/")]
         public Task<IActionResult> SetPassword(SetPasswordModel model)
         {
-            return MakeChangeAsync(u => userManager.AddPasswordAsync(u, model.Password),
-                "Password set successfully.", model);
+            return MakeChangeAsync(id => userService.SetPasswordAsync(id, model.Password),
+                T.Get("users.profile.setPasswordDone"), model);
         }
 
         [HttpPost]
         [Route("/account/profile/password-change/")]
         public Task<IActionResult> ChangePassword(ChangePasswordModel model)
         {
-            return MakeChangeAsync(u => userManager.ChangePasswordAsync(u, model.OldPassword, model.Password),
-                "Password changed successfully.", model);
+            return MakeChangeAsync(id => userService.SetPasswordAsync(id, model.Password, model.OldPassword),
+                T.Get("users.profile.changePasswordDone"), model);
         }
 
         [HttpPost]
         [Route("/account/profile/generate-client-secret/")]
         public Task<IActionResult> GenerateClientSecret()
         {
-            return MakeChangeAsync<None>(user => userManager.GenerateClientSecretAsync(user),
-                "Client secret generated successfully.");
+            return MakeChangeAsync(id => GenerateClientSecretAsync(id),
+                T.Get("users.profile.generateClientDone"), None.Value);
         }
 
         [HttpPost]
         [Route("/account/profile/upload-picture/")]
         public Task<IActionResult> UploadPicture(List<IFormFile> file)
         {
-            return MakeChangeAsync<None>(user => UpdatePictureAsync(file, user),
-                "Picture uploaded successfully.");
+            return MakeChangeAsync(user => UpdatePictureAsync(file, user),
+                T.Get("users.profile.uploadPictureDone"), None.Value);
         }
 
-        private async Task<IdentityResult> AddLoginAsync(IdentityUser user)
+        private async Task GenerateClientSecretAsync(string id)
         {
-            var externalLogin = await signInManager.GetExternalLoginInfoWithDisplayNameAsync(userManager.GetUserId(User));
+            var update = new UserValues { ClientSecret = RandomHash.New() };
 
-            return await userManager.AddLoginAsync(user, externalLogin);
+            await userService.UpdateAsync(id, update);
         }
 
-        private async Task<IdentityResult> UpdatePictureAsync(List<IFormFile> file, IdentityUser user)
+        private async Task AddLoginAsync(string id)
+        {
+            var externalLogin = await SignInManager.GetExternalLoginInfoWithDisplayNameAsync(id);
+
+            await userService.AddLoginAsync(id, externalLogin);
+        }
+
+        private async Task UpdatePictureAsync(List<IFormFile> file, string id)
         {
             if (file.Count != 1)
             {
-                return IdentityResult.Failed(new IdentityError { Description = "Please upload a single file." });
+                throw new ValidationException(T.Get("validation.onlyOneFile"));
             }
 
             using (var thumbnailStream = new MemoryStream())
@@ -160,90 +167,87 @@ namespace Squidex.Areas.IdentityServer.Controllers.Profile
                 }
                 catch
                 {
-                    return IdentityResult.Failed(new IdentityError { Description = "Picture is not a valid image." });
+                    throw new ValidationException(T.Get("validation.notAnImage"));
                 }
 
-                await userPictureStore.UploadAsync(user.Id, thumbnailStream);
+                await userPictureStore.UploadAsync(id, thumbnailStream);
             }
 
-            return await userManager.UpdateSafeAsync(user, new UserValues { PictureUrl = SquidexClaimTypes.PictureUrlStore });
+            var update = new UserValues { PictureUrl = SquidexClaimTypes.PictureUrlStore };
+
+            await userService.UpdateAsync(id, update);
         }
 
-        private async Task<IActionResult> MakeChangeAsync<T>(Func<IdentityUser, Task<IdentityResult>> action, string successMessage, T? model = null) where T : class
+        private async Task<IActionResult> MakeChangeAsync<TModel>(Func<string, Task> action, string successMessage, TModel? model = null) where TModel : class
         {
-            var user = await userManager.GetUserWithClaimsAsync(User);
+            var user = await userService.GetAsync(User);
 
             if (user == null)
             {
-                throw new DomainException("Cannot find user.");
+                return NotFound();
             }
 
             if (!ModelState.IsValid)
             {
-                return View(nameof(Profile), await GetProfileVM(user, model));
+                return View(nameof(Profile), await GetVM(user, model));
             }
 
             string errorMessage;
             try
             {
-                var result = await action(user.Identity);
+                await action(user.Id);
 
-                if (result.Succeeded)
-                {
-                    await signInManager.SignInAsync(user.Identity, true);
+                await SignInManager.SignInAsync((IdentityUser)user.Identity, true);
 
-                    return RedirectToAction(nameof(Profile), new { successMessage });
-                }
-
-                errorMessage = string.Join(". ", result.Errors.Select(x => x.Description));
+                return RedirectToAction(nameof(Profile), new { successMessage });
             }
-            catch
+            catch (ValidationException ex)
             {
-                errorMessage = "An unexpected exception occurred.";
+                errorMessage = ex.Message;
+            }
+            catch (Exception)
+            {
+                errorMessage = T.Get("users.errorHappened");
             }
 
-            return View(nameof(Profile), await GetProfileVM(user, model, errorMessage));
+            return View(nameof(Profile), await GetVM(user, model, errorMessage));
         }
 
-        private async Task<ProfileVM> GetProfileVM<T>(UserWithClaims? user, T? model = null, string? errorMessage = null, string? successMessage = null) where T : class
+        private async Task<ProfileVM> GetVM<TModel>(IUser? user, TModel? model = null, string? errorMessage = null, string? successMessage = null) where TModel : class
         {
             if (user == null)
             {
-                throw new DomainException("Cannot find user.");
+                throw new DomainException(T.Get("users.userNotFound"));
             }
 
-            var taskForProviders = signInManager.GetExternalProvidersAsync();
-            var taskForPassword = userManager.HasPasswordAsync(user.Identity);
-            var taskForLogins = userManager.GetLoginsAsync(user.Identity);
+            var (providers, hasPassword, logins) = await AsyncHelper.WhenAll(
+                SignInManager.GetExternalProvidersAsync(),
+                userService.HasPasswordAsync(user),
+                userService.GetLoginsAsync(user));
 
-            await Task.WhenAll(taskForProviders, taskForPassword, taskForLogins);
-
-            var result = new ProfileVM
+            var vm = new ProfileVM
             {
                 Id = user.Id,
-                ClientSecret = user.ClientSecret()!,
+                ClientSecret = user.Claims.ClientSecret()!,
                 Email = user.Email,
                 ErrorMessage = errorMessage,
-                ExternalLogins = taskForLogins.Result,
-                ExternalProviders = taskForProviders.Result,
-                DisplayName = user.DisplayName()!,
-                HasPassword = taskForPassword.Result,
+                ExternalLogins = logins,
+                ExternalProviders = providers,
+                DisplayName = user.Claims.DisplayName()!,
+                HasPassword = hasPassword,
                 HasPasswordAuth = identityOptions.AllowPasswordAuth,
-                IsHidden = user.IsHidden(),
+                IsHidden = user.Claims.IsHidden(),
                 SuccessMessage = successMessage
             };
 
             if (model != null)
             {
-                SimpleMapper.Map(model, result);
+                SimpleMapper.Map(model, vm);
             }
 
-            if (result.Properties == null)
-            {
-                result.Properties = user.GetCustomProperties().Select(UserProperty.FromTuple).ToList();
-            }
+            vm.Properties ??= user.Claims.GetCustomProperties().Select(UserProperty.FromTuple).ToList();
 
-            return result;
+            return vm;
         }
     }
 }

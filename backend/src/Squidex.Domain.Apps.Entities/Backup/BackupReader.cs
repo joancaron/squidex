@@ -8,23 +8,18 @@
 using System;
 using System.IO;
 using System.IO.Compression;
-using System.Linq;
 using System.Threading.Tasks;
 using Squidex.Domain.Apps.Entities.Backup.Helpers;
 using Squidex.Domain.Apps.Entities.Backup.Model;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.EventSourcing;
 using Squidex.Infrastructure.Json;
-using Squidex.Infrastructure.Json.Objects;
 using Squidex.Infrastructure.States;
-
-#pragma warning disable SA1401 // Fields must be private
 
 namespace Squidex.Domain.Apps.Entities.Backup
 {
     public class BackupReader : DisposableObjectBase, IBackupReader
     {
-        private readonly GuidMapper guidMapper = new GuidMapper();
         private readonly ZipArchive archive;
         private readonly IJsonSerializer serializer;
         private int readEvents;
@@ -32,12 +27,12 @@ namespace Squidex.Domain.Apps.Entities.Backup
 
         public int ReadEvents
         {
-            get { return readEvents; }
+            get => readEvents;
         }
 
         public int ReadAttachments
         {
-            get { return readAttachments; }
+            get => readAttachments;
         }
 
         public BackupReader(IJsonSerializer serializer, Stream stream)
@@ -57,32 +52,16 @@ namespace Squidex.Domain.Apps.Entities.Backup
             }
         }
 
-        public Guid OldGuid(Guid newId)
-        {
-            return guidMapper.OldGuid(newId);
-        }
-
-        public Task<T> ReadJsonAttachmentAsync<T>(string name)
+        public Task<T> ReadJsonAsync<T>(string name)
         {
             Guard.NotNullOrEmpty(name, nameof(name));
 
-            var attachmentEntry = archive.GetEntry(ArchiveHelper.GetAttachmentPath(name));
+            var entry = GetEntry(name);
 
-            if (attachmentEntry == null)
+            using (var stream = entry.Open())
             {
-                throw new FileNotFoundException("Cannot find attachment.", name);
+                return Task.FromResult(serializer.Deserialize<T>(stream, null));
             }
-
-            T result;
-
-            using (var stream = attachmentEntry.Open())
-            {
-                result = serializer.Deserialize<T>(stream, null, guidMapper.NewGuidOrValue);
-            }
-
-            readAttachments++;
-
-            return Task.FromResult(result);
         }
 
         public async Task ReadBlobAsync(string name, Func<Stream, Task> handler)
@@ -90,19 +69,26 @@ namespace Squidex.Domain.Apps.Entities.Backup
             Guard.NotNullOrEmpty(name, nameof(name));
             Guard.NotNull(handler, nameof(handler));
 
+            var entry = GetEntry(name);
+
+            using (var stream = entry.Open())
+            {
+                await handler(stream);
+            }
+        }
+
+        private ZipArchiveEntry GetEntry(string name)
+        {
             var attachmentEntry = archive.GetEntry(ArchiveHelper.GetAttachmentPath(name));
 
-            if (attachmentEntry == null)
+            if (attachmentEntry == null || attachmentEntry.Length == 0)
             {
                 throw new FileNotFoundException("Cannot find attachment.", name);
             }
 
-            using (var stream = attachmentEntry.Open())
-            {
-                await handler(stream);
-            }
-
             readAttachments++;
+
+            return attachmentEntry;
         }
 
         public async Task ReadEventsAsync(IStreamNameResolver streamNameResolver, IEventDataFormatter formatter, Func<(string Stream, Envelope<IEvent> Event), Task> handler)
@@ -113,42 +99,24 @@ namespace Squidex.Domain.Apps.Entities.Backup
 
             while (true)
             {
-                var eventEntry = archive.GetEntry(ArchiveHelper.GetEventPath(readEvents));
+                var entry = archive.GetEntry(ArchiveHelper.GetEventPath(readEvents));
 
-                if (eventEntry == null)
+                if (entry == null)
                 {
                     break;
                 }
 
-                using (var stream = eventEntry.Open())
+                using (var stream = entry.Open())
                 {
-                    var (streamName, data) = serializer.Deserialize<CompatibleStoredEvent>(stream).ToEvent();
+                    var storedEvent = serializer.Deserialize<CompatibleStoredEvent>(stream).ToStoredEvent();
 
-                    MapHeaders(data);
-
-                    var eventStream = streamNameResolver.WithNewId(streamName, guidMapper.NewGuidOrNull);
-                    var eventEnvelope = formatter.Parse(data, guidMapper.NewGuidOrValue);
+                    var eventStream = storedEvent.StreamName;
+                    var eventEnvelope = formatter.Parse(storedEvent);
 
                     await handler((eventStream, eventEnvelope));
                 }
 
                 readEvents++;
-            }
-        }
-
-        private void MapHeaders(EventData data)
-        {
-            foreach (var (key, value) in data.Headers.ToList())
-            {
-                if (value.Type == JsonValueType.String)
-                {
-                    var newGuid = guidMapper.NewGuidOrNull(value.ToString());
-
-                    if (newGuid != null)
-                    {
-                        data.Headers.Add(key, newGuid);
-                    }
-                }
             }
         }
     }

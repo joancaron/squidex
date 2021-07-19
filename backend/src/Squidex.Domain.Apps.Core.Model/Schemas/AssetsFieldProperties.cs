@@ -1,59 +1,65 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System.Collections.ObjectModel;
+using Squidex.Infrastructure.Collections;
 
 namespace Squidex.Domain.Apps.Core.Schemas
 {
-    [Equals(DoNotAddEqualityOperators = true)]
-    public sealed class AssetsFieldProperties : FieldProperties
+    public sealed record AssetsFieldProperties : FieldProperties
     {
-        public bool MustBeImage { get; set; }
+        public AssetPreviewMode PreviewMode { get; init; }
 
-        public int? MinItems { get; set; }
+        public LocalizedValue<ImmutableList<string>?> DefaultValues { get; init; }
 
-        public int? MaxItems { get; set; }
+        public ImmutableList<string>? DefaultValue { get; init; }
 
-        public int? MinWidth { get; set; }
+        public string? FolderId { get; init; }
 
-        public int? MaxWidth { get; set; }
+        public int? MinItems { get; init; }
 
-        public int? MinHeight { get; set; }
+        public int? MaxItems { get; init; }
 
-        public int? MaxHeight { get; set; }
+        public int? MinWidth { get; init; }
 
-        public int? MinSize { get; set; }
+        public int? MaxWidth { get; init; }
 
-        public int? MaxSize { get; set; }
+        public int? MinHeight { get; init; }
 
-        public int? AspectWidth { get; set; }
+        public int? MaxHeight { get; init; }
 
-        public int? AspectHeight { get; set; }
+        public int? MinSize { get; init; }
 
-        public bool AllowDuplicates { get; set; }
+        public int? MaxSize { get; init; }
 
-        public bool ResolveFirst { get; set; }
+        public int? AspectWidth { get; init; }
+
+        public int? AspectHeight { get; init; }
+
+        public bool MustBeImage { get; init; }
+
+        public bool AllowDuplicates { get; init; }
+
+        public bool ResolveFirst { get; init; }
 
         public bool ResolveImage
         {
-            get => ResolveFirst;
-            set => ResolveFirst = value;
+            init => ResolveFirst = value;
         }
 
-        public ReadOnlyCollection<string>? AllowedExtensions { get; set; }
+        public ImmutableList<string>? AllowedExtensions { get; set; }
 
-        public override T Accept<T>(IFieldPropertiesVisitor<T> visitor)
+        public override T Accept<T, TArgs>(IFieldPropertiesVisitor<T, TArgs> visitor, TArgs args)
         {
-            return visitor.Visit(this);
+            return visitor.Visit(this, args);
         }
 
-        public override T Accept<T>(IFieldVisitor<T> visitor, IField field)
+        public override T Accept<T, TArgs>(IFieldVisitor<T, TArgs> visitor, IField field, TArgs args)
         {
-            return visitor.Visit((IField<AssetsFieldProperties>)field);
+            return visitor.Visit((IField<AssetsFieldProperties>)field, args);
         }
 
         public override RootField CreateRootField(long id, string name, Partitioning partitioning, IFieldSettings? settings = null)

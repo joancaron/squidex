@@ -1,20 +1,20 @@
-﻿// ==========================================================================
+// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System.ComponentModel.DataAnnotations;
+using Squidex.Infrastructure.Validation;
 
 namespace Squidex.Areas.IdentityServer.Controllers.Profile
 {
     public class RemoveLoginModel
     {
-        [Required(ErrorMessage = "Login provider is required.")]
+        [LocalizedRequired]
         public string LoginProvider { get; set; }
 
-        [Required(ErrorMessage = "Provider key.")]
+        [LocalizedRequiredAttribute]
         public string ProviderKey { get; set; }
     }
 }

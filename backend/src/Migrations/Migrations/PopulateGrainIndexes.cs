@@ -5,8 +5,8 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Squidex.Domain.Apps.Entities.Apps.Indexes;
 using Squidex.Domain.Apps.Entities.Rules.Indexes;
@@ -40,76 +40,77 @@ namespace Migrations.Migrations
             this.eventStore = eventStore;
         }
 
-        public Task UpdateAsync()
+        public Task UpdateAsync(CancellationToken ct)
         {
             return Task.WhenAll(
-                RebuildAppIndexes(),
-                RebuildRuleIndexes(),
-                RebuildSchemaIndexes());
+                RebuildAppIndexes(ct),
+                RebuildRuleIndexes(ct),
+                RebuildSchemaIndexes(ct));
         }
 
-        private async Task RebuildAppIndexes()
+        private async Task RebuildAppIndexes(CancellationToken ct)
         {
-            var appsByName = new Dictionary<string, Guid>();
-            var appsByUser = new Dictionary<string, HashSet<Guid>>();
+            var appsByName = new Dictionary<string, DomainId>();
+            var appsByUser = new Dictionary<string, HashSet<DomainId>>();
 
-            bool HasApp(NamedId<Guid> appId, bool consistent, out Guid id)
+            bool HasApp(NamedId<DomainId> appId, bool consistent, out DomainId id)
             {
-                return appsByName.TryGetValue(appId.Name, out id) && (!consistent || id == appId.Id);
+                return appsByName!.TryGetValue(appId.Name, out id) && (!consistent || id == appId.Id);
             }
 
-            HashSet<Guid> Index(string contributorId)
+            HashSet<DomainId> Index(string contributorId)
             {
-                return appsByUser.GetOrAddNew(contributorId);
+                return appsByUser!.GetOrAddNew(contributorId);
             }
 
-            void RemoveApp(NamedId<Guid> appId, bool consistent)
+            void RemoveApp(NamedId<DomainId> appId, bool consistent)
             {
                 if (HasApp(appId, consistent, out var id))
                 {
-                    foreach (var apps in appsByUser.Values)
+                    foreach (var apps in appsByUser!.Values)
                     {
                         apps.Remove(id);
                     }
 
-                    appsByName.Remove(appId.Name);
+                    appsByName!.Remove(appId.Name);
                 }
             }
 
-            await eventStore.QueryAsync(storedEvent =>
+            await foreach (var storedEvent in eventStore.QueryAllAsync("^app\\-", ct: ct))
             {
-                var @event = eventDataFormatter.Parse(storedEvent.Data);
+                var @event = eventDataFormatter.ParseIfKnown(storedEvent);
 
-                switch (@event.Payload)
+                if (@event != null)
                 {
-                    case AppCreated created:
-                        {
-                            RemoveApp(created.AppId, false);
-
-                            appsByName[created.Name] = created.AppId.Id;
-                            break;
-                        }
-
-                    case AppContributorAssigned contributorAssigned:
-                        {
-                            if (HasApp(contributorAssigned.AppId, true, out _))
+                    switch (@event.Payload)
+                    {
+                        case AppCreated created:
                             {
-                                Index(contributorAssigned.ContributorId).Add(contributorAssigned.AppId.Id);
+                                RemoveApp(created.AppId, false);
+
+                                appsByName[created.Name] = created.AppId.Id;
+                                break;
                             }
 
+                        case AppContributorAssigned contributorAssigned:
+                            {
+                                if (HasApp(contributorAssigned.AppId, true, out _))
+                                {
+                                    Index(contributorAssigned.ContributorId).Add(contributorAssigned.AppId.Id);
+                                }
+
+                                break;
+                            }
+
+                        case AppContributorRemoved contributorRemoved:
+                            Index(contributorRemoved.ContributorId).Remove(contributorRemoved.AppId.Id);
                             break;
-                        }
-
-                    case AppContributorRemoved contributorRemoved:
-                        Index(contributorRemoved.ContributorId).Remove(contributorRemoved.AppId.Id);
-                        break;
-                    case AppArchived archived:
-                        RemoveApp(archived.AppId, true);
-                        break;
+                        case AppArchived archived:
+                            RemoveApp(archived.AppId, true);
+                            break;
+                    }
                 }
-
-                return Task.CompletedTask;
-            }, "^app\\-");
+            }
 
             await indexApps.RebuildAsync(appsByName);
 
@@ -119,31 +120,32 @@ namespace Migrations.Migrations
             }
         }
 
-        private async Task RebuildRuleIndexes()
+        private async Task RebuildRuleIndexes(CancellationToken ct)
         {
-            var rulesByApp = new Dictionary<Guid, HashSet<Guid>>();
+            var rulesByApp = new Dictionary<DomainId, HashSet<DomainId>>();
 
-            HashSet<Guid> Index(RuleEvent @event)
+            HashSet<DomainId> Index(RuleEvent @event)
             {
-                return rulesByApp.GetOrAddNew(@event.AppId.Id);
+                return rulesByApp!.GetOrAddNew(@event.AppId.Id);
             }
 
-            await eventStore.QueryAsync(storedEvent =>
+            await foreach (var storedEvent in eventStore.QueryAllAsync("^rule\\-", ct: ct))
             {
-                var @event = eventDataFormatter.Parse(storedEvent.Data);
+                var @event = eventDataFormatter.ParseIfKnown(storedEvent);
 
-                switch (@event.Payload)
+                if (@event != null)
                 {
-                    case RuleCreated created:
-                        Index(created).Add(created.RuleId);
-                        break;
-                    case RuleDeleted deleted:
-                        Index(deleted).Remove(deleted.RuleId);
-                        break;
+                    switch (@event.Payload)
+                    {
+                        case RuleCreated created:
+                            Index(created).Add(created.RuleId);
+                            break;
+                        case RuleDeleted deleted:
+                            Index(deleted).Remove(deleted.RuleId);
+                            break;
+                    }
                 }
-
-                return Task.CompletedTask;
-            }, "^rule\\-");
+            }
 
             foreach (var (appId, rules) in rulesByApp)
             {
@@ -151,31 +153,32 @@ namespace Migrations.Migrations
             }
         }
 
-        private async Task RebuildSchemaIndexes()
+        private async Task RebuildSchemaIndexes(CancellationToken ct)
         {
-            var schemasByApp = new Dictionary<Guid, Dictionary<string, Guid>>();
+            var schemasByApp = new Dictionary<DomainId, Dictionary<string, DomainId>>();
 
-            Dictionary<string, Guid> Index(SchemaEvent @event)
+            Dictionary<string, DomainId> Index(SchemaEvent @event)
             {
-                return schemasByApp.GetOrAddNew(@event.AppId.Id);
+                return schemasByApp!.GetOrAddNew(@event.AppId.Id);
             }
 
-            await eventStore.QueryAsync(storedEvent =>
+            await foreach (var storedEvent in eventStore.QueryAllAsync("^schema\\-", ct: ct))
             {
-                var @event = eventDataFormatter.Parse(storedEvent.Data);
+                var @event = eventDataFormatter.ParseIfKnown(storedEvent);
 
-                switch (@event.Payload)
+                if (@event != null)
                 {
-                    case SchemaCreated created:
-                        Index(created)[created.SchemaId.Name] = created.SchemaId.Id;
-                        break;
-                    case SchemaDeleted deleted:
-                        Index(deleted).Remove(deleted.SchemaId.Name);
-                        break;
+                    switch (@event.Payload)
+                    {
+                        case SchemaCreated created:
+                            Index(created)[created.SchemaId.Name] = created.SchemaId.Id;
+                            break;
+                        case SchemaDeleted deleted:
+                            Index(deleted).Remove(deleted.SchemaId.Name);
+                            break;
+                    }
                 }
-
-                return Task.CompletedTask;
-            }, "^schema\\-");
+            }
 
             foreach (var (appId, schemas) in schemasByApp)
             {

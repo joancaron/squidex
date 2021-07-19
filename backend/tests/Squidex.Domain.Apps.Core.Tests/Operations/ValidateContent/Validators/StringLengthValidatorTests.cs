@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -10,19 +10,20 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Squidex.Domain.Apps.Core.TestHelpers;
 using Squidex.Domain.Apps.Core.ValidateContent.Validators;
 using Xunit;
 
 namespace Squidex.Domain.Apps.Core.Operations.ValidateContent.Validators
 {
-    public class StringLengthValidatorTests
+    public class StringLengthValidatorTests : IClassFixture<TranslationsFixture>
     {
         private readonly List<string> errors = new List<string>();
 
         [Fact]
         public async Task Should_not_add_error_if_value_is_null()
         {
-            var sut = new StringLengthValidator(100, 200);
+            var sut = new StringLengthValidator();
 
             await sut.ValidateAsync(null, errors);
 
@@ -32,7 +33,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ValidateContent.Validators
         [Fact]
         public async Task Should_not_add_error_if_value_is_empty()
         {
-            var sut = new StringLengthValidator(100, 200);
+            var sut = new StringLengthValidator();
 
             await sut.ValidateAsync(string.Empty, errors);
 
@@ -61,7 +62,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ValidateContent.Validators
         }
 
         [Fact]
-        public async Task Should_add_error_if_collection_has_not_exact_number_of_items()
+        public async Task Should_add_error_if_value_has_not_exact_number_of_characters()
         {
             var sut = new StringLengthValidator(2000, 2000);
 
@@ -110,7 +111,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ValidateContent.Validators
 
             for (var i = 0; i < size; i++)
             {
-                sb.Append("x");
+                sb.Append('x');
             }
 
             return sb.ToString();

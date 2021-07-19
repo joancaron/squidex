@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -9,54 +9,68 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using Squidex.Infrastructure;
-using Squidex.Infrastructure.Log;
 using Squidex.Infrastructure.Security;
+using Squidex.Log;
 
 namespace Squidex.Web.Pipeline
 {
-    public sealed class RequestLogPerformanceMiddleware : IMiddleware
+    public sealed class RequestLogPerformanceMiddleware
     {
         private readonly RequestLogOptions requestLogOptions;
-        private readonly ISemanticLog log;
+        private readonly RequestDelegate next;
 
-        public RequestLogPerformanceMiddleware(IOptions<RequestLogOptions> requestLogOptions, ISemanticLog log)
+        public RequestLogPerformanceMiddleware(RequestDelegate next, IOptions<RequestLogOptions> requestLogOptions)
         {
-            Guard.NotNull(requestLogOptions, nameof(requestLogOptions));
-            Guard.NotNull(log, nameof(log));
-
             this.requestLogOptions = requestLogOptions.Value;
 
-            this.log = log;
+            this.next = next;
         }
 
-        public async Task InvokeAsync(HttpContext context, RequestDelegate next)
+        public async Task InvokeAsync(HttpContext context, ISemanticLog log)
         {
-            var watch = ValueStopwatch.StartNew();
+            var shouldStartSession = requestLogOptions.LogRequests || Profiler.HasListener;
 
-            using (Profiler.StartSession())
+            if (requestLogOptions.LogRequests || shouldStartSession)
             {
-                try
-                {
-                    await next(context);
-                }
-                finally
-                {
-                    var elapsedMs = watch.Stop();
+                var session =
+                    shouldStartSession ?
+                    Profiler.StartSession() :
+                    default;
 
-                    if (requestLogOptions.LogRequests)
+                var watch =
+                    requestLogOptions.LogRequests ?
+                    ValueStopwatch.StartNew() :
+                    default;
+
+                using (session)
+                {
+                    try
                     {
-                        log.LogInformation((elapsedMs, context), (ctx, w) =>
+                        await next(context);
+                    }
+                    finally
+                    {
+                        if (requestLogOptions.LogRequests)
                         {
-                            if (requestLogOptions.LogProfiler)
-                            {
-                                Profiler.Session?.Write(w);
-                            }
+                            var elapsedMs = watch.Stop();
 
-                            w.WriteObject("filters", ctx.context, LogFilters);
-                            w.WriteProperty("elapsedRequestMs", ctx.elapsedMs);
-                        });
+                            log.LogInformation((elapsedMs, context), (ctx, w) =>
+                            {
+                                if (requestLogOptions.LogProfiler)
+                                {
+                                    Profiler.Session?.Write(w);
+                                }
+
+                                w.WriteObject("filters", ctx.context, LogFilters);
+                                w.WriteProperty("elapsedRequestMs", ctx.elapsedMs);
+                            });
+                        }
                     }
                 }
+            }
+            else
+            {
+                await next(context);
             }
         }
 

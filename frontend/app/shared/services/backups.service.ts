@@ -21,6 +21,7 @@ export class BackupDto {
     public readonly _links: ResourceLinks;
 
     public readonly canDelete: boolean;
+    public readonly canDownload: boolean;
 
     public readonly downloadUrl: string;
 
@@ -35,11 +36,12 @@ export class BackupDto {
         public readonly stopped: DateTime | null,
         public readonly handledEvents: number,
         public readonly handledAssets: number,
-        public readonly status: 'Started' | 'Failed' | 'Success' | 'Completed' | 'Pending'
+        public readonly status: 'Started' | 'Failed' | 'Success' | 'Completed' | 'Pending',
     ) {
         this._links = links;
 
         this.canDelete = hasAnyLink(links, 'delete');
+        this.canDownload = !!stopped && !this.isFailed;
 
         this.downloadUrl = links['download'].href;
     }
@@ -51,39 +53,37 @@ export class RestoreDto {
         public readonly started: DateTime,
         public readonly stopped: DateTime | null,
         public readonly status: string,
-        public readonly log: ReadonlyArray<string>
+        public readonly log: ReadonlyArray<string>,
     ) {
     }
 }
 
-export interface StartRestoreDto {
-    readonly url: string;
-    readonly newAppName?: string;
-}
+export type StartRestoreDto =
+    Readonly<{ url: string; newAppName?: string }>;
 
 @Injectable()
 export class BackupsService {
     constructor(
         private readonly http: HttpClient,
         private readonly apiUrl: ApiUrlConfig,
-        private readonly analytics: AnalyticsService
+        private readonly analytics: AnalyticsService,
     ) {
     }
 
     public getBackups(appName: string): Observable<BackupsDto> {
         const url = this.apiUrl.buildUrl(`api/apps/${appName}/backups`);
 
-        return this.http.get<{ items: any[], _links: {} } & Resource>(url).pipe(
+        return this.http.get<{ items: any[]; _links: {} } & Resource>(url).pipe(
             map(({ items, _links }) => {
-                const backups = items.map(item => parseBackup(item));
+                const backups = items.map(parseBackup);
 
                 return new BackupsDto(backups.length, backups, _links);
             }),
-            pretifyError('Failed to load backups.'));
+            pretifyError('i18n:backups.loadFailed'));
     }
 
     public getRestore(): Observable<RestoreDto | null> {
-        const url = this.apiUrl.buildUrl(`api/apps/restore`);
+        const url = this.apiUrl.buildUrl('api/apps/restore');
 
         return this.http.get(url).pipe(
             map(body => {
@@ -95,10 +95,10 @@ export class BackupsService {
                 if (Types.is(error, HttpErrorResponse) && error.status === 404) {
                     return of(null);
                 } else {
-                    return throwError(error);
+                    return throwError(() => error);
                 }
             }),
-            pretifyError('Failed to load backups.'));
+            pretifyError('i18n:backups.loadFailed'));
     }
 
     public postBackup(appName: string): Observable<any> {
@@ -108,17 +108,17 @@ export class BackupsService {
             tap(() => {
                 this.analytics.trackEvent('Backup', 'Started', appName);
             }),
-            pretifyError('Failed to start backup.'));
+            pretifyError('i18n:backups.startFailed'));
     }
 
     public postRestore(dto: StartRestoreDto): Observable<any> {
-        const url = this.apiUrl.buildUrl(`api/apps/restore`);
+        const url = this.apiUrl.buildUrl('api/apps/restore');
 
         return this.http.post(url, dto).pipe(
             tap(() => {
                 this.analytics.trackEvent('Restore', 'Started');
             }),
-            pretifyError('Failed to start restore.'));
+            pretifyError('i18n:backups.restoreFailed'));
     }
 
     public deleteBackup(appName: string, resource: Resource): Observable<any> {
@@ -130,7 +130,7 @@ export class BackupsService {
             tap(() => {
                 this.analytics.trackEvent('Backup', 'Deleted', appName);
             }),
-            pretifyError('Failed to delete backup.'));
+            pretifyError('i18n:backups.deleteFailed'));
     }
 }
 

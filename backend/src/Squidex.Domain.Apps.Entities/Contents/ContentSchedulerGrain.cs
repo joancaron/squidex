@@ -15,7 +15,7 @@ using Squidex.Domain.Apps.Entities.Contents.Commands;
 using Squidex.Domain.Apps.Entities.Contents.Repositories;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Commands;
-using Squidex.Infrastructure.Log;
+using Squidex.Log;
 
 namespace Squidex.Domain.Apps.Entities.Contents
 {
@@ -33,11 +33,6 @@ namespace Squidex.Domain.Apps.Entities.Contents
             IClock clock,
             ISemanticLog log)
         {
-            Guard.NotNull(contentRepository, nameof(contentRepository));
-            Guard.NotNull(commandBus, nameof(commandBus));
-            Guard.NotNull(clock, nameof(clock));
-            Guard.NotNull(log, nameof(log));
-
             this.clock = clock;
 
             this.commandBus = commandBus;
@@ -71,16 +66,30 @@ namespace Squidex.Domain.Apps.Entities.Contents
             {
                 return Dispatch(async () =>
                 {
+                    var id = content.Id;
+
                     try
                     {
                         var job = content.ScheduleJob;
 
                         if (job != null)
                         {
-                            var command = new ChangeContentStatus { ContentId = content.Id, Status = job.Status, Actor = job.ScheduledBy, JobId = job.Id };
+                            var command = new ChangeContentStatus
+                            {
+                                Actor = job.ScheduledBy,
+                                AppId = content.AppId,
+                                ContentId = id,
+                                SchemaId = content.SchemaId,
+                                Status = job.Status,
+                                StatusJobId = job.Id
+                            };
 
                             await commandBus.PublishAsync(command);
                         }
+                    }
+                    catch (DomainObjectNotFoundException)
+                    {
+                        await contentRepository.ResetScheduledAsync(content.UniqueId, default);
                     }
                     catch (Exception ex)
                     {
@@ -90,7 +99,7 @@ namespace Squidex.Domain.Apps.Entities.Contents
                             .WriteProperty("contentId", logContentId));
                     }
                 });
-            });
+            }, default);
         }
 
         public Task ReceiveReminder(string reminderName, TickStatus status)

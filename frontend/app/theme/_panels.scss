@@ -106,6 +106,8 @@
         &-blank {
             background: $panel-light-background;
             border: 0;
+            border-radius: 0;
+            padding-top: 0;
         }
 
         &-blank-bordered {
@@ -334,11 +336,14 @@
     &-item {
         & {
             @include border-radius;
+            color: inherit;
             display: block;
             font-size: .9rem;
             font-weight: normal;
             margin-bottom: .25rem;
             padding: .25rem 1rem;
+            text-align: left;
+            text-decoration: none;
         }
 
         &-remove {
@@ -352,6 +357,9 @@
         &.active,
         &:hover {
             background: $color-theme-secondary;
+            color: inherit;
+            text-align: left;
+            text-decoration: none;
         }
 
         &.inactive {
@@ -359,6 +367,7 @@
         }
 
         &:hover {
+
             .sidebar-item-remove {
                 visibility: visible;
             }

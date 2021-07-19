@@ -1,14 +1,14 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using Squidex.Domain.Apps.Core.Assets;
 using Squidex.Domain.Apps.Entities.Assets.Commands;
+using Squidex.Infrastructure;
 using Squidex.Infrastructure.Reflection;
 
 namespace Squidex.Areas.Api.Controllers.Assets.Models
@@ -40,7 +40,7 @@ namespace Squidex.Areas.Api.Controllers.Assets.Models
         /// </summary>
         public AssetMetadata? Metadata { get; set; }
 
-        public AnnotateAsset ToCommand(Guid id)
+        public AnnotateAsset ToCommand(DomainId id)
         {
             return SimpleMapper.Map(this, new AnnotateAsset { AssetId = id });
         }

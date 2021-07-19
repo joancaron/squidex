@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -37,7 +37,7 @@ namespace Migrations.OldEvents
 
             result.Metadata = new AssetMetadata();
 
-            if (IsImage && PixelWidth.HasValue && PixelHeight.HasValue)
+            if (IsImage && PixelWidth != null && PixelHeight != null)
             {
                 result.Type = AssetType.Image;
 

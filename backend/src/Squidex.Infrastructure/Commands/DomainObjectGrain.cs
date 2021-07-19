@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -12,18 +12,18 @@ using Squidex.Infrastructure.Orleans;
 
 namespace Squidex.Infrastructure.Commands
 {
-    public abstract class DomainObjectGrain<T, TState> : GrainOfGuid where T : DomainObjectBase<TState> where TState : class, IDomainState<TState>, new()
+    public abstract class DomainObjectGrain<T, TState> : GrainOfString where T : DomainObject<TState> where TState : class, IDomainState<TState>, new()
     {
         private readonly T domainObject;
 
         public TState Snapshot
         {
-            get { return domainObject.Snapshot; }
+            get => domainObject.Snapshot;
         }
 
         protected T DomainObject
         {
-            get { return domainObject; }
+            get => domainObject;
         }
 
         protected DomainObjectGrain(IServiceProvider serviceProvider)
@@ -33,16 +33,18 @@ namespace Squidex.Infrastructure.Commands
             domainObject = serviceProvider.GetRequiredService<T>();
         }
 
-        protected override Task OnActivateAsync(Guid key)
+        protected override Task OnActivateAsync(string key)
         {
-            domainObject.Setup(key);
+            domainObject.Setup(DomainId.Create(key));
 
             return base.OnActivateAsync(key);
         }
 
-        public async Task<J<object?>> ExecuteAsync(J<IAggregateCommand> command)
+        public async Task<J<CommandResult>> ExecuteAsync(J<CommandRequest> request)
         {
-            var result = await domainObject.ExecuteAsync(command.Value);
+            request.Value.ApplyContext();
+
+            var result = await domainObject.ExecuteAsync(request.Value.Command);
 
             return result;
         }

@@ -5,14 +5,15 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using FakeItEasy;
 using Squidex.Domain.Apps.Core;
 using Squidex.Domain.Apps.Core.Contents;
 using Squidex.Domain.Apps.Core.Schemas;
+using Squidex.Domain.Apps.Core.TestHelpers;
 using Squidex.Domain.Apps.Entities.Assets.Repositories;
 using Squidex.Domain.Apps.Entities.Contents.Queries.Steps;
 using Squidex.Domain.Apps.Entities.Contents.Repositories;
@@ -21,6 +22,7 @@ using Squidex.Domain.Apps.Entities.TestHelpers;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Json.Objects;
 using Xunit;
+using TestUtils = Squidex.Domain.Apps.Core.TestHelpers.TestUtils;
 
 namespace Squidex.Domain.Apps.Entities.Contents.Queries
 {
@@ -30,8 +32,8 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
         private readonly IUrlGenerator urlGenerator = A.Fake<IUrlGenerator>();
         private readonly IAssetRepository assetRepository = A.Fake<IAssetRepository>();
         private readonly IContentRepository contentRepository = A.Fake<IContentRepository>();
-        private readonly NamedId<Guid> appId = NamedId.Of(Guid.NewGuid(), "my-app");
-        private readonly NamedId<Guid> schemaId = NamedId.Of(Guid.NewGuid(), "my-schema");
+        private readonly NamedId<DomainId> appId = NamedId.Of(DomainId.NewGuid(), "my-app");
+        private readonly NamedId<DomainId> schemaId = NamedId.Of(DomainId.NewGuid(), "my-schema");
         private readonly ProvideSchema schemaProvider;
         private readonly ConvertData sut;
 
@@ -45,19 +47,19 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
                         .AddAssets(31, "nested"));
 
             schema = Mocks.Schema(appId, schemaId, schemaDef);
-            schemaProvider = x => Task.FromResult(schema);
+            schemaProvider = x => Task.FromResult((schema, ResolvedComponents.Empty));
 
-            sut = new ConvertData(urlGenerator, assetRepository, contentRepository);
+            sut = new ConvertData(urlGenerator, TestUtils.DefaultSerializer, assetRepository, contentRepository);
         }
 
         [Fact]
-        public async Task Should_convert_data_and_data_draft_when_frontend_user()
+        public async Task Should_convert_data_and_data_draft_if_frontend_user()
         {
-            var content = CreateContent(new NamedContentData());
+            var content = CreateContent(new ContentData());
 
             var ctx = new Context(Mocks.FrontendUser(), Mocks.App(appId));
 
-            await sut.EnrichAsync(ctx, Enumerable.Repeat(content, 1), schemaProvider);
+            await sut.EnrichAsync(ctx, Enumerable.Repeat(content, 1), schemaProvider, default);
 
             Assert.NotNull(content.Data);
         }
@@ -65,97 +67,97 @@ namespace Squidex.Domain.Apps.Entities.Contents.Queries
         [Fact]
         public async Task Should_cleanup_references()
         {
-            var id1 = Guid.NewGuid();
-            var id2 = Guid.NewGuid();
+            var id1 = DomainId.NewGuid();
+            var id2 = DomainId.NewGuid();
 
             var source = BuildTestData(id1, id2);
 
             var content = CreateContent(source);
 
             var expected =
-                new NamedContentData()
+                new ContentData()
                     .AddField("references",
                         new ContentFieldData()
-                            .AddJsonValue(JsonValue.Array(id2)))
+                            .AddInvariant(JsonValue.Array(id2)))
                     .AddField("assets",
                         new ContentFieldData()
-                            .AddJsonValue(JsonValue.Array()))
+                            .AddInvariant(JsonValue.Array()))
                     .AddField("array",
                         new ContentFieldData()
-                            .AddJsonValue(
+                            .AddInvariant(
                                 JsonValue.Array(
                                     JsonValue.Object()
                                         .Add("nested", JsonValue.Array(id2)))));
 
-            A.CallTo(() => assetRepository.QueryIdsAsync(appId.Id, A<HashSet<Guid>>.That.Is(id1, id2)))
-                .Returns(new List<Guid> { id2 });
+            A.CallTo(() => assetRepository.QueryIdsAsync(appId.Id, A<HashSet<DomainId>>.That.Is(id1, id2), A<CancellationToken>._))
+                .Returns(new List<DomainId> { id2 });
 
-            A.CallTo(() => contentRepository.QueryIdsAsync(appId.Id, A<HashSet<Guid>>.That.Is(id1, id2), SearchScope.All))
-                .Returns(new List<(Guid, Guid)> { (id2, id2) });
+            A.CallTo(() => contentRepository.QueryIdsAsync(appId.Id, A<HashSet<DomainId>>.That.Is(id1, id2), SearchScope.All, A<CancellationToken>._))
+                .Returns(new List<(DomainId, DomainId, Status)> { (id2, id2, Status.Published) });
 
             var ctx = new Context(Mocks.FrontendUser(), Mocks.App(appId));
 
-            await sut.EnrichAsync(ctx, Enumerable.Repeat(content, 1), schemaProvider);
+            await sut.EnrichAsync(ctx, Enumerable.Repeat(content, 1), schemaProvider, default);
 
             Assert.Equal(expected, content.Data);
         }
 
         [Fact]
-        public async Task Should_cleanup_references_when_everything_deleted()
+        public async Task Should_cleanup_references_if_everything_deleted()
         {
-            var id1 = Guid.NewGuid();
-            var id2 = Guid.NewGuid();
+            var id1 = DomainId.NewGuid();
+            var id2 = DomainId.NewGuid();
 
             var source = BuildTestData(id1, id2);
 
             var content = CreateContent(source);
 
             var expected =
-                new NamedContentData()
+                new ContentData()
                     .AddField("references",
                         new ContentFieldData()
-                            .AddJsonValue(JsonValue.Array()))
+                            .AddInvariant(JsonValue.Array()))
                     .AddField("assets",
                         new ContentFieldData()
-                            .AddJsonValue(JsonValue.Array()))
+                            .AddInvariant(JsonValue.Array()))
                     .AddField("array",
                         new ContentFieldData()
-                            .AddJsonValue(
+                            .AddInvariant(
                                 JsonValue.Array(
                                     JsonValue.Object()
                                         .Add("nested", JsonValue.Array()))));
 
-            A.CallTo(() => assetRepository.QueryIdsAsync(appId.Id, A<HashSet<Guid>>.That.Is(id1, id2)))
-                .Returns(new List<Guid>());
+            A.CallTo(() => assetRepository.QueryIdsAsync(appId.Id, A<HashSet<DomainId>>.That.Is(id1, id2), A<CancellationToken>._))
+                .Returns(new List<DomainId>());
 
-            A.CallTo(() => contentRepository.QueryIdsAsync(appId.Id, A<HashSet<Guid>>.That.Is(id1, id2), SearchScope.All))
-                .Returns(new List<(Guid, Guid)>());
+            A.CallTo(() => contentRepository.QueryIdsAsync(appId.Id, A<HashSet<DomainId>>.That.Is(id1, id2), SearchScope.All, A<CancellationToken>._))
+                .Returns(new List<(DomainId, DomainId, Status)>());
 
             var ctx = new Context(Mocks.FrontendUser(), Mocks.App(appId));
 
-            await sut.EnrichAsync(ctx, Enumerable.Repeat(content, 1), schemaProvider);
+            await sut.EnrichAsync(ctx, Enumerable.Repeat(content, 1), schemaProvider, default);
 
             Assert.Equal(expected, content.Data);
         }
 
-        private static NamedContentData BuildTestData(Guid id1, Guid id2)
+        private static ContentData BuildTestData(DomainId id1, DomainId id2)
         {
-            return new NamedContentData()
+            return new ContentData()
                 .AddField("references",
                     new ContentFieldData()
-                        .AddJsonValue(JsonValue.Array(id1, id2)))
+                        .AddInvariant(JsonValue.Array(id1, id2)))
                 .AddField("assets",
                     new ContentFieldData()
-                        .AddJsonValue(JsonValue.Array(id1)))
+                        .AddInvariant(JsonValue.Array(id1)))
                 .AddField("array",
                     new ContentFieldData()
-                        .AddJsonValue(
+                        .AddInvariant(
                             JsonValue.Array(
                                 JsonValue.Object()
                                     .Add("nested", JsonValue.Array(id1, id2)))));
         }
 
-        private ContentEntity CreateContent(NamedContentData data)
+        private ContentEntity CreateContent(ContentData data)
         {
             return new ContentEntity
             {

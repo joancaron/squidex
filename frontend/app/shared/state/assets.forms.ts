@@ -14,32 +14,35 @@ export class AnnotateAssetForm extends Form<FormGroup, AnnotateAssetDto, AssetDt
     public get metadata() {
         return this.form.get('metadata')! as FormArray;
     }
+    public get metadataControls(): ReadonlyArray<FormGroup> {
+        return this.metadata.controls as any;
+    }
 
     constructor(
-        private readonly formBuilder: FormBuilder
+        private readonly formBuilder: FormBuilder,
     ) {
         super(formBuilder.group({
             isProtected: [false,
                 [
-                    Validators.nullValidator
-                ]
+                    Validators.nullValidator,
+                ],
             ],
             fileName: ['',
                 [
-                    Validators.required
-                ]
+                    Validators.required,
+                ],
             ],
             slug: ['',
                 [
-                    Validators.required
-                ]
+                    Validators.required,
+                ],
             ],
             tags: [[],
                 [
-                    Validators.nullValidator
-                ]
+                    Validators.nullValidator,
+                ],
             ],
-            metadata: formBuilder.array([])
+            metadata: formBuilder.array([]),
         }));
     }
 
@@ -48,10 +51,10 @@ export class AnnotateAssetForm extends Form<FormGroup, AnnotateAssetDto, AssetDt
             this.formBuilder.group({
                 name: ['',
                     [
-                        Validators.required
-                    ]
+                        Validators.required,
+                    ],
                 ],
-                value: ['']
+                value: [''],
             }));
     }
 
@@ -62,7 +65,7 @@ export class AnnotateAssetForm extends Form<FormGroup, AnnotateAssetDto, AssetDt
     public transformSubmit(value: any) {
         const result = { ...value, metadata: {} };
 
-        for (let item of value.metadata) {
+        for (const item of value.metadata) {
             const raw = item.value;
 
             let parsed = raw;
@@ -196,9 +199,9 @@ export class RenameAssetFolderForm extends Form<FormGroup, RenameAssetFolderDto,
         super(formBuilder.group({
             folderName: ['',
                 [
-                    Validators.required
-                ]
-            ]
+                    Validators.required,
+                ],
+            ],
         }));
     }
 }

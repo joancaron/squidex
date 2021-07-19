@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -45,12 +45,18 @@ namespace Squidex.Infrastructure.Migrations
             return entity == null || entity.IsLocked == false;
         }
 
-        public Task UnlockAsync(int newVersion)
+        public Task CompleteAsync(int newVersion)
         {
             return Collection.UpdateOneAsync(x => x.Id == DefaultId,
                 Update
-                    .Set(x => x.IsLocked, false)
                     .Set(x => x.Version, newVersion));
+        }
+
+        public Task UnlockAsync()
+        {
+            return Collection.UpdateOneAsync(x => x.Id == DefaultId,
+                Update
+                    .Set(x => x.IsLocked, false));
         }
     }
 }

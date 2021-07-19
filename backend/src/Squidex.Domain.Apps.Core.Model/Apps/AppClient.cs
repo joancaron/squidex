@@ -1,47 +1,22 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System.Diagnostics.Contracts;
-using Squidex.Infrastructure;
+#pragma warning disable SA1313 // Parameter names should begin with lower-case letter
 
 namespace Squidex.Domain.Apps.Core.Apps
 {
-    [Equals(DoNotAddEqualityOperators = true)]
-    public sealed class AppClient : Named
+    public sealed record AppClient(string Name, string Secret)
     {
-        public string Role { get; }
+        public string Role { get; init; } = "Editor";
 
-        public string Secret { get; }
+        public long ApiCallsLimit { get; init; }
 
-        public AppClient(string name, string secret, string role)
-            : base(name)
-        {
-            Guard.NotNullOrEmpty(secret, nameof(secret));
-            Guard.NotNullOrEmpty(role, nameof(role));
+        public long ApiTrafficLimit { get; init; }
 
-            Role = role;
-
-            Secret = secret;
-        }
-
-        [Pure]
-        public AppClient Update(string newRole)
-        {
-            Guard.NotNullOrEmpty(newRole, nameof(newRole));
-
-            return new AppClient(Name, Secret, newRole);
-        }
-
-        [Pure]
-        public AppClient Rename(string newName)
-        {
-            Guard.NotNullOrEmpty(newName, nameof(newName));
-
-            return new AppClient(newName, Secret, Role);
-        }
+        public bool AllowAnonymous { get; init; }
     }
 }

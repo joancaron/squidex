@@ -5,46 +5,49 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { ChangeDetectorRef, Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
-import { ApiUrlConfig, AppLanguageDto, AppsState, AuthService, ContentDto, EditContentForm, LanguageDto, ManualContentsState, ResourceOwner, SchemaDetailsDto, SchemaDto, SchemasState, Types } from '@app/shared';
+import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
+import { AppLanguageDto, ComponentContentsState, ContentDto, EditContentForm, ResourceOwner, SchemaDto, SchemasState } from '@app/shared';
 
 @Component({
     selector: 'sqx-content-creator',
     styleUrls: ['./content-creator.component.scss'],
     templateUrl: './content-creator.component.html',
     providers: [
-        ManualContentsState
-    ]
+        ComponentContentsState,
+    ],
 })
 export class ContentCreatorComponent extends ResourceOwner implements OnInit {
     @Output()
     public select = new EventEmitter<ReadonlyArray<ContentDto>>();
 
     @Input()
+    public initialData: any;
+
+    @Input()
+    public schemaName?: string | null;
+
+    @Input()
     public schemaIds: ReadonlyArray<string>;
 
     @Input()
-    public language: LanguageDto;
+    public language: AppLanguageDto;
 
     @Input()
     public languages: ReadonlyArray<AppLanguageDto>;
 
-    public schema: SchemaDetailsDto;
+    @Input()
+    public formContext: any;
+
+    public schema: SchemaDto;
     public schemas: ReadonlyArray<SchemaDto> = [];
 
-    public contentFormContext: any;
     public contentForm: EditContentForm;
 
-    constructor(authService: AuthService,
-        public readonly appsState: AppsState,
-        public readonly apiUrl: ApiUrlConfig,
-        public readonly contentsState: ManualContentsState,
-        public readonly schemasState: SchemasState,
-        private readonly changeDetector: ChangeDetectorRef
+    constructor(
+        private readonly contentsState: ComponentContentsState,
+        private readonly schemasState: SchemasState,
     ) {
         super();
-
-        this.contentFormContext = { user: authService.user, apiUrl: apiUrl.buildUrl('api') };
     }
 
     public ngOnInit() {
@@ -54,25 +57,24 @@ export class ContentCreatorComponent extends ResourceOwner implements OnInit {
             this.schemas = this.schemas.filter(x => this.schemaIds.indexOf(x.id) >= 0);
         }
 
-        this.selectSchema(this.schemas[0]);
+        const selectedSchema = this.schemas.find(x => x.name === this.schemaName) || this.schemas[0];
+
+        this.selectSchema(selectedSchema);
     }
 
-    public selectSchema(selected: string | SchemaDto) {
-        if (Types.is(selected, SchemaDto)) {
-            selected = selected.id;
+    public selectSchema(schema: SchemaDto) {
+        this.schema = schema;
+
+        if (schema) {
+            this.contentsState.schema = schema;
+            this.contentForm = new EditContentForm(this.languages, this.schema, this.schemasState.schemaMap, { user: this.formContext.user });
+
+            if (this.initialData) {
+                this.contentForm.load(this.initialData, true);
+
+                this.initialData = null;
+            }
         }
-
-        this.schemasState.loadSchema(selected, true)
-            .subscribe(schema => {
-                if (schema) {
-                    this.schema = schema;
-
-                    this.contentsState.schema = schema;
-                    this.contentForm = new EditContentForm(this.languages, this.schema);
-
-                    this.changeDetector.markForCheck();
-                }
-            });
     }
 
     public saveAndPublish() {
@@ -100,7 +102,7 @@ export class ContentCreatorComponent extends ResourceOwner implements OnInit {
                     this.contentForm.submitFailed(error);
                 });
         } else {
-            this.contentForm.submitFailed('Content element not valid, please check the field with the red bar on the left in all languages (if localizable).');
+            this.contentForm.submitFailed('i18n:contents.contentNotValid');
         }
     }
 
@@ -108,7 +110,7 @@ export class ContentCreatorComponent extends ResourceOwner implements OnInit {
         if (publish) {
             return this.schema.canContentsCreateAndPublish;
         } else {
-            return this.schema.canContentsCreateAndPublish;
+            return this.schema.canContentsCreate;
         }
     }
 
@@ -118,9 +120,5 @@ export class ContentCreatorComponent extends ResourceOwner implements OnInit {
 
     public emitSelect(content: ContentDto) {
         this.select.emit([content]);
-    }
-
-    public selectLanguage(language: LanguageDto) {
-        this.language = language;
     }
 }

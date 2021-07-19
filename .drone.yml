@@ -3,7 +3,7 @@ kind: pipeline
 name: default
 
 steps:
-  - name: build_release
+  - name: build_dev
     image: docker
     commands:
       - docker build -t squidex --build-arg SQUIDEX__VERSION=4.0.0-dev-$${DRONE_BUILD_NUMBER} .
@@ -18,8 +18,9 @@ steps:
         - pull_request
       branch:
         - master
+        - release/*
         
-  - name: build_dev
+  - name: build_release
     image: docker
     commands:
       - docker build -t squidex --build-arg SQUIDEX__VERSION=$${DRONE_TAG} .
@@ -44,13 +45,15 @@ steps:
         path: /var/lib/docker
     when:
       event:
+        - tag
         - push
         - pull_request
       branch:
         - master
+        - release/*
 
   - name: test_run
-    image: mcr.microsoft.com/dotnet/core/sdk:3.1-buster
+    image: mcr.microsoft.com/dotnet/sdk:5.0.102-ca-patch-buster-slim
     environment:
       CONFIG__SERVER__URL: http://localhost:8080
       CONFIG__WAIT: 60
@@ -59,10 +62,12 @@ steps:
     network_mode: host
     when:
       event:
+        - tag
         - push
         - pull_request
       branch:
         - master
+        - release/*
 
   - name: test_cleanup
     image: docker/compose
@@ -79,10 +84,12 @@ steps:
         - failure
         - success
       event:
+        - tag
         - push
         - pull_request
       branch:
         - master
+        - release/*
 
   - name: push_dev
     image: docker
@@ -107,6 +114,7 @@ steps:
         - push
       branch:
         - master
+        - release/*
 
   - name: push_release
     image: docker
@@ -114,8 +122,10 @@ steps:
       - docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
       - docker tag squidex squidex/squidex:latest
       - docker tag squidex squidex/squidex:$${DRONE_TAG}
+      - docker tag squidex squidex/squidex:$${DRONE_TAG:0:1}
       - docker push squidex/squidex:latest
       - docker push squidex/squidex:$${DRONE_TAG}
+      - docker push squidex/squidex:$${DRONE_TAG:0:1}
     volumes:
       - name: docker1
         path: /var/run/docker.sock
@@ -163,7 +173,7 @@ steps:
     image: plugins/github-release
     settings:
       api_key:
-        from_secret: github_apikey
+        from_secret: GITHUB_TOKEN
       files:
         - /release/binaries.zip
     volumes:
@@ -188,16 +198,6 @@ steps:
         - success
       event:
         - tag
-
-  - name: slack
-    image: plugins/slack
-    settings:
-      webhook:
-        from_secret: slack_webhook
-    when:
-      status:
-        - failure
-        - success
       
 volumes:
   - name: build
@@ -210,3 +210,15 @@ volumes:
   - name: docker2
     host:
       path: /var/lib/docker
+---
+kind: secret
+name: GITHUB_TOKEN
+data: ug4jjv04VM8v6+j18pGC/xVcnhB55AQI+F6Raz3mmZ7JRWYwDcu7x1PryHhkFBErtGrQHMHvr5EhAqwMaun7WurKUnI=
+---
+kind: secret
+name: DOCKER_USERNAME
+data: BRJUSatZx7X0MCxVq1QboS2DBeye7jnPoeuDi7ejkPDq8EDrrCVT9D2DuQ==
+---
+kind: secret
+name: DOCKER_PASSWORD
+data: 2JITndCjHwdCyJ/m/onZNnUlXxIJ5FhECC+gnY3klV9PIQYIyLwQ

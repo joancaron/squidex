@@ -1,58 +1,52 @@
-﻿// ==========================================================================
+// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
 using System.Runtime.Serialization;
+using Squidex.Infrastructure.Translations;
 
 namespace Squidex.Infrastructure
 {
     [Serializable]
     public class DomainObjectVersionException : DomainObjectException
     {
-        private readonly long currentVersion;
-        private readonly long expectedVersion;
+        private const string ValidationError = "OBJECT_VERSION_CONFLICT";
 
-        public long CurrentVersion
+        public long CurrentVersion { get; }
+
+        public long ExpectedVersion { get; }
+
+        public DomainObjectVersionException(string id, long currentVersion, long expectedVersion, Exception? inner = null)
+            : base(FormatMessage(id, currentVersion, expectedVersion), id, ValidationError, inner)
         {
-            get { return currentVersion; }
-        }
+            CurrentVersion = currentVersion;
 
-        public long ExpectedVersion
-        {
-            get { return expectedVersion; }
-        }
-
-        public DomainObjectVersionException(string id, Type type, long currentVersion, long expectedVersion)
-            : base(FormatMessage(id, type, currentVersion, expectedVersion), id, type)
-        {
-            this.currentVersion = currentVersion;
-
-            this.expectedVersion = expectedVersion;
+            ExpectedVersion = expectedVersion;
         }
 
         protected DomainObjectVersionException(SerializationInfo info, StreamingContext context)
             : base(info, context)
         {
-            currentVersion = info.GetInt64(nameof(currentVersion));
+            CurrentVersion = info.GetInt64(nameof(CurrentVersion));
 
-            expectedVersion = info.GetInt64(nameof(expectedVersion));
+            ExpectedVersion = info.GetInt64(nameof(ExpectedVersion));
         }
 
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
-            info.AddValue(nameof(currentVersion), currentVersion);
-            info.AddValue(nameof(expectedVersion), expectedVersion);
+            info.AddValue(nameof(CurrentVersion), CurrentVersion);
+            info.AddValue(nameof(ExpectedVersion), ExpectedVersion);
 
             base.GetObjectData(info, context);
         }
 
-        private static string FormatMessage(string id, Type type, long currentVersion, long expectedVersion)
+        private static string FormatMessage(string id, long currentVersion, long expectedVersion)
         {
-            return $"Requested version {expectedVersion} for object '{id}' (type {type}), but found {currentVersion}.";
+            return T.Get("exceptions.domainObjectVersion", new { id, currentVersion, expectedVersion });
         }
     }
 }

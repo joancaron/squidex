@@ -5,12 +5,12 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using FakeItEasy;
 using Orleans;
 using Squidex.Domain.Apps.Core.Tags;
+using Squidex.Infrastructure;
 using Xunit;
 
 namespace Squidex.Domain.Apps.Entities.Tags
@@ -19,7 +19,7 @@ namespace Squidex.Domain.Apps.Entities.Tags
     {
         private readonly IGrainFactory grainFactory = A.Fake<IGrainFactory>();
         private readonly ITagGrain grain = A.Fake<ITagGrain>();
-        private readonly Guid appId = Guid.NewGuid();
+        private readonly DomainId appId = DomainId.NewGuid();
         private readonly GrainTagService sut;
 
         public GrainTagServiceTests()
@@ -31,13 +31,7 @@ namespace Squidex.Domain.Apps.Entities.Tags
         }
 
         [Fact]
-        public void Should_provide_name()
-        {
-            Assert.Equal("Tags", sut.Name);
-        }
-
-        [Fact]
-        public async Task Should_call_grain_when_clearing()
+        public async Task Should_call_grain_if_clearing()
         {
             await sut.ClearAsync(appId, TagGroups.Assets);
 
@@ -46,7 +40,7 @@ namespace Squidex.Domain.Apps.Entities.Tags
         }
 
         [Fact]
-        public async Task Should_call_grain_when_rebuilding()
+        public async Task Should_call_grain_if_rebuilding()
         {
             var tags = new TagsExport();
 
@@ -57,7 +51,7 @@ namespace Squidex.Domain.Apps.Entities.Tags
         }
 
         [Fact]
-        public async Task Should_call_grain_when_retrieving_raw_tags()
+        public async Task Should_call_grain_if_retrieving_raw_tags()
         {
             await sut.GetExportableTagsAsync(appId, TagGroups.Assets);
 
@@ -66,7 +60,7 @@ namespace Squidex.Domain.Apps.Entities.Tags
         }
 
         [Fact]
-        public async Task Should_call_grain_when_retrieving_tags()
+        public async Task Should_call_grain_if_retrieving_tags()
         {
             await sut.GetTagsAsync(appId, TagGroups.Assets);
 
@@ -75,7 +69,7 @@ namespace Squidex.Domain.Apps.Entities.Tags
         }
 
         [Fact]
-        public async Task Should_call_grain_when_resolving_tag_ids()
+        public async Task Should_call_grain_if_resolving_tag_ids()
         {
             var tagNames = new HashSet<string>();
 
@@ -86,7 +80,7 @@ namespace Squidex.Domain.Apps.Entities.Tags
         }
 
         [Fact]
-        public async Task Should_call_grain_when_denormalizing_tags()
+        public async Task Should_call_grain_if_denormalizing_tags()
         {
             var tagIds = new HashSet<string>();
 
@@ -97,7 +91,7 @@ namespace Squidex.Domain.Apps.Entities.Tags
         }
 
         [Fact]
-        public async Task Should_call_grain_when_normalizing_tags()
+        public async Task Should_call_grain_if_normalizing_tags()
         {
             var tagIds = new HashSet<string>();
             var tagNames = new HashSet<string>();

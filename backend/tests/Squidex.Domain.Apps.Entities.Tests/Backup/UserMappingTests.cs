@@ -9,7 +9,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using FakeItEasy;
-using Squidex.Domain.Apps.Entities.TestHelpers;
+using Squidex.Domain.Apps.Core.TestHelpers;
 using Squidex.Infrastructure;
 using Squidex.Shared.Users;
 using Xunit;
@@ -29,13 +29,13 @@ namespace Squidex.Domain.Apps.Entities.Backup
         [Fact]
         public async Task Should_backup_users_but_no_clients()
         {
-            sut.Backup("user1");
-            sut.Backup(Subject("user2"));
+            sut.Backup("1");
+            sut.Backup(Subject("2"));
 
             sut.Backup(Client("client"));
 
-            var user1 = CreateUser("user1", "mail1@squidex.io");
-            var user2 = CreateUser("user2", "mail2@squidex.io");
+            var user1 = UserMocks.User("1", "1@email.com");
+            var user2 = UserMocks.User("2", "1@email.com");
 
             var users = new Dictionary<string, IUser>
             {
@@ -67,8 +67,8 @@ namespace Squidex.Domain.Apps.Entities.Backup
         [Fact]
         public async Task Should_restore_users()
         {
-            var user1 = CreateUser("user1", "mail1@squidex.io");
-            var user2 = CreateUser("user2", "mail2@squidex.io");
+            var user1 = UserMocks.User("1", "1@email.com");
+            var user2 = UserMocks.User("2", "2@email.com");
 
             var reader = SetupReader(user1, user2);
 
@@ -82,11 +82,11 @@ namespace Squidex.Domain.Apps.Entities.Backup
 
             await sut.RestoreAsync(reader, userResolver);
 
-            Assert.True(sut.TryMap("user1_old", out var mapped1));
-            Assert.True(sut.TryMap(Subject("user2_old"), out var mapped2));
+            Assert.True(sut.TryMap("1_old", out var mapped1));
+            Assert.True(sut.TryMap(Subject("2_old"), out var mapped2));
 
-            Assert.Equal(Subject("user1"), mapped1);
-            Assert.Equal(Subject("user2"), mapped2);
+            Assert.Equal(Subject("1"), mapped1);
+            Assert.Equal(Subject("2"), mapped2);
         }
 
         [Fact]
@@ -107,23 +107,13 @@ namespace Squidex.Domain.Apps.Entities.Backup
             Assert.Same(client, mapped);
         }
 
-        private static IUser CreateUser(string id, string email)
-        {
-            var user = A.Fake<IUser>();
-
-            A.CallTo(() => user.Id).Returns(id);
-            A.CallTo(() => user.Email).Returns(email);
-
-            return user;
-        }
-
         private static IBackupReader SetupReader(params IUser[] users)
         {
             var storedUsers = users.ToDictionary(x => $"{x.Id}_old", x => x.Email);
 
             var reader = A.Fake<IBackupReader>();
 
-            A.CallTo(() => reader.ReadJsonAttachmentAsync<Dictionary<string, string>>(A<string>._))
+            A.CallTo(() => reader.ReadJsonAsync<Dictionary<string, string>>(A<string>._))
                 .Returns(storedUsers);
 
             return reader;
@@ -131,12 +121,12 @@ namespace Squidex.Domain.Apps.Entities.Backup
 
         private static RefToken Client(string identifier)
         {
-            return new RefToken(RefTokenType.Client, identifier);
+            return RefToken.Client(identifier);
         }
 
         private static RefToken Subject(string identifier)
         {
-            return new RefToken(RefTokenType.Subject, identifier);
+            return RefToken.User(identifier);
         }
     }
 }

@@ -1,31 +1,29 @@
 <div class="selection">
-    <input type="text" class="form-control" [disabled]="snapshot.isDisabled" (click)="open()" readonly (keydown)="onKeyDown($event)" #input
-        autocomplete="off" 
+    <input type="text" class="custom-select" [disabled]="snapshot.isDisabled" (click)="open()" readonly (keydown)="onKeyDown($event)" #input 
+        autocomplete="off"
         autocorrect="off"
         autocapitalize="off">
     
-    <div class="control-dropdown-item" *ngIf="snapshot.selectedItem">
-        <span class="truncate" *ngIf="!templateSelection">{{snapshot.selectedItem}}</span>
+    <div class="control-dropdown-item" *ngIf="snapshot.selectedItem; let selectedItem">
+        <span class="truncate" *ngIf="!templateSelection">{{selectedItem}}</span>
         
-        <ng-template *ngIf="templateSelection" [sqxTemplateWrapper]="templateSelection" [item]="snapshot.selectedItem"></ng-template>
+        <ng-template *ngIf="templateSelection" [sqxTemplateWrapper]="templateSelection" [item]="selectedItem"></ng-template>
     </div>
-
-    <i class="icon-caret-down"></i>
 </div> 
 
 <div class="items-container">
     <ng-container *sqxModal="dropdown">
         <div class="control-dropdown" [sqxAnchoredTo]="input" position="bottom-left">
             <div *ngIf="canSearch" class="search-form">
-                <input class="form-control search" [formControl]="queryInput" placeholder="Search" (keydown)="onKeyDown($event)" sqxFocusOnInit />
+                <input class="form-control search" [formControl]="queryInput" placeholder="{{ 'contributors.search' | sqxTranslate }}" (keydown)="onKeyDown($event)" sqxFocusOnInit>
             </div>
 
             <div class="control-dropdown-items" #container>
-                <div *ngFor="let item of snapshot.suggestedItems; let i = index;" class="control-dropdown-item control-dropdown-item-selectable" 
-                    [class.active]="i === snapshot.selectedIndex"
-                    [class.separated]="separated"
-                    (mousedown)="selectIndexAndClose(i)"
-                    [sqxScrollActive]="i === snapshot.selectedIndex"
+                <div *ngFor="let item of snapshot.suggestedItems; let i = index;" class="control-dropdown-item control-dropdown-item-selectable"
+                    [class.active]="i === snapshot.suggestedIndex"
+                    [class.separated]="separated" 
+                    (mousedown)="selectIndexAndClose(i)" 
+                    [sqxScrollActive]="i === snapshot.suggestedIndex"
                     [sqxScrollContainer]="container">
                     <ng-container *ngIf="!templateItem">{{item}}</ng-container>
                     

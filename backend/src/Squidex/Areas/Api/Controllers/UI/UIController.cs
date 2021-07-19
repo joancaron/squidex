@@ -1,12 +1,13 @@
-﻿// ==========================================================================
+// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Squidex.Areas.Api.Controllers.UI.Models;
@@ -14,6 +15,7 @@ using Squidex.Domain.Apps.Entities.Apps;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Commands;
 using Squidex.Infrastructure.Security;
+using Squidex.Infrastructure.Translations;
 using Squidex.Shared;
 using Squidex.Web;
 
@@ -41,13 +43,13 @@ namespace Squidex.Areas.Api.Controllers.UI
         /// </returns>
         [HttpGet]
         [Route("ui/settings/")]
-        [ProducesResponseType(typeof(UISettingsDto), 200)]
+        [ProducesResponseType(typeof(UISettingsDto), StatusCodes.Status200OK)]
         [ApiPermission]
         public IActionResult GetSettings()
         {
             var result = new UISettingsDto
             {
-                CanCreateApps = !uiOptions.OnlyAdminsCanCreateApps || Context.Permissions.Includes(CreateAppPermission)
+                CanCreateApps = !uiOptions.OnlyAdminsCanCreateApps || Context.UserPermissions.Includes(CreateAppPermission)
             };
 
             return Ok(result);
@@ -63,7 +65,7 @@ namespace Squidex.Areas.Api.Controllers.UI
         /// </returns>
         [HttpGet]
         [Route("apps/{app}/ui/settings/")]
-        [ProducesResponseType(typeof(Dictionary<string, string>), 200)]
+        [ProducesResponseType(typeof(Dictionary<string, string>), StatusCodes.Status200OK)]
         [ApiPermission]
         public async Task<IActionResult> GetSettings(string app)
         {
@@ -82,7 +84,7 @@ namespace Squidex.Areas.Api.Controllers.UI
         /// </returns>
         [HttpGet]
         [Route("apps/{app}/ui/settings/me")]
-        [ProducesResponseType(typeof(Dictionary<string, string>), 200)]
+        [ProducesResponseType(typeof(Dictionary<string, string>), StatusCodes.Status200OK)]
         [ApiPermission]
         public async Task<IActionResult> GetUserSettings(string app)
         {
@@ -175,7 +177,7 @@ namespace Squidex.Areas.Api.Controllers.UI
 
             if (string.IsNullOrWhiteSpace(subject))
             {
-                throw new DomainForbiddenException("Not allowed for clients.");
+                throw new DomainForbiddenException(T.Get("common.httpOnlyAsUser"));
             }
 
             return subject;

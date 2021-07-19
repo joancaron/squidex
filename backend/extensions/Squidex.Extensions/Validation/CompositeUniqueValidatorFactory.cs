@@ -9,7 +9,6 @@ using System;
 using System.Collections.Generic;
 using Squidex.Domain.Apps.Core.ValidateContent;
 using Squidex.Domain.Apps.Entities.Contents.Repositories;
-using Squidex.Infrastructure;
 
 namespace Squidex.Extensions.Validation
 {
@@ -20,12 +19,10 @@ namespace Squidex.Extensions.Validation
 
         public CompositeUniqueValidatorFactory(IContentRepository contentRepository)
         {
-            Guard.NotNull(contentRepository, nameof(contentRepository));
-
             this.contentRepository = contentRepository;
         }
 
-        public IEnumerable<IValidator> CreateContentValidators(ValidationContext context, FieldValidatorFactory createFieldValidator)
+        public IEnumerable<IValidator> CreateContentValidators(ValidatorContext context, ValidatorFactory createFieldValidator)
         {
             foreach (var validatorTag in ValidatorTags(context.Schema.Properties.Tags))
             {

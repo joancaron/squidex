@@ -5,7 +5,6 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -21,22 +20,25 @@ namespace Squidex.Domain.Apps.Entities.History
         private readonly Dictionary<string, string> texts = new Dictionary<string, string>();
         private readonly List<IHistoryEventsCreator> creators;
         private readonly IHistoryEventRepository repository;
+        private readonly NotifoService notifo;
+
+        public int BatchSize
+        {
+            get => 1000;
+        }
+
+        public int BatchDelay
+        {
+            get => 1000;
+        }
 
         public string Name
         {
-            get { return GetType().Name; }
+            get => GetType().Name;
         }
 
-        public string EventsFilter
+        public HistoryService(IHistoryEventRepository repository, IEnumerable<IHistoryEventsCreator> creators, NotifoService notifo)
         {
-            get { return ".*"; }
-        }
-
-        public HistoryService(IHistoryEventRepository repository, IEnumerable<IHistoryEventsCreator> creators)
-        {
-            Guard.NotNull(repository, nameof(repository));
-            Guard.NotNull(creators, nameof(creators));
-
             this.creators = creators.ToList();
 
             foreach (var creator in this.creators)
@@ -48,11 +50,8 @@ namespace Squidex.Domain.Apps.Entities.History
             }
 
             this.repository = repository;
-        }
 
-        public bool Handles(StoredEvent @event)
-        {
-            return true;
+            this.notifo = notifo;
         }
 
         public Task ClearAsync()
@@ -60,27 +59,46 @@ namespace Squidex.Domain.Apps.Entities.History
             return repository.ClearAsync();
         }
 
-        public async Task On(Envelope<IEvent> @event)
+        public async Task On(IEnumerable<Envelope<IEvent>> events)
         {
-            foreach (var creator in creators)
+            var targets = new List<(Envelope<AppEvent> Event, HistoryEvent? HistoryEvent)>();
+
+            foreach (var @event in events)
             {
-                var historyEvent = await creator.CreateEventAsync(@event);
-
-                if (historyEvent != null)
+                if (@event.Payload is AppEvent)
                 {
-                    var appEvent = (AppEvent)@event.Payload;
+                    var appEvent = @event.To<AppEvent>();
 
-                    historyEvent.Actor = appEvent.Actor;
-                    historyEvent.AppId = appEvent.AppId.Id;
-                    historyEvent.Created = @event.Headers.Timestamp();
-                    historyEvent.Version = @event.Headers.EventStreamNumber();
+                    HistoryEvent? historyEvent = null;
 
-                    await repository.InsertAsync(historyEvent);
+                    foreach (var creator in creators)
+                    {
+                        historyEvent = await creator.CreateEventAsync(@event);
+
+                        if (historyEvent != null)
+                        {
+                            historyEvent.Actor = appEvent.Payload.Actor;
+                            historyEvent.AppId = appEvent.Payload.AppId.Id;
+                            historyEvent.Created = @event.Headers.Timestamp();
+                            historyEvent.Version = @event.Headers.EventStreamNumber();
+
+                            break;
+                        }
+                    }
+
+                    targets.Add((appEvent, historyEvent));
                 }
+            }
+
+            if (targets.Count > 0)
+            {
+                await notifo.HandleEventsAsync(targets);
+
+                await repository.InsertManyAsync(targets.NotNull(x => x.HistoryEvent));
             }
         }
 
-        public async Task<IReadOnlyList<ParsedHistoryEvent>> QueryByChannelAsync(Guid appId, string channelPrefix, int count)
+        public async Task<IReadOnlyList<ParsedHistoryEvent>> QueryByChannelAsync(DomainId appId, string channelPrefix, int count)
         {
             var items = await repository.QueryByChannelAsync(appId, channelPrefix, count);
 

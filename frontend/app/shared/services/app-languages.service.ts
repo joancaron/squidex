@@ -11,13 +11,6 @@ import { AnalyticsService, ApiUrlConfig, hasAnyLink, HTTP, mapVersioned, pretify
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 
-export type AppLanguagesDto = Versioned<AppLanguagesPayload>;
-export type AppLanguagesPayload = {
-    readonly items: ReadonlyArray<AppLanguageDto>;
-
-    readonly canCreate: boolean;
-} & Resource;
-
 export class AppLanguageDto {
     public readonly _links: ResourceLinks;
 
@@ -30,7 +23,7 @@ export class AppLanguageDto {
         public readonly englishName: string,
         public readonly isMaster: boolean,
         public readonly isOptional: boolean,
-        public readonly fallback: ReadonlyArray<string>
+        public readonly fallback: ReadonlyArray<string>,
     ) {
         this._links = links;
 
@@ -39,22 +32,24 @@ export class AppLanguageDto {
     }
 }
 
-export interface AddAppLanguageDto {
-    readonly language: string;
-}
+export type AppLanguagesDto =
+    Versioned<AppLanguagesPayload>;
 
-export interface UpdateAppLanguageDto {
-    readonly isMaster?: boolean;
-    readonly isOptional?: boolean;
-    readonly fallback?: ReadonlyArray<string>;
-}
+export type AppLanguagesPayload =
+    Readonly<{ items: ReadonlyArray<AppLanguageDto>; canCreate: boolean } & Resource>;
+
+export type AddAppLanguageDto =
+    Readonly<{ language: string }>;
+
+export type UpdateAppLanguageDto =
+    Readonly<{ isMaster?: boolean; isOptional?: boolean; falback?: ReadonlyArray<string> }>;
 
 @Injectable()
 export class AppLanguagesService {
     constructor(
         private readonly http: HttpClient,
         private readonly apiUrl: ApiUrlConfig,
-        private readonly analytics: AnalyticsService
+        private readonly analytics: AnalyticsService,
     ) {
     }
 
@@ -65,7 +60,7 @@ export class AppLanguagesService {
             mapVersioned(({ body }) => {
                 return parseLanguages(body);
             }),
-            pretifyError('Failed to load languages. Please reload.'));
+            pretifyError('i18n:languages.loadFailed'));
     }
 
     public postLanguage(appName: string, dto: AddAppLanguageDto, version: Version): Observable<AppLanguagesDto> {
@@ -78,7 +73,7 @@ export class AppLanguagesService {
             tap(() => {
                 this.analytics.trackEvent('Language', 'Added', appName);
             }),
-            pretifyError('Failed to add language. Please reload.'));
+            pretifyError('i18n:languages.addFailed'));
     }
 
     public putLanguage(appName: string, resource: Resource, dto: UpdateAppLanguageDto, version: Version): Observable<AppLanguagesDto> {
@@ -93,7 +88,7 @@ export class AppLanguagesService {
             tap(() => {
                 this.analytics.trackEvent('Language', 'Updated', appName);
             }),
-            pretifyError('Failed to change language. Please reload.'));
+            pretifyError('i18n:languages.updateFailed'));
     }
 
     public deleteLanguage(appName: string, resource: Resource, version: Version): Observable<AppLanguagesDto> {
@@ -108,7 +103,7 @@ export class AppLanguagesService {
             tap(() => {
                 this.analytics.trackEvent('Language', 'Deleted', appName);
             }),
-            pretifyError('Failed to add language. Please reload.'));
+            pretifyError('i18n:languages.deleteFailed'));
     }
 }
 

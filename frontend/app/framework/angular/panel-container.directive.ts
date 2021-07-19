@@ -5,13 +5,13 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable: readonly-array
+/* eslint-disable import/no-cycle */
 
 import { AfterViewInit, Directive, ElementRef, HostListener, Renderer2 } from '@angular/core';
 import { PanelComponent } from './panel.component';
 
 @Directive({
-    selector: '[sqxPanelContainer]'
+    selector: '[sqxPanelContainer]',
 })
 export class PanelContainerDirective implements AfterViewInit {
     private readonly panels: PanelComponent[] = [];
@@ -20,7 +20,7 @@ export class PanelContainerDirective implements AfterViewInit {
 
     constructor(
         private readonly element: ElementRef,
-        private readonly renderer: Renderer2
+        private readonly renderer: Renderer2,
     ) {
     }
 
@@ -81,7 +81,7 @@ export class PanelContainerDirective implements AfterViewInit {
             if (panel.desiredWidth === '*') {
                 const layoutWidth = (this.containerWidth - currentSize) / panelsWidthSpread;
 
-                panel.measure(layoutWidth + 'px');
+                panel.measure(`${layoutWidth}px`);
 
                 currentSize += panel.renderWidth;
             }
@@ -91,7 +91,7 @@ export class PanelContainerDirective implements AfterViewInit {
         let currentLayer = panels.length * 10;
 
         for (const panel of panels) {
-            panel.arrange(currentPosition + 'px', currentLayer.toString());
+            panel.arrange(`${currentPosition}px`, currentLayer.toString());
 
             currentPosition += panel.renderWidth;
             currentLayer -= 10;

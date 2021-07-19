@@ -32,23 +32,24 @@ export class AppDto {
     public readonly canUploadAssets: boolean;
     public readonly image: string;
 
-    public get displayName() {
-        return StringHelper.firstNonEmpty(this.label, this.name);
-    }
+    public readonly displayName: string;
 
     constructor(links: ResourceLinks,
         public readonly id: string,
+        public readonly created: DateTime,
+        public readonly createdBy: string,
+        public readonly lastModified: DateTime,
+        public readonly lastModifiedBy: string,
+        public readonly version: Version,
         public readonly name: string,
         public readonly label: string | undefined,
         public readonly description: string | undefined,
         public readonly permissions: ReadonlyArray<string>,
-        public readonly created: DateTime,
-        public readonly lastModified: DateTime,
         public readonly canAccessApi: boolean,
         public readonly canAccessContent: boolean,
         public readonly planName: string | undefined,
         public readonly planUpgrade: string | undefined,
-        public readonly version: Version
+        public readonly roleProperties: {},
     ) {
         this._links = links;
 
@@ -70,25 +71,60 @@ export class AppDto {
         this.canUploadAssets = hasAnyLink(links, 'assets/create');
 
         this.image = getLinkUrl(links, 'image');
+
+        this.displayName = StringHelper.firstNonEmpty(this.label, this.name);
     }
 }
 
-export interface CreateAppDto {
-    readonly name: string;
-    readonly template?: string;
+export class AppSettingsDto {
+    public readonly _links: ResourceLinks;
+
+    public readonly canUpdate: boolean;
+
+    constructor(links: ResourceLinks,
+        public readonly hideScheduler: boolean,
+        public readonly patterns: ReadonlyArray<PatternDto>,
+        public readonly editors: ReadonlyArray<EditorDto>,
+        public readonly version: Version,
+    ) {
+        this._links = links;
+
+        this.canUpdate = hasAnyLink(links, 'update');
+    }
 }
 
-export interface UpdateAppDto {
-    readonly label?: string;
-    readonly description?: string;
+export class PatternDto {
+    constructor(
+        public readonly name: string,
+        public readonly regex: string,
+        public readonly message?: string,
+    ) {
+    }
 }
+
+export class EditorDto {
+    constructor(
+        public readonly name: string,
+        public readonly url: string,
+    ) {
+    }
+}
+
+export type UpdateAppSettingsDto =
+    Readonly<{ patterns: ReadonlyArray<PatternDto>; editors: ReadonlyArray<EditorDto>; hideScheduler?: boolean }>;
+
+export type CreateAppDto =
+    Readonly<{ name: string; template?: string }>;
+
+export type UpdateAppDto =
+    Readonly<{ label?: string; description?: string }>;
 
 @Injectable()
 export class AppsService {
     constructor(
         private readonly http: HttpClient,
         private readonly apiUrl: ApiUrlConfig,
-        private readonly analytics: AnalyticsService
+        private readonly analytics: AnalyticsService,
     ) {
     }
 
@@ -97,11 +133,11 @@ export class AppsService {
 
         return this.http.get<any[]>(url).pipe(
             map(body => {
-                const apps = body.map(item => parseApp(item));
+                const apps = body.map(parseApp);
 
                 return apps;
             }),
-            pretifyError('Failed to load apps. Please reload.'));
+            pretifyError('i18n:apps.loadFailed'));
     }
 
     public getApp(name: string): Observable<AppDto> {
@@ -113,7 +149,7 @@ export class AppsService {
 
                 return app;
             }),
-            pretifyError('Failed to load app. Please reload.'));
+            pretifyError('i18n:apps.appLoadFailed'));
     }
 
     public postApp(dto: CreateAppDto): Observable<AppDto> {
@@ -126,7 +162,7 @@ export class AppsService {
             tap(() => {
                 this.analytics.trackEvent('App', 'Created', dto.name);
             }),
-            pretifyError('Failed to create app. Please reload.'));
+            pretifyError('i18n:apps.createFailed'));
     }
 
     public putApp(resource: Resource, dto: UpdateAppDto, version: Version): Observable<AppDto> {
@@ -141,7 +177,34 @@ export class AppsService {
             tap(() => {
                 this.analytics.trackEvent('App', 'Updated');
             }),
-            pretifyError('Failed to update app. Please reload.'));
+            pretifyError('i18n:apps.updateFailed'));
+    }
+
+    public getSettings(name: string): Observable<AppSettingsDto> {
+        const url = this.apiUrl.buildUrl(`/api/apps/${name}/settings`);
+
+        return this.http.get<any>(url).pipe(
+            map(body => {
+                const appSettings = parseAppSettings(body);
+
+                return appSettings;
+            }),
+            pretifyError('i18n:apps.loadSettingsFailed'));
+    }
+
+    public putSettings(resource: Resource, dto: UpdateAppSettingsDto, version: Version): Observable<AppSettingsDto> {
+        const link = resource._links['update'];
+
+        const url = this.apiUrl.buildUrl(link.href);
+
+        return HTTP.requestVersioned(this.http, link.method, url, version, dto).pipe(
+            map(({ payload }) => {
+                return parseAppSettings(payload.body);
+            }),
+            tap(() => {
+                this.analytics.trackEvent('App', 'Updated');
+            }),
+            pretifyError('i18n:apps.updateSettingsFailed'));
     }
 
     public postAppImage(resource: Resource, file: File, version: Version): Observable<number | AppDto> {
@@ -161,14 +224,14 @@ export class AppsService {
                 } else if (Types.is(event, HttpResponse)) {
                     return parseApp(event.body);
                 } else {
-                    throw 'Invalid';
+                    throw new Error('Invalid');
                 }
             }),
             catchError(error => {
                 if (Types.is(error, HttpErrorResponse) && error.status === 413) {
-                    return throwError(new ErrorDto(413, 'App image is too big.'));
+                    return throwError(() => new ErrorDto(413, 'i18n:apps.uploadImageTooBig'));
                 } else {
-                    return throwError(error);
+                    return throwError(() => error);
                 }
             }),
             tap(value => {
@@ -176,7 +239,7 @@ export class AppsService {
                     this.analytics.trackEvent('AppImage', 'Uploaded');
                 }
             }),
-            pretifyError('Failed to upload image. Please reload.'));
+            pretifyError('i18n:apps.uploadImageFailed'));
     }
 
     public deleteAppImage(resource: Resource, version: Version): Observable<any> {
@@ -191,7 +254,19 @@ export class AppsService {
             tap(() => {
                 this.analytics.trackEvent('AppImage', 'Removed');
             }),
-            pretifyError('Failed to remove app image. Please reload.'));
+            pretifyError('i18n:apps.removeImageFailed'));
+    }
+
+    public leaveApp(resource: Resource): Observable<any> {
+        const link = resource._links['leave'];
+
+        const url = this.apiUrl.buildUrl(link.href);
+
+        return this.http.request(link.method, url).pipe(
+            tap(() => {
+                this.analytics.trackEvent('App', 'Left');
+            }),
+            pretifyError('i18n:apps.leaveFailed'));
     }
 
     public deleteApp(resource: Resource): Observable<any> {
@@ -203,22 +278,35 @@ export class AppsService {
             tap(() => {
                 this.analytics.trackEvent('App', 'Archived');
             }),
-            pretifyError('Failed to archive app. Please reload.'));
+            pretifyError('i18n:apps.archiveFailed'));
     }
 }
 
 function parseApp(response: any) {
     return new AppDto(response._links,
         response.id,
+        DateTime.parseISO(response.created), response.createdBy,
+        DateTime.parseISO(response.lastModified), response.lastModifiedBy,
+        new Version(response.version.toString()),
         response.name,
         response.label,
         response.description,
         response.permissions,
-        DateTime.parseISO(response.created),
-        DateTime.parseISO(response.lastModified),
         response.canAccessApi,
         response.canAccessContent,
         response.planName,
         response.planUpgrade,
+        response.roleProperties);
+}
+
+function parseAppSettings(response: any) {
+    return new AppSettingsDto(response._links,
+        response.hideScheduler,
+        response.patterns.map((x: any) => {
+            return new PatternDto(x.name, x.regex, x.message);
+        }),
+        response.editors.map((x: any) => {
+            return new EditorDto(x.name, x.url);
+        }),
         new Version(response.version.toString()));
 }

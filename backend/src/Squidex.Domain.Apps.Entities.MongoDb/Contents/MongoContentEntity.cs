@@ -1,49 +1,50 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
-using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using NodaTime;
 using Squidex.Domain.Apps.Core.Contents;
-using Squidex.Domain.Apps.Core.ExtractReferenceIds;
-using Squidex.Domain.Apps.Core.Schemas;
 using Squidex.Domain.Apps.Entities.Contents;
-using Squidex.Domain.Apps.Entities.MongoDb.Contents.Operations;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.MongoDb;
 
 namespace Squidex.Domain.Apps.Entities.MongoDb.Contents
 {
     [BsonIgnoreExtraElements]
-    public sealed class MongoContentEntity : IContentEntity, IVersionedEntity<Guid>
+    public sealed class MongoContentEntity : IContentEntity, IVersionedEntity<DomainId>
     {
-        private NamedContentData data;
-
         [BsonId]
         [BsonElement("_id")]
-        [BsonRepresentation(BsonType.String)]
-        public Guid Id { get; set; }
+        public DomainId DocumentId { get; set; }
 
         [BsonRequired]
         [BsonElement("_ai")]
-        [BsonRepresentation(BsonType.String)]
-        public Guid IndexedAppId { get; set; }
+        public DomainId IndexedAppId { get; set; }
 
         [BsonRequired]
         [BsonElement("_si")]
-        [BsonRepresentation(BsonType.String)]
-        public Guid IndexedSchemaId { get; set; }
+        public DomainId IndexedSchemaId { get; set; }
+
+        [BsonRequired]
+        [BsonElement("ai")]
+        public NamedId<DomainId> AppId { get; set; }
+
+        [BsonRequired]
+        [BsonElement("si")]
+        public NamedId<DomainId> SchemaId { get; set; }
 
         [BsonRequired]
         [BsonElement("rf")]
-        [BsonRepresentation(BsonType.String)]
-        public HashSet<Guid>? ReferencedIds { get; set; }
+        public HashSet<DomainId>? ReferencedIds { get; set; }
+
+        [BsonRequired]
+        [BsonElement("id")]
+        public DomainId Id { get; set; }
 
         [BsonRequired]
         [BsonElement("ss")]
@@ -56,15 +57,7 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Contents
         [BsonIgnoreIfNull]
         [BsonElement("do")]
         [BsonJson]
-        public IdContentData DataByIds { get; set; }
-
-        [BsonRequired]
-        [BsonElement("ai")]
-        public NamedId<Guid> AppId { get; set; }
-
-        [BsonRequired]
-        [BsonElement("si")]
-        public NamedId<Guid> SchemaId { get; set; }
+        public ContentData Data { get; set; }
 
         [BsonIgnoreIfNull]
         [BsonElement("sa")]
@@ -98,22 +91,9 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Contents
         [BsonElement("mb")]
         public RefToken LastModifiedBy { get; set; }
 
-        [BsonIgnore]
-        public NamedContentData Data
+        public DomainId UniqueId
         {
-            get { return data; }
-        }
-
-        public void LoadData(NamedContentData data, Schema schema, DataConverter converter)
-        {
-            ReferencedIds = data.GetReferencedIds(schema);
-
-            DataByIds = converter.ToMongoModel(data, schema);
-        }
-
-        public void ParseData(Schema schema, DataConverter converter)
-        {
-            data = converter.FromMongoModel(DataByIds, schema);
+            get => DocumentId;
         }
     }
 }

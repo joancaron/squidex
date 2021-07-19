@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -62,7 +62,7 @@ namespace Squidex.Infrastructure.Json.Newtonsoft
 
         protected override JsonConverter? ResolveContractConverter(Type objectType)
         {
-            JsonConverter? result = base.ResolveContractConverter(objectType);
+            var result = base.ResolveContractConverter(objectType);
 
             if (result != null)
             {

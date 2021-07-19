@@ -16,7 +16,7 @@ export interface AutocompleteSource {
 }
 
 export const SQX_AUTOCOMPLETE_CONTROL_VALUE_ACCESSOR: any = {
-    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => AutocompleteComponent), multi: true
+    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => AutocompleteComponent), multi: true,
 };
 
 interface State {
@@ -40,12 +40,12 @@ const NO_EMIT = { emitEvent: false };
     styleUrls: ['./autocomplete.component.scss'],
     templateUrl: './autocomplete.component.html',
     providers: [
-        SQX_AUTOCOMPLETE_CONTROL_VALUE_ACCESSOR
+        SQX_AUTOCOMPLETE_CONTROL_VALUE_ACCESSOR,
     ],
     animations: [
-        fadeAnimation
+        fadeAnimation,
     ],
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AutocompleteComponent extends StatefulControlComponent<State, ReadonlyArray<any>> implements OnInit, OnDestroy {
     private timer: any;
@@ -57,6 +57,9 @@ export class AutocompleteComponent extends StatefulControlComponent<State, Reado
     public inputName = 'autocompletion';
 
     @Input()
+    public inputStyle: 'underlined' | 'empty';
+
+    @Input()
     public displayProperty: string;
 
     @Input()
@@ -66,16 +69,18 @@ export class AutocompleteComponent extends StatefulControlComponent<State, Reado
     public icon: string;
 
     @Input()
-    public autoFocus = false;
-
-    @Input()
-    public underlined = false;
+    public autoFocus?: boolean | null;
 
     @Input()
     public debounceTime = 300;
 
     @Input()
     public dropdownWidth = '18rem';
+
+    @Input()
+    public set disabled(value: boolean | null | undefined) {
+        this.setDisabledState(value === true);
+    }
 
     @ContentChild(TemplateRef, { static: false })
     public itemTemplate: TemplateRef<any>;
@@ -88,7 +93,7 @@ export class AutocompleteComponent extends StatefulControlComponent<State, Reado
     constructor(changeDetector: ChangeDetectorRef) {
         super(changeDetector, {
             suggestedItems: [],
-            suggestedIndex: -1
+            suggestedIndex: -1,
         });
     }
 
@@ -121,37 +126,31 @@ export class AutocompleteComponent extends StatefulControlComponent<State, Reado
                                 finalize(() => {
                                     this.setLoading(false);
                                 }),
-                                catchError(() => of([]))
+                                catchError(() => of([])),
                             );
                         }
                     }))
                 .subscribe(items => {
-                    this.next(s => ({
-                        ...s,
+                    this.next({
                         suggestedIndex: -1,
                         suggestedItems: items || [],
-                        isSearching: false
-                    }));
+                        isSearching: false,
+                    });
                 }));
     }
 
     public onKeyDown(event: KeyboardEvent) {
-        switch (event.keyCode) {
-            case Keys.UP:
-                this.up();
-                return false;
-            case Keys.DOWN:
-                this.down();
-                return false;
-            case Keys.ESCAPE:
-                this.resetForm();
-                this.reset();
-                return false;
-            case Keys.ENTER:
-                if (this.snapshot.suggestedItems.length > 0 && this.selectItem()) {
-                    return false;
-                }
-                break;
+        if (Keys.isEscape(event)) {
+            this.resetForm();
+            this.reset();
+        } else if (Keys.isUp(event)) {
+            this.selectPrevIndex();
+            return false;
+        } else if (Keys.isDown(event)) {
+            this.selectNextIndex();
+            return false;
+        } else if (Keys.isEnter(event)) {
+            return !(this.snapshot.suggestedItems.length > 0 && this.selectItem());
         }
 
         return true;
@@ -160,20 +159,19 @@ export class AutocompleteComponent extends StatefulControlComponent<State, Reado
     public writeValue(obj: any) {
         if (!obj) {
             this.resetForm();
+        } else if (this.displayProperty && this.displayProperty.length > 0) {
+            this.queryInput.setValue(obj[this.displayProperty], NO_EMIT);
         } else {
-            if (this.displayProperty && this.displayProperty.length > 0) {
-                this.queryInput.setValue(obj[this.displayProperty], NO_EMIT);
-            } else {
-                this.queryInput.setValue(obj.toString(), NO_EMIT);
-            }
+            this.queryInput.setValue(obj.toString(), NO_EMIT);
         }
 
         this.resetState();
     }
 
-    public setDisabledState(isDisabled: boolean): void {
+    public onDisabled(isDisabled: boolean) {
         if (isDisabled) {
             this.resetState();
+
             this.queryInput.disable(NO_EMIT);
         } else {
             this.queryInput.enable(NO_EMIT);
@@ -231,10 +229,10 @@ export class AutocompleteComponent extends StatefulControlComponent<State, Reado
         clearTimeout(this.timer);
 
         if (value) {
-            this.next(s => ({ ...s, isLoading: true }));
+            this.next({ isLoading: true });
         } else {
             this.timer = setTimeout(() => {
-                this.next(s => ({ ...s, isLoading: false }));
+                this.next({ isLoading: false });
             }, 250);
         }
     }
@@ -248,14 +246,14 @@ export class AutocompleteComponent extends StatefulControlComponent<State, Reado
             suggestedIndex = this.snapshot.suggestedItems.length - 1;
         }
 
-        this.next(s => ({ ...s, suggestedIndex }));
+        this.next({ suggestedIndex });
     }
 
-    private up() {
+    private selectPrevIndex() {
         this.selectIndex(this.snapshot.suggestedIndex - 1);
     }
 
-    private down() {
+    private selectNextIndex() {
         this.selectIndex(this.snapshot.suggestedIndex + 1);
     }
 

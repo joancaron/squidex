@@ -5,16 +5,18 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { Component, ElementRef, Input, ViewChild } from '@angular/core';
-import { AbstractControl, FormArray, FormControl } from '@angular/forms';
-import { AppLanguageDto, EditContentForm, FieldDto, MathHelper, RootFieldDto, Types } from '@app/shared';
+import { Component, ElementRef, Input, OnChanges, SimpleChanges, ViewChild } from '@angular/core';
+import { AbstractControl, FormControl } from '@angular/forms';
+import { AbstractContentForm, AppLanguageDto, EditContentForm, FieldDto, MathHelper, RootFieldDto, Types } from '@app/shared';
+import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 @Component({
     selector: 'sqx-field-editor',
     styleUrls: ['./field-editor.component.scss'],
-    templateUrl: './field-editor.component.html'
+    templateUrl: './field-editor.component.html',
 })
-export class FieldEditorComponent {
+export class FieldEditorComponent implements OnChanges {
     @Input()
     public form: EditContentForm;
 
@@ -22,10 +24,7 @@ export class FieldEditorComponent {
     public formContext: any;
 
     @Input()
-    public field: FieldDto;
-
-    @Input()
-    public control: AbstractControl;
+    public formModel: AbstractContentForm<FieldDto, AbstractControl>;
 
     @Input()
     public language: AppLanguageDto;
@@ -34,32 +33,60 @@ export class FieldEditorComponent {
     public languages: ReadonlyArray<AppLanguageDto>;
 
     @Input()
+    public index: number;
+
+    @Input()
+    public canUnset?: boolean | null;
+
+    @Input()
     public displaySuffix: string;
 
     @ViewChild('editor', { static: false })
     public editor: ElementRef;
 
-    public get arrayControl() {
-        return this.control as FormArray;
+    public isEmpty: Observable<boolean>;
+
+    public get field() {
+        return this.formModel.field;
     }
 
     public get editorControl() {
-        return this.control as FormControl;
+        return this.formModel.form as FormControl;
     }
 
     public get rootField() {
-        return this.field as RootFieldDto;
+        return this.formModel.field as RootFieldDto;
     }
 
     public uniqueId = MathHelper.guid();
 
-    public reset() {
-        if (this.editor.nativeElement && Types.isFunction(this.editor.nativeElement['reset'])) {
-            this.editor.nativeElement['reset']();
-        }
+    public ngOnChanges(changes: SimpleChanges) {
+        if (changes['formModel']) {
+            const previousControl: AbstractContentForm<FieldDto, AbstractControl> = changes['formModel'].previousValue;
 
-        if (this.editor && Types.isFunction(this.editor['reset'])) {
-            this.editor['reset']();
+            if (previousControl && Types.isFunction(previousControl.form['_clearChangeFns'])) {
+                previousControl.form['_clearChangeFns']();
+            }
+
+            this.isEmpty = this.formModel.form.valueChanges.pipe(map(x => Types.isUndefined(x) || Types.isNull(x)));
         }
+    }
+
+    public reset() {
+        if (this.editor) {
+            const nativeElement = this.editor.nativeElement;
+
+            if (nativeElement && Types.isFunction(nativeElement['reset'])) {
+                nativeElement['reset']();
+            }
+
+            if (this.editor && Types.isFunction(this.editor['reset'])) {
+                this.editor['reset']();
+            }
+        }
+    }
+
+    public unset() {
+        this.formModel.unset();
     }
 }

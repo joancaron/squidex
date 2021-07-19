@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -9,13 +9,14 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Squidex.Domain.Apps.Core.Schemas;
+using Squidex.Domain.Apps.Core.TestHelpers;
 using Squidex.Infrastructure.Collections;
 using Squidex.Infrastructure.Json.Objects;
 using Xunit;
 
 namespace Squidex.Domain.Apps.Core.Operations.ValidateContent
 {
-    public class NumberFieldTests
+    public class NumberFieldTests : IClassFixture<TranslationsFixture>
     {
         private readonly List<string> errors = new List<string>();
 
@@ -56,7 +57,7 @@ namespace Squidex.Domain.Apps.Core.Operations.ValidateContent
             await sut.ValidateAsync(CreateValue(5), errors);
 
             errors.Should().BeEquivalentTo(
-                new[] { "Must be greater or equal to '10'." });
+                new[] { "Must be greater or equal to 10." });
         }
 
         [Fact]
@@ -67,13 +68,13 @@ namespace Squidex.Domain.Apps.Core.Operations.ValidateContent
             await sut.ValidateAsync(CreateValue(20), errors);
 
             errors.Should().BeEquivalentTo(
-                new[] { "Must be less or equal to '10'." });
+                new[] { "Must be less or equal to 10." });
         }
 
         [Fact]
         public async Task Should_add_error_if_number_is_not_allowed()
         {
-            var sut = Field(new NumberFieldProperties { AllowedValues = ReadOnlyCollection.Create(10d) });
+            var sut = Field(new NumberFieldProperties { AllowedValues = ImmutableList.Create(10d) });
 
             await sut.ValidateAsync(CreateValue(20), errors);
 

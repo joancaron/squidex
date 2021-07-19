@@ -5,7 +5,10 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
+/* eslint-disable import/no-cycle */
+
 import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, EventEmitter, Input, OnChanges, OnDestroy, OnInit, Output, Renderer2, SimpleChanges, ViewChild } from '@angular/core';
+import { QueryParamsHandling } from '@angular/router';
 import { slideRightAnimation } from '@app/framework/internal';
 import { PanelContainerDirective } from './panel-container.directive';
 
@@ -14,17 +17,20 @@ import { PanelContainerDirective } from './panel-container.directive';
     styleUrls: ['./panel.component.scss'],
     templateUrl: './panel.component.html',
     animations: [
-        slideRightAnimation
+        slideRightAnimation,
     ],
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PanelComponent implements AfterViewInit, OnChanges, OnDestroy, OnInit {
-    private styleWidth: string;
-    private renderWidthField = 0;
+    private widthPrevious: string;
+    private widthToRender = 0;
     private isViewInitField = false;
 
     @Output()
     public close = new EventEmitter();
+
+    @Input()
+    public closeQueryParamsHandling: QueryParamsHandling = 'preserve';
 
     @Input()
     public theme = 'light';
@@ -36,28 +42,28 @@ export class PanelComponent implements AfterViewInit, OnChanges, OnDestroy, OnIn
     public minWidth?: string;
 
     @Input()
-    public isBlank = false;
+    public isBlank?: boolean | null;
 
     @Input()
-    public isFullSize = false;
+    public isFullSize?: boolean | null;
 
     @Input()
-    public isLazyLoaded = true;
+    public isLazyLoaded?: boolean | null = true;
 
     @Input()
-    public scrollX = false;
+    public scrollX?: boolean | null;
 
     @Input()
-    public showScrollbar = false;
+    public showScrollbar?: boolean | null;
 
     @Input()
-    public showSecondHeader = false;
+    public showSecondHeader?: boolean | null;
 
     @Input()
-    public showSidebar = false;
+    public showSidebar?: boolean | null;
 
     @Input()
-    public showClose = true;
+    public showClose?: boolean | null = true;
 
     @Input()
     public contentClass = '';
@@ -66,10 +72,10 @@ export class PanelComponent implements AfterViewInit, OnChanges, OnDestroy, OnIn
     public sidebarClass = '';
 
     @Input()
-    public grid = false;
+    public grid?: boolean | null;
 
     @Input()
-    public noPadding = false;
+    public noPadding?: boolean | null;
 
     @ViewChild('panel', { static: false })
     public panel: ElementRef<HTMLElement>;
@@ -79,7 +85,7 @@ export class PanelComponent implements AfterViewInit, OnChanges, OnDestroy, OnIn
     }
 
     public get renderWidth() {
-        return this.renderWidthField;
+        return this.widthToRender;
     }
 
     public get isViewInit() {
@@ -88,7 +94,7 @@ export class PanelComponent implements AfterViewInit, OnChanges, OnDestroy, OnIn
 
     constructor(
         private readonly container: PanelContainerDirective,
-        private readonly renderer: Renderer2
+        private readonly renderer: Renderer2,
     ) {
     }
 
@@ -113,8 +119,8 @@ export class PanelComponent implements AfterViewInit, OnChanges, OnDestroy, OnIn
     }
 
     public measure(size: string) {
-        if (this.styleWidth !== size && this.isViewInitField) {
-            this.styleWidth = size;
+        if (this.widthPrevious !== size && this.isViewInitField) {
+            this.widthPrevious = size;
 
             const element = this.panel.nativeElement;
 
@@ -122,7 +128,7 @@ export class PanelComponent implements AfterViewInit, OnChanges, OnDestroy, OnIn
                 this.renderer.setStyle(element, 'width', size);
                 this.renderer.setStyle(element, 'minWidth', this.minWidth);
 
-                this.renderWidthField = element.offsetWidth;
+                this.widthToRender = element.offsetWidth;
             }
         }
     }

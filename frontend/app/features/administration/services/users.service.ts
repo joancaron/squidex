@@ -23,54 +23,50 @@ export class UserDto {
     public readonly canLock: boolean;
     public readonly canUnlock: boolean;
     public readonly canUpdate: boolean;
+    public readonly canDelete: boolean;
 
     constructor(links: ResourceLinks,
         public readonly id: string,
         public readonly email: string,
         public readonly displayName: string,
         public readonly permissions: ReadonlyArray<string> = [],
-        public readonly isLocked?: boolean
+        public readonly isLocked?: boolean,
     ) {
         this._links = links;
 
         this.canLock = hasAnyLink(links, 'lock');
         this.canUnlock = hasAnyLink(links, 'unlock');
         this.canUpdate = hasAnyLink(links, 'update');
+        this.canDelete = hasAnyLink(links, 'delete');
     }
 }
 
-export interface CreateUserDto {
-    readonly email: string;
-    readonly displayName: string;
-    readonly permissions: ReadonlyArray<string>;
-    readonly password: string;
-}
+type Permissions = readonly string[];
 
-export interface UpdateUserDto {
-    readonly email: string;
-    readonly displayName: string;
-    readonly permissions: ReadonlyArray<string>;
-    readonly password?: string;
-}
+export type CreateUserDto =
+    Readonly<{ email: string; displayName: string; permissions: Permissions; password: string }>;
+
+export type UpdateUserDto =
+    Partial<CreateUserDto>;
 
 @Injectable()
 export class UsersService {
     constructor(
         private readonly http: HttpClient,
-        private readonly apiUrl: ApiUrlConfig
+        private readonly apiUrl: ApiUrlConfig,
     ) {
     }
 
     public getUsers(take: number, skip: number, query?: string): Observable<UsersDto> {
         const url = this.apiUrl.buildUrl(`api/user-management?take=${take}&skip=${skip}&query=${query || ''}`);
 
-        return this.http.get<{ total: number, items: any[] } & Resource>(url).pipe(
+        return this.http.get<{ total: number; items: any[] } & Resource>(url).pipe(
             map(({ total, items, _links }) => {
-                const users = items.map(item => parseUser(item));
+                const users = items.map(parseUser);
 
                 return new UsersDto(total, users, _links);
             }),
-            pretifyError('Failed to load users. Please reload.'));
+            pretifyError('i18n:users.loadFailed'));
     }
 
     public getUser(id: string): Observable<UserDto> {
@@ -80,7 +76,7 @@ export class UsersService {
             map(body => {
                 return parseUser(body);
             }),
-            pretifyError('Failed to load user. Please reload.'));
+            pretifyError('i18n:users.loadUserFailed'));
     }
 
     public postUser(dto: CreateUserDto): Observable<UserDto> {
@@ -90,7 +86,7 @@ export class UsersService {
             map(body => {
                 return parseUser(body);
             }),
-            pretifyError('Failed to create user. Please reload.'));
+            pretifyError('i18n:users.createFailed'));
     }
 
     public putUser(user: Resource, dto: UpdateUserDto): Observable<UserDto> {
@@ -102,7 +98,7 @@ export class UsersService {
             map(body => {
                 return parseUser(body);
             }),
-            pretifyError('Failed to update user. Please reload.'));
+            pretifyError('i18n:users.updateFailed'));
     }
 
     public lockUser(user: Resource): Observable<UserDto> {
@@ -114,7 +110,7 @@ export class UsersService {
             map(body => {
                 return parseUser(body);
             }),
-            pretifyError('Failed to load users. Please retry.'));
+            pretifyError('i18n:users.lockFailed'));
     }
 
     public unlockUser(user: Resource): Observable<UserDto> {
@@ -126,7 +122,16 @@ export class UsersService {
             map(body => {
                 return parseUser(body);
             }),
-            pretifyError('Failed to load users. Please retry.'));
+            pretifyError('i18n:users.unlockFailed'));
+    }
+
+    public deleteUser(user: Resource): Observable<any> {
+        const link = user._links['delete'];
+
+        const url = this.apiUrl.buildUrl(link.href);
+
+        return this.http.request(link.method, url).pipe(
+            pretifyError('i18n:users.deleteFailed'));
     }
 }
 

@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Logging;
 using Microsoft.Net.Http.Headers;
-using Squidex.Infrastructure;
+using Squidex.Assets;
 
 namespace Squidex.Web.Pipeline
 {
@@ -26,7 +26,7 @@ namespace Squidex.Web.Pipeline
         {
             try
             {
-                var (range, _, serveBody) = SetHeadersAndLog(context, result, result.FileSize, result.FileSize.HasValue);
+                var (range, _, serveBody) = SetHeadersAndLog(context, result, result.FileSize, result.FileSize != null);
 
                 if (!string.IsNullOrWhiteSpace(result.FileDownloadName) && result.SendInline)
                 {

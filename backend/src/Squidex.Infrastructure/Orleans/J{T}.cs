@@ -12,14 +12,14 @@ using Orleans.CodeGeneration;
 using Orleans.Concurrency;
 using Orleans.Serialization;
 using Squidex.Infrastructure.Json;
-using Squidex.Infrastructure.Log;
+using Squidex.Log;
 
 #pragma warning disable IDE0060 // Remove unused parameter
 
 namespace Squidex.Infrastructure.Orleans
 {
     [Immutable]
-    public struct J<T>
+    public readonly struct J<T>
     {
         public T Value { get; }
 

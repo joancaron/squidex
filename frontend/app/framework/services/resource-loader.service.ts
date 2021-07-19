@@ -22,10 +22,10 @@ export class ResourceLoaderService {
         let result = this.cache[key];
 
         if (!result) {
-            result = new Promise((resolve, reject) => {
+            result = new Promise(resolve => {
                 const style = this.renderer.createElement('link');
 
-                this.renderer.listen(style, 'load', () => resolve());
+                this.renderer.listen(style, 'load', resolve);
                 this.renderer.setProperty(style, 'rel', 'stylesheet');
                 this.renderer.setProperty(style, 'href', url);
                 this.renderer.setProperty(style, 'type', 'text/css');
@@ -51,12 +51,24 @@ export class ResourceLoaderService {
             this.renderer.appendChild(document.body, script);
 
             result = new Promise((resolve) => {
-                this.renderer.listen(script, 'load', () => resolve());
+                this.renderer.listen(script, 'load', resolve);
             });
 
             this.cache[key] = result;
         }
 
         return result;
+    }
+
+    public loadLocalScript(url: string): Promise<any> {
+        return process.env.NODE_ENV !== 'production' ?
+            this.loadScript(`https://localhost:3000/${url}`) :
+            this.loadScript(`build/${url}`);
+    }
+
+    public loadLocalStyle(url: string): Promise<any> {
+        return process.env.NODE_ENV !== 'production' ?
+            this.loadStyle(`https://localhost:3000/${url}`) :
+            this.loadStyle(`build/${url}`);
     }
 }

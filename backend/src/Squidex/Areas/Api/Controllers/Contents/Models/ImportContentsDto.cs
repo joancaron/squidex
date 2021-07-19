@@ -5,11 +5,13 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
+using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
+using System.Linq;
 using Squidex.Domain.Apps.Core.Contents;
 using Squidex.Domain.Apps.Entities.Contents.Commands;
 using Squidex.Infrastructure.Reflection;
+using Squidex.Infrastructure.Validation;
 
 namespace Squidex.Areas.Api.Controllers.Contents.Models
 {
@@ -18,12 +20,13 @@ namespace Squidex.Areas.Api.Controllers.Contents.Models
         /// <summary>
         /// The data to import.
         /// </summary>
-        [Required]
-        public List<NamedContentData> Datas { get; set; }
+        [LocalizedRequired]
+        public List<ContentData> Datas { get; set; }
 
         /// <summary>
         /// True to automatically publish the content.
         /// </summary>
+        [Obsolete("Use bulk endpoint now.")]
         public bool Publish { get; set; }
 
         /// <summary>
@@ -38,7 +41,24 @@ namespace Squidex.Areas.Api.Controllers.Contents.Models
 
         public BulkUpdateContents ToCommand()
         {
-            return SimpleMapper.Map(this, new BulkUpdateContents());
+            var result = SimpleMapper.Map(this, new BulkUpdateContents());
+
+            result.Jobs = Datas?.Select(x => new BulkUpdateJob { Type = BulkUpdateContentType.Create, Data = x }).ToArray();
+
+#pragma warning disable CS0618 // Type or member is obsolete
+            if (result.Jobs != null && Publish)
+            {
+                foreach (var job in result.Jobs)
+                {
+                    if (job != null)
+                    {
+                        job.Status = Status.Published;
+                    }
+                }
+            }
+#pragma warning restore CS0618 // Type or member is obsolete
+
+            return result;
         }
     }
 }

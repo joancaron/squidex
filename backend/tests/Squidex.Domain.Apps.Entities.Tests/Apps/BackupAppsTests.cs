@@ -10,16 +10,14 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using FakeItEasy;
+using Squidex.Assets;
 using Squidex.Domain.Apps.Entities.Apps.Indexes;
 using Squidex.Domain.Apps.Entities.Backup;
 using Squidex.Domain.Apps.Events.Apps;
 using Squidex.Infrastructure;
-using Squidex.Infrastructure.Assets;
 using Squidex.Infrastructure.EventSourcing;
 using Squidex.Infrastructure.Json.Objects;
 using Xunit;
-
-#pragma warning disable IDE0067 // Dispose objects before losing scope
 
 namespace Squidex.Domain.Apps.Entities.Apps
 {
@@ -28,8 +26,8 @@ namespace Squidex.Domain.Apps.Entities.Apps
         private readonly IAppsIndex index = A.Fake<IAppsIndex>();
         private readonly IAppUISettings appUISettings = A.Fake<IAppUISettings>();
         private readonly IAppImageStore appImageStore = A.Fake<IAppImageStore>();
-        private readonly Guid appId = Guid.NewGuid();
-        private readonly RefToken actor = new RefToken(RefTokenType.Subject, "123");
+        private readonly DomainId appId = DomainId.NewGuid();
+        private readonly RefToken actor = RefToken.User("123");
         private readonly BackupApps sut;
 
         public BackupAppsTests()
@@ -105,7 +103,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
         }
 
         [Fact]
-        public async Task Should_throw_exception_when_no_reservation_token_returned()
+        public async Task Should_throw_exception_if_no_reservation_token_returned()
         {
             const string appName = "my-app";
 
@@ -124,7 +122,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
         }
 
         [Fact]
-        public async Task Should_not_cleanup_reservation_when_no_reservation_token_hold()
+        public async Task Should_not_cleanup_reservation_if_no_reservation_token_hold()
         {
             await sut.CleanupRestoreErrorAsync(appId);
 
@@ -155,7 +153,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
 
             var context = CreateRestoreContext();
 
-            A.CallTo(() => context.Reader.ReadJsonAttachmentAsync<JsonObject>(A<string>._))
+            A.CallTo(() => context.Reader.ReadJsonAsync<JsonObject>(A<string>._))
                 .Returns(settings);
 
             await sut.RestoreAsync(context);
@@ -165,7 +163,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
         }
 
         [Fact]
-        public async Task Should_map_contributor_id_when_assigned()
+        public async Task Should_map_contributor_id_if_assigned()
         {
             var context = CreateRestoreContext();
 
@@ -181,7 +179,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
         }
 
         [Fact]
-        public async Task Should_ignore_contributor_event_when_assigned_user_not_mapped()
+        public async Task Should_ignore_contributor_event_if_assigned_user_not_mapped()
         {
             var context = CreateRestoreContext();
 
@@ -197,7 +195,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
         }
 
         [Fact]
-        public async Task Should_map_contributor_id_when_revoked()
+        public async Task Should_map_contributor_id_if_revoked()
         {
             var context = CreateRestoreContext();
 
@@ -213,7 +211,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
         }
 
         [Fact]
-        public async Task Should_ignore_contributor_event_when_removed_user_not_mapped()
+        public async Task Should_ignore_contributor_event_if_removed_user_not_mapped()
         {
             var context = CreateRestoreContext();
 
@@ -229,7 +227,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
         }
 
         [Fact]
-        public async Task Should_ignore_exception_when_app_image_to_backup_does_not_exist()
+        public async Task Should_ignore_exception_if_app_image_to_backup_does_not_exist()
         {
             var imageStream = new MemoryStream();
 
@@ -277,7 +275,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
         }
 
         [Fact]
-        public async Task Should_ignore_exception_when_app_image_cannot_be_overriden()
+        public async Task Should_ignore_exception_if_app_image_cannot_be_overriden()
         {
             var imageStream = new MemoryStream();
 
@@ -323,7 +321,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
             HashSet<string>? newIndex = null;
 
             A.CallTo(() => index.RebuildByContributorsAsync(appId, A<HashSet<string>>._))
-                .Invokes(new Action<Guid, HashSet<string>>((_, i) => newIndex = i));
+                .Invokes(new Action<DomainId, HashSet<string>>((_, i) => newIndex = i));
 
             await sut.CompleteRestoreAsync(context);
 
@@ -341,7 +339,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
 
         private RestoreContext CreateRestoreContext()
         {
-            return new RestoreContext(appId, CreateUserMapping(), A.Fake<IBackupReader>());
+            return new RestoreContext(appId, CreateUserMapping(), A.Fake<IBackupReader>(), DomainId.NewGuid());
         }
 
         private IUserMapping CreateUserMapping()
@@ -356,7 +354,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
                 .Returns(true)
                 .AssignsOutAndRefParametersLazily(
                     new Func<string, RefToken, object[]>((x, _) =>
-                        new[] { new RefToken(RefTokenType.Subject, $"{x}_mapped") }));
+                        new[] { RefToken.User($"{x}_mapped") }));
 
             A.CallTo(() => mapping.TryMap("notfound", out mapped))
                 .Returns(false);

@@ -14,10 +14,10 @@ namespace Squidex.Infrastructure.Json
     {
         string Serialize<T>(T value, bool intented = false);
 
-        void Serialize<T>(T value, Stream stream);
+        void Serialize<T>(T value, Stream stream, bool leaveOpen = false);
 
-        T Deserialize<T>(string value, Type? actualType = null, Func<string, string>? stringConverter = null);
+        T Deserialize<T>(string value, Type? actualType = null);
 
-        T Deserialize<T>(Stream stream, Type? actualType = null, Func<string, string>? stringConverter = null);
+        T Deserialize<T>(Stream stream, Type? actualType = null, bool leaveOpen = false);
     }
 }

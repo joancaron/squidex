@@ -5,12 +5,12 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
 using Squidex.Domain.Apps.Core.Contents;
 using Squidex.Domain.Apps.Entities.Apps.Commands;
+using Squidex.Infrastructure;
+using Squidex.Infrastructure.Collections;
+using Squidex.Infrastructure.Validation;
 
 namespace Squidex.Areas.Api.Controllers.Apps.Models
 {
@@ -24,27 +24,27 @@ namespace Squidex.Areas.Api.Controllers.Apps.Models
         /// <summary>
         /// The workflow steps.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public Dictionary<Status, WorkflowStepDto> Steps { get; set; }
 
         /// <summary>
         /// The schema ids.
         /// </summary>
-        public List<Guid>? SchemaIds { get; set; }
+        public ImmutableList<DomainId>? SchemaIds { get; set; }
 
         /// <summary>
         /// The initial step.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public Status Initial { get; set; }
 
-        public UpdateWorkflow ToCommand(Guid id)
+        public UpdateWorkflow ToCommand(DomainId id)
         {
             var workflow = new Workflow(
                 Initial,
-                Steps?.ToDictionary(
+                Steps?.ToImmutableDictionary(
                     x => x.Key,
-                    x => x.Value?.ToStep()!),
+                    x => x.Value?.ToWorkflowStep()!),
                 SchemaIds,
                 Name);
 

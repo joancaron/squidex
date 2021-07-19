@@ -10,12 +10,12 @@ import { AppsState, AssetDto, HistoryEventDto, HistoryService } from '@app/share
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
-interface AssetEvent { event: HistoryEventDto; fileVersion: number; canDownload: boolean; }
+interface AssetEvent { event: HistoryEventDto; version: number; canDownload: boolean }
 
 @Component({
     selector: 'sqx-asset-history',
     styleUrls: ['./asset-history.component.scss'],
-    templateUrl: './asset-history.component.html'
+    templateUrl: './asset-history.component.html',
 })
 export class AssetHistoryComponent implements OnChanges {
     @Input()
@@ -25,7 +25,7 @@ export class AssetHistoryComponent implements OnChanges {
 
     constructor(
         private readonly appsState: AppsState,
-        private readonly historyService: HistoryService
+        private readonly historyService: HistoryService,
     ) {
     }
 
@@ -35,23 +35,21 @@ export class AssetHistoryComponent implements OnChanges {
         this.assetEvents =
             this.historyService.getHistory(this.appsState.appName, channel).pipe(
                 map(events => {
-                    let fileVersion = -1;
+                    let version = -1;
 
                     return events.map(event => {
                         const canDownload =
                             event.eventType === 'AssetUpdatedEventV2' ||
                             event.eventType === 'AssetCreatedEventV2';
 
-                        if (canDownload) {
-                            fileVersion++;
-                        }
+                        version++;
 
-                        return { event, fileVersion, canDownload };
+                        return { event, version, canDownload };
                     });
                 }));
     }
 
-    public trackByEvent(index: number, assetEvent: AssetEvent) {
+    public trackByEvent(_index: number, assetEvent: AssetEvent) {
         return assetEvent.event.eventId;
     }
 }

@@ -5,11 +5,11 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using FakeItEasy;
 using Squidex.Domain.Apps.Core.Tags;
+using Squidex.Domain.Apps.Core.TestHelpers;
 using Squidex.Domain.Apps.Entities.TestHelpers;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Caching;
@@ -23,8 +23,8 @@ namespace Squidex.Domain.Apps.Entities.Assets.Queries
         private readonly IRequestCache requestCache = A.Fake<IRequestCache>();
         private readonly IAssetMetadataSource assetMetadataSource1 = A.Fake<IAssetMetadataSource>();
         private readonly IAssetMetadataSource assetMetadataSource2 = A.Fake<IAssetMetadataSource>();
-        private readonly NamedId<Guid> appId = NamedId.Of(Guid.NewGuid(), "my-app");
-        private readonly Context requestContext = Context.Anonymous();
+        private readonly NamedId<DomainId> appId = NamedId.Of(DomainId.NewGuid(), "my-app");
+        private readonly Context requestContext;
         private readonly AssetEnricher sut;
 
         public AssetEnricherTests()
@@ -35,6 +35,8 @@ namespace Squidex.Domain.Apps.Entities.Assets.Queries
                 assetMetadataSource2
             };
 
+            requestContext = Context.Anonymous(Mocks.App(appId));
+
             sut = new AssetEnricher(tagService, assetMetadataSources, requestCache);
         }
 
@@ -43,7 +45,7 @@ namespace Squidex.Domain.Apps.Entities.Assets.Queries
         {
             var source = new AssetEntity { AppId = appId };
 
-            var result = await sut.EnrichAsync(source, requestContext);
+            var result = await sut.EnrichAsync(source, requestContext, default);
 
             Assert.Empty(result.TagNames);
         }
@@ -51,11 +53,11 @@ namespace Squidex.Domain.Apps.Entities.Assets.Queries
         [Fact]
         public async Task Should_enrich_with_cache_dependencies()
         {
-            var source = new AssetEntity { AppId = appId, Id = Guid.NewGuid(), Version = 13 };
+            var source = new AssetEntity { AppId = appId, Id = DomainId.NewGuid(), Version = 13 };
 
-            var result = await sut.EnrichAsync(source, requestContext);
+            var result = await sut.EnrichAsync(source, requestContext, default);
 
-            A.CallTo(() => requestCache.AddDependency(result.Id, result.Version))
+            A.CallTo(() => requestCache.AddDependency(result.UniqueId, result.Version))
                 .MustHaveHappened();
         }
 
@@ -79,7 +81,7 @@ namespace Squidex.Domain.Apps.Entities.Assets.Queries
                     ["id2"] = "name2"
                 });
 
-            var result = await sut.EnrichAsync(source, requestContext);
+            var result = await sut.EnrichAsync(source, requestContext, default);
 
             Assert.Equal(new HashSet<string> { "name1", "name2" }, result.TagNames);
         }
@@ -97,7 +99,7 @@ namespace Squidex.Domain.Apps.Entities.Assets.Queries
                 AppId = appId
             };
 
-            var result = await sut.EnrichAsync(source, requestContext.Clone().WithoutAssetEnrichment());
+            var result = await sut.EnrichAsync(source, requestContext.Clone(b => b.WithoutAssetEnrichment()), default);
 
             Assert.Null(result.TagNames);
         }
@@ -122,7 +124,7 @@ namespace Squidex.Domain.Apps.Entities.Assets.Queries
             A.CallTo(() => assetMetadataSource2.Format(A<IAssetEntity>._))
                 .Returns(new[] { "metadata2", "metadata3" });
 
-            var result = await sut.EnrichAsync(source, requestContext);
+            var result = await sut.EnrichAsync(source, requestContext, default);
 
             Assert.Equal("metadata1, metadata2, metadata3, 2 kB", result.MetadataText);
         }
@@ -158,7 +160,7 @@ namespace Squidex.Domain.Apps.Entities.Assets.Queries
                     ["id3"] = "name3"
                 });
 
-            var result = await sut.EnrichAsync(new[] { source1, source2 }, requestContext);
+            var result = await sut.EnrichAsync(new[] { source1, source2 }, requestContext, default);
 
             Assert.Equal(new HashSet<string> { "name1", "name2" }, result[0].TagNames);
             Assert.Equal(new HashSet<string> { "name2", "name3" }, result[1].TagNames);

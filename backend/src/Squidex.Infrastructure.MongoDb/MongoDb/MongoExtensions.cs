@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -30,7 +30,16 @@ namespace Squidex.Infrastructure.MongoDb
                 Filter = new BsonDocument("name", collectionName)
             };
 
-            return (await database.ListCollectionNamesAsync(options)).Any();
+            var collections = await database.ListCollectionNamesAsync(options);
+
+            return await collections.AnyAsync();
+        }
+
+        public static Task<bool> AnyAsync<T>(this IMongoCollection<T> collection)
+        {
+            var find = collection.Find(new BsonDocument()).Limit(1);
+
+            return find.AnyAsync();
         }
 
         public static async Task<bool> InsertOneIfNotExistsAsync<T>(this IMongoCollection<T> collection, T document, CancellationToken ct = default)
@@ -39,14 +48,9 @@ namespace Squidex.Infrastructure.MongoDb
             {
                 await collection.InsertOneAsync(document, null, ct);
             }
-            catch (MongoWriteException ex)
+            catch (MongoWriteException ex) when (ex.WriteError?.Category == ServerErrorCategory.DuplicateKey)
             {
-                if (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
-                {
-                    return false;
-                }
-
-                throw;
+                return false;
             }
 
             return true;
@@ -64,49 +68,42 @@ namespace Squidex.Infrastructure.MongoDb
             }
         }
 
-        public static IFindFluent<TDocument, BsonDocument> Only<TDocument>(this IFindFluent<TDocument, TDocument> find,
-            Expression<Func<TDocument, object>> include)
+        public static IFindFluent<T, BsonDocument> Only<T>(this IFindFluent<T, T> find,
+            Expression<Func<T, object>> include)
         {
-            return find.Project<BsonDocument>(Builders<TDocument>.Projection.Include(include));
+            return find.Project<BsonDocument>(Builders<T>.Projection.Include(include));
         }
 
-        public static IFindFluent<TDocument, BsonDocument> Only<TDocument>(this IFindFluent<TDocument, TDocument> find,
-            Expression<Func<TDocument, object>> include1,
-            Expression<Func<TDocument, object>> include2)
+        public static IFindFluent<T, BsonDocument> Only<T>(this IFindFluent<T, T> find,
+            Expression<Func<T, object>> include1,
+            Expression<Func<T, object>> include2)
         {
-            return find.Project<BsonDocument>(Builders<TDocument>.Projection.Include(include1).Include(include2));
+            return find.Project<BsonDocument>(Builders<T>.Projection.Include(include1).Include(include2));
         }
 
-        public static IFindFluent<TDocument, BsonDocument> Only<TDocument>(this IFindFluent<TDocument, TDocument> find,
-            Expression<Func<TDocument, object>> include1,
-            Expression<Func<TDocument, object>> include2,
-            Expression<Func<TDocument, object>> include3)
+        public static IFindFluent<T, BsonDocument> Only<T>(this IFindFluent<T, T> find,
+            Expression<Func<T, object>> include1,
+            Expression<Func<T, object>> include2,
+            Expression<Func<T, object>> include3)
         {
-            return find.Project<BsonDocument>(Builders<TDocument>.Projection.Include(include1).Include(include2).Include(include3));
+            return find.Project<BsonDocument>(Builders<T>.Projection.Include(include1).Include(include2).Include(include3));
         }
 
-        public static IFindFluent<TDocument, TDocument> Not<TDocument>(this IFindFluent<TDocument, TDocument> find,
-            Expression<Func<TDocument, object>> exclude)
+        public static IFindFluent<T, T> Not<T>(this IFindFluent<T, T> find,
+            Expression<Func<T, object>> exclude)
         {
-            return find.Project<TDocument>(Builders<TDocument>.Projection.Exclude(exclude));
+            return find.Project<T>(Builders<T>.Projection.Exclude(exclude));
         }
 
-        public static IFindFluent<TDocument, TDocument> Not<TDocument>(this IFindFluent<TDocument, TDocument> find,
-            Expression<Func<TDocument, object>> exclude1,
-            Expression<Func<TDocument, object>> exclude2)
+        public static IFindFluent<T, T> Not<T>(this IFindFluent<T, T> find,
+            Expression<Func<T, object>> exclude1,
+            Expression<Func<T, object>> exclude2)
         {
-            return find.Project<TDocument>(Builders<TDocument>.Projection.Exclude(exclude1).Exclude(exclude2));
+            return find.Project<T>(Builders<T>.Projection.Exclude(exclude1).Exclude(exclude2));
         }
 
-        public static IFindFluent<TDocument, TDocument> Not<TDocument>(this IFindFluent<TDocument, TDocument> find,
-            Expression<Func<TDocument, object>> exclude1,
-            Expression<Func<TDocument, object>> exclude2,
-            Expression<Func<TDocument, object>> exclude3)
-        {
-            return find.Project<TDocument>(Builders<TDocument>.Projection.Exclude(exclude1).Exclude(exclude2).Exclude(exclude3));
-        }
-
-        public static async Task UpsertVersionedAsync<T, TKey>(this IMongoCollection<T> collection, TKey key, long oldVersion, long newVersion, Func<UpdateDefinition<T>, UpdateDefinition<T>> updater) where T : IVersionedEntity<TKey> where TKey : notnull
+        public static async Task UpsertVersionedAsync<T, TKey>(this IMongoCollection<T> collection, TKey key, long oldVersion, long newVersion, Func<UpdateDefinition<T>, UpdateDefinition<T>> updater)
+            where T : IVersionedEntity<TKey> where TKey : notnull
         {
             try
             {
@@ -114,82 +111,84 @@ namespace Squidex.Infrastructure.MongoDb
 
                 if (oldVersion > EtagVersion.Any)
                 {
-                    await collection.UpdateOneAsync(x => x.Id.Equals(key) && x.Version == oldVersion, update, Upsert);
+                    await collection.UpdateOneAsync(x => x.DocumentId.Equals(key) && x.Version == oldVersion, update, Upsert);
                 }
                 else
                 {
-                    await collection.UpdateOneAsync(x => x.Id.Equals(key), update, Upsert);
+                    await collection.UpdateOneAsync(x => x.DocumentId.Equals(key), update, Upsert);
                 }
             }
-            catch (MongoWriteException ex)
+            catch (MongoWriteException ex) when (ex.WriteError?.Category == ServerErrorCategory.DuplicateKey)
             {
-                if (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
-                {
-                    var existingVersion =
-                        await collection.Find(x => x.Id.Equals(key)).Only(x => x.Id, x => x.Version)
-                            .FirstOrDefaultAsync();
+                var existingVersion =
+                    await collection.Find(x => x.DocumentId.Equals(key)).Only(x => x.DocumentId, x => x.Version)
+                        .FirstOrDefaultAsync();
 
-                    if (existingVersion != null)
-                    {
-                        throw new InconsistentStateException(existingVersion[nameof(IVersionedEntity<TKey>.Version)].AsInt64, oldVersion, ex);
-                    }
+                if (existingVersion != null)
+                {
+                    var field = Field.Of<T>(x => nameof(x.Version));
+
+                    throw new InconsistentStateException(existingVersion[field].AsInt64, oldVersion, ex);
                 }
                 else
                 {
-                    throw;
+                    throw new InconsistentStateException(EtagVersion.Any, oldVersion, ex);
                 }
             }
         }
 
-        public static async Task UpsertVersionedAsync<T, TKey>(this IMongoCollection<T> collection, TKey key, long oldVersion, T doc) where T : IVersionedEntity<TKey> where TKey : notnull
+        public static async Task UpsertVersionedAsync<T, TKey>(this IMongoCollection<T> collection, TKey key, long oldVersion, long newVersion, T document)
+            where T : IVersionedEntity<TKey> where TKey : notnull
         {
             try
             {
+                document.DocumentId = key;
+                document.Version = newVersion;
+
                 if (oldVersion > EtagVersion.Any)
                 {
-                    await collection.ReplaceOneAsync(x => x.Id.Equals(key) && x.Version == oldVersion, doc, UpsertReplace);
+                    await collection.ReplaceOneAsync(x => x.DocumentId.Equals(key) && x.Version == oldVersion, document, UpsertReplace);
                 }
                 else
                 {
-                    await collection.ReplaceOneAsync(x => x.Id.Equals(key), doc, UpsertReplace);
+                    await collection.ReplaceOneAsync(x => x.DocumentId.Equals(key), document, UpsertReplace);
                 }
             }
-            catch (MongoWriteException ex)
+            catch (MongoWriteException ex) when (ex.WriteError?.Category == ServerErrorCategory.DuplicateKey)
             {
-                if (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
-                {
-                    var existingVersion =
-                        await collection.Find(x => x.Id.Equals(key)).Only(x => x.Id, x => x.Version)
-                            .FirstOrDefaultAsync();
+                var existingVersion =
+                    await collection.Find(x => x.DocumentId.Equals(key)).Only(x => x.DocumentId, x => x.Version)
+                        .FirstOrDefaultAsync();
 
-                    if (existingVersion != null)
-                    {
-                        throw new InconsistentStateException(existingVersion[nameof(IVersionedEntity<TKey>.Version)].AsInt64, oldVersion, ex);
-                    }
+                if (existingVersion != null)
+                {
+                    var field = Field.Of<T>(x => nameof(x.Version));
+
+                    throw new InconsistentStateException(existingVersion[field].AsInt64, oldVersion, ex);
                 }
                 else
                 {
-                    throw;
+                    throw new InconsistentStateException(EtagVersion.Any, oldVersion, ex);
                 }
             }
         }
 
-        public static async Task ForEachPipelineAsync<TDocument>(this IAsyncCursorSource<TDocument> source, Func<TDocument, Task> processor, CancellationToken cancellationToken = default)
+        public static async Task ForEachPipedAsync<T>(this IAsyncCursorSource<T> source, Func<T, Task> processor, CancellationToken cancellationToken = default)
         {
             using (var cursor = await source.ToCursorAsync(cancellationToken))
             {
-                await cursor.ForEachPipelineAsync(processor, cancellationToken);
+                await cursor.ForEachPipedAsync(processor, cancellationToken);
             }
         }
 
-        public static async Task ForEachPipelineAsync<TDocument>(this IAsyncCursor<TDocument> source, Func<TDocument, Task> processor, CancellationToken cancellationToken = default)
+        public static async Task ForEachPipedAsync<T>(this IAsyncCursor<T> source, Func<T, Task> processor, CancellationToken cancellationToken = default)
         {
             using (var selfToken = new CancellationTokenSource())
             {
                 using (var combined = CancellationTokenSource.CreateLinkedTokenSource(selfToken.Token, cancellationToken))
                 {
                     var actionBlock =
-                        new ActionBlock<TDocument>(async x =>
+                        new ActionBlock<T>(async x =>
                             {
                                 if (!combined.IsCancellationRequested)
                                 {
@@ -224,6 +223,19 @@ namespace Squidex.Infrastructure.MongoDb
                     }
                 }
             }
+        }
+
+        public static async Task<Version> GetVersionAsync(this IMongoDatabase database)
+        {
+            var command =
+                new BsonDocumentCommand<BsonDocument>(new BsonDocument
+                {
+                    { "buildInfo", 1 }
+                });
+
+            var result = await database.RunCommandAsync(command);
+
+            return Version.Parse(result["version"].AsString);
         }
     }
 }

@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -24,14 +24,17 @@ namespace Squidex.Extensions.Actions.Fastly
         public FastlyActionHandler(RuleEventFormatter formatter, IHttpClientFactory httpClientFactory)
             : base(formatter)
         {
-            Guard.NotNull(httpClientFactory, nameof(httpClientFactory));
-
             this.httpClientFactory = httpClientFactory;
         }
 
         protected override (string Description, FastlyJob Data) CreateJob(EnrichedEvent @event, FastlyAction action)
         {
-            var id = @event is IEnrichedEntityEvent entityEvent ? entityEvent.Id.ToString() : string.Empty;
+            var id = string.Empty;
+
+            if (@event is IEnrichedEntityEvent entityEvent)
+            {
+                id = DomainId.Combine(@event.AppId.Id, entityEvent.Id).ToString();
+            }
 
             var ruleJob = new FastlyJob
             {
@@ -50,11 +53,13 @@ namespace Squidex.Extensions.Actions.Fastly
                 httpClient.Timeout = TimeSpan.FromSeconds(2);
 
                 var requestUrl = $"https://api.fastly.com/service/{job.FastlyServiceID}/purge/{job.Key}";
-                var request = new HttpRequestMessage(HttpMethod.Post, requestUrl);
 
-                request.Headers.Add("Fastly-Key", job.FastlyApiKey);
+                using (var request = new HttpRequestMessage(HttpMethod.Post, requestUrl))
+                {
+                    request.Headers.Add("Fastly-Key", job.FastlyApiKey);
 
-                return await httpClient.OneWayRequestAsync(request, ct: ct);
+                    return await httpClient.OneWayRequestAsync(request, ct: ct);
+                }
             }
         }
     }

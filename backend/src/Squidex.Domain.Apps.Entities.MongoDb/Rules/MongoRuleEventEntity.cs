@@ -1,32 +1,43 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using NodaTime;
 using Squidex.Domain.Apps.Core.HandleRules;
 using Squidex.Domain.Apps.Core.Rules;
 using Squidex.Domain.Apps.Entities.Rules;
+using Squidex.Infrastructure;
 using Squidex.Infrastructure.MongoDb;
 
 namespace Squidex.Domain.Apps.Entities.MongoDb.Rules
 {
-    public sealed class MongoRuleEventEntity : MongoEntity, IRuleEventEntity
+    [BsonIgnoreExtraElements]
+    public sealed class MongoRuleEventEntity : IRuleEventEntity
     {
+        [BsonId]
+        [BsonElement]
+        public DomainId DocumentId { get; set; }
+
         [BsonRequired]
         [BsonElement]
-        [BsonRepresentation(BsonType.String)]
-        public Guid AppId { get; set; }
+        public DomainId AppId { get; set; }
 
         [BsonIgnoreIfDefault]
         [BsonElement]
-        [BsonRepresentation(BsonType.String)]
-        public Guid RuleId { get; set; }
+        public DomainId RuleId { get; set; }
+
+        [BsonRequired]
+        [BsonElement]
+        public Instant Created { get; set; }
+
+        [BsonRequired]
+        [BsonElement]
+        public Instant LastModified { get; set; }
 
         [BsonRequired]
         [BsonElement]
@@ -58,5 +69,15 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Rules
         [BsonRequired]
         [BsonElement]
         public Instant? NextAttempt { get; set; }
+
+        DomainId IEntity.Id
+        {
+            get => DocumentId;
+        }
+
+        DomainId IEntity.UniqueId
+        {
+            get => DocumentId;
+        }
     }
 }

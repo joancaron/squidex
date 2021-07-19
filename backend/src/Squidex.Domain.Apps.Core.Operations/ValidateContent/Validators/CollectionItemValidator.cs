@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -14,19 +14,18 @@ namespace Squidex.Domain.Apps.Core.ValidateContent.Validators
 {
     public sealed class CollectionItemValidator : IValidator
     {
-        private readonly IValidator[] itemValidators;
+        private readonly IValidator itemValidator;
 
-        public CollectionItemValidator(params IValidator[] itemValidators)
+        public CollectionItemValidator(IValidator itemValidator)
         {
-            Guard.NotNull(itemValidators, nameof(itemValidators));
-            Guard.NotEmpty(itemValidators, nameof(itemValidators));
+            Guard.NotNull(itemValidator, nameof(itemValidator));
 
-            this.itemValidators = itemValidators;
+            this.itemValidator = itemValidator;
         }
 
         public async Task ValidateAsync(object? value, ValidationContext context, AddError addError)
         {
-            if (value is ICollection items && items.Count > 0)
+            if (value is ICollection { Count: > 0 } items)
             {
                 var innerTasks = new List<Task>();
                 var index = 1;
@@ -35,10 +34,7 @@ namespace Squidex.Domain.Apps.Core.ValidateContent.Validators
                 {
                     var innerContext = context.Nested($"[{index}]");
 
-                    foreach (var itemValidator in itemValidators)
-                    {
-                        innerTasks.Add(itemValidator.ValidateAsync(item, innerContext, addError));
-                    }
+                    await itemValidator.ValidateAsync(item, innerContext, addError);
 
                     index++;
                 }

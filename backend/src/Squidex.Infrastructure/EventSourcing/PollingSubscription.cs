@@ -1,12 +1,12 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
-using System.Threading.Tasks;
+using Squidex.Infrastructure.Tasks;
 using Squidex.Infrastructure.Timers;
 
 namespace Squidex.Infrastructure.EventSourcing
@@ -21,26 +21,20 @@ namespace Squidex.Infrastructure.EventSourcing
             string? streamFilter,
             string? position)
         {
-            Guard.NotNull(eventStore, nameof(eventStore));
-            Guard.NotNull(eventSubscriber, nameof(eventSubscriber));
-
             timer = new CompletionTimer(5000, async ct =>
             {
                 try
                 {
-                    await eventStore.QueryAsync(async storedEvent =>
+                    await foreach (var storedEvent in eventStore.QueryAllAsync(streamFilter, position, ct: ct))
                     {
                         await eventSubscriber.OnEventAsync(this, storedEvent);
 
                         position = storedEvent.EventPosition;
-                    }, streamFilter, position, ct);
+                    }
                 }
                 catch (Exception ex)
                 {
-                    if (!ex.Is<OperationCanceledException>())
-                    {
-                        await eventSubscriber.OnErrorAsync(this, ex);
-                    }
+                    await eventSubscriber.OnErrorAsync(this, ex);
                 }
             });
         }
@@ -50,9 +44,9 @@ namespace Squidex.Infrastructure.EventSourcing
             timer.SkipCurrentDelay();
         }
 
-        public Task StopAsync()
+        public void Unsubscribe()
         {
-            return timer.StopAsync();
+            timer.StopAsync().Forget();
         }
     }
 }

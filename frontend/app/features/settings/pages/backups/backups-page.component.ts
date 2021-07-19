@@ -13,12 +13,12 @@ import { switchMap } from 'rxjs/operators';
 @Component({
     selector: 'sqx-backups-page',
     styleUrls: ['./backups-page.component.scss'],
-    templateUrl: './backups-page.component.html'
+    templateUrl: './backups-page.component.html',
 })
 export class BackupsPageComponent extends ResourceOwner implements OnInit {
     constructor(
         public readonly apiUrl: ApiUrlConfig,
-        public readonly backupsState: BackupsState
+        public readonly backupsState: BackupsState,
     ) {
         super();
     }
@@ -37,7 +37,7 @@ export class BackupsPageComponent extends ResourceOwner implements OnInit {
         this.backupsState.start();
     }
 
-    public trackByBackup(index: number, item: BackupDto) {
+    public trackByBackup(_index: number, item: BackupDto) {
         return item.id;
     }
 }

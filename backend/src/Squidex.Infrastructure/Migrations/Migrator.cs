@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -9,7 +9,7 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Squidex.Infrastructure.Log;
+using Squidex.Log;
 
 namespace Squidex.Infrastructure.Migrations
 {
@@ -23,10 +23,6 @@ namespace Squidex.Infrastructure.Migrations
 
         public Migrator(IMigrationStatus migrationStatus, IMigrationPath migrationPath, ISemanticLog log)
         {
-            Guard.NotNull(migrationStatus, nameof(migrationStatus));
-            Guard.NotNull(migrationPath, nameof(migrationPath));
-            Guard.NotNull(log, nameof(log));
-
             this.migrationStatus = migrationStatus;
             this.migrationPath = migrationPath;
 
@@ -35,8 +31,6 @@ namespace Squidex.Infrastructure.Migrations
 
         public async Task MigrateAsync(CancellationToken ct = default)
         {
-            var version = 0;
-
             try
             {
                 while (!await migrationStatus.TryLockAsync())
@@ -48,7 +42,7 @@ namespace Squidex.Infrastructure.Migrations
                     await Task.Delay(LockWaitMs, ct);
                 }
 
-                version = await migrationStatus.GetVersionAsync();
+                var version = await migrationStatus.GetVersionAsync();
 
                 while (!ct.IsCancellationRequested)
                 {
@@ -61,7 +55,7 @@ namespace Squidex.Infrastructure.Migrations
 
                     foreach (var migration in migrations)
                     {
-                        var name = migration.GetType().ToString();
+                        var name = migration.ToString()!;
 
                         log.LogInformation(w => w
                             .WriteProperty("action", "Migration")
@@ -75,7 +69,7 @@ namespace Squidex.Infrastructure.Migrations
                                 .WriteProperty("status", "Completed")
                                 .WriteProperty("migrator", name)))
                             {
-                                await migration.UpdateAsync();
+                                await migration.UpdateAsync(ct);
                             }
                         }
                         catch (Exception ex)
@@ -90,11 +84,13 @@ namespace Squidex.Infrastructure.Migrations
                     }
 
                     version = newVersion;
+
+                    await migrationStatus.CompleteAsync(newVersion);
                 }
             }
             finally
             {
-                await migrationStatus.UnlockAsync(version);
+                await migrationStatus.UnlockAsync();
             }
         }
     }

@@ -28,26 +28,26 @@ namespace Squidex.Extensions.Actions.Discourse
             this.httpClientFactory = httpClientFactory;
         }
 
-        protected override (string Description, DiscourseJob Data) CreateJob(EnrichedEvent @event, DiscourseAction action)
+        protected override async Task<(string Description, DiscourseJob Data)> CreateJobAsync(EnrichedEvent @event, DiscourseAction action)
         {
             var url = $"{action.Url.ToString().TrimEnd('/')}/posts.json?api_key={action.ApiKey}&api_username={action.ApiUsername}";
 
             var json = new Dictionary<string, object>
             {
-                ["title"] = Format(action.Title, @event)
+                ["title"] = await FormatAsync(action.Title, @event)
             };
 
-            if (action.Topic.HasValue)
+            if (action.Topic != null)
             {
                 json.Add("topic_id", action.Topic.Value);
             }
 
-            if (action.Category.HasValue)
+            if (action.Category != null)
             {
                 json.Add("category", action.Category.Value);
             }
 
-            json["raw"] = Format(action.Text, @event);
+            json["raw"] = await FormatAsync(action.Text, @event);
 
             var requestBody = ToJson(json);
 
@@ -58,7 +58,7 @@ namespace Squidex.Extensions.Actions.Discourse
             };
 
             var description =
-                action.Topic.HasValue ?
+                action.Topic != null ?
                 DescriptionCreateTopic :
                 DescriptionCreatePost;
 

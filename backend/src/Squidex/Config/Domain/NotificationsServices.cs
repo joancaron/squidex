@@ -9,7 +9,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Squidex.Domain.Apps.Entities.Apps.Invitation;
-using Squidex.Domain.Apps.Entities.Apps.Notifications;
+using Squidex.Domain.Apps.Entities.Notifications;
 using Squidex.Infrastructure.Email;
 using Squidex.Infrastructure.EventSourcing;
 
@@ -25,8 +25,8 @@ namespace Squidex.Config.Domain
             {
                 services.AddSingleton(Options.Create(emailOptions));
 
-                services.Configure<NotificationEmailTextOptions>(
-                    config.GetSection("email:notifications"));
+                services.Configure<NotificationEmailTextOptions>(config,
+                    "email:notifications");
 
                 services.AddSingletonAs<SmtpEmailSender>()
                     .As<IEmailSender>();

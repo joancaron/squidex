@@ -517,7 +517,7 @@ a {
         .btn-toggle {
             & {
                 background: $color-dark-foreground;
-                border: 1px solid $color-theme-secondary;
+                border: 1px solid $color-input;
             }
 
             &.btn-primary {
@@ -572,10 +572,10 @@ a {
         &-warning {
             @include build-text-button($color-theme-orange);
         }
+    }
 
-        &-secondary2 {
-            @include build-text-button($color-text);
-        }
+    &-outline-secondary {
+        color: $color-text-decent;
     }
 }
 

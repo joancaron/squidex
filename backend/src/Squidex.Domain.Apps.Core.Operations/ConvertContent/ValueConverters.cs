@@ -8,15 +8,15 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using Squidex.Domain.Apps.Core.Schemas;
 using Squidex.Domain.Apps.Core.ValidateContent;
+using Squidex.Infrastructure;
 using Squidex.Infrastructure.Json;
 using Squidex.Infrastructure.Json.Objects;
 
 namespace Squidex.Domain.Apps.Core.ConvertContent
 {
-    public delegate IJsonValue? ValueConverter(IJsonValue value, IField field, IArrayField? parent = null);
+    public delegate IJsonValue? ValueConverter(IJsonValue value, IField field, IArrayField? parent);
 
     public static class ValueConverters
     {
@@ -27,61 +27,32 @@ namespace Squidex.Domain.Apps.Core.ConvertContent
             return field.IsForApi() ? value : null;
         };
 
-        public static readonly ValueConverter ExcludeChangedTypes = (value, field, parent) =>
+        public static ValueConverter ExcludeChangedTypes(IJsonSerializer jsonSerializer)
         {
-            if (value.Type == JsonValueType.Null)
+            return (value, field, parent) =>
             {
-                return value;
-            }
+                if (value.Type == JsonValueType.Null)
+                {
+                    return value;
+                }
 
-            try
-            {
-                var (_, error) = JsonValueConverter.ConvertValue(field, value);
-
-                if (error != null)
+                try
+                {
+                    if (!JsonValueValidator.IsValid(field, value, jsonSerializer))
+                    {
+                        return null;
+                    }
+                }
+                catch
                 {
                     return null;
                 }
-            }
-            catch
-            {
-                return null;
-            }
-
-            return value;
-        };
-
-        public static ValueConverter DecodeJson(IJsonSerializer jsonSerializer)
-        {
-            return (value, field, parent) =>
-            {
-                if (field is IField<JsonFieldProperties> && value is JsonScalar<string> s)
-                {
-                    var decoded = Encoding.UTF8.GetString(Convert.FromBase64String(s.Value));
-
-                    return jsonSerializer.Deserialize<IJsonValue>(decoded);
-                }
 
                 return value;
             };
         }
 
-        public static ValueConverter EncodeJson(IJsonSerializer jsonSerializer)
-        {
-            return (value, field, parent) =>
-            {
-                if (value.Type != JsonValueType.Null && field is IField<JsonFieldProperties>)
-                {
-                    var encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(jsonSerializer.Serialize(value)));
-
-                    return JsonValue.Create(encoded);
-                }
-
-                return value;
-            };
-        }
-
-        public static ValueConverter ResolveAssetUrls(IReadOnlyCollection<string>? fields, IUrlGenerator urlGenerator)
+        public static ValueConverter ResolveAssetUrls(NamedId<DomainId> appId, IReadOnlyCollection<string>? fields, IUrlGenerator urlGenerator)
         {
             if (fields?.Any() != true)
             {
@@ -132,60 +103,7 @@ namespace Squidex.Domain.Apps.Core.ConvertContent
                     {
                         var id = array[i].ToString();
 
-                        if (Guid.TryParse(id, out var assetId))
-                        {
-                            array[i] = JsonValue.Create(urlGenerator.AssetContent(assetId));
-                        }
-                    }
-                }
-
-                return value;
-            };
-        }
-
-        public static ValueConverter ForNested(params ValueConverter[] converters)
-        {
-            if (converters?.Any() != true)
-            {
-                return Noop;
-            }
-
-            return (value, field, parent) =>
-            {
-                if (value is JsonArray array && field is IArrayField arrayField)
-                {
-                    foreach (var nested in array.OfType<JsonObject>())
-                    {
-                        foreach (var (fieldName, nestedValue) in nested.ToList())
-                        {
-                            IJsonValue? newValue = nestedValue;
-
-                            if (arrayField.FieldsByName.TryGetValue(fieldName, out var nestedField))
-                            {
-                                for (var i = 0; i < converters.Length; i++)
-                                {
-                                    newValue = converters[i](newValue!, nestedField, arrayField);
-
-                                    if (newValue == null)
-                                    {
-                                        break;
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                newValue = null;
-                            }
-
-                            if (newValue == null)
-                            {
-                                nested.Remove(fieldName);
-                            }
-                            else if (!ReferenceEquals(nestedValue, newValue))
-                            {
-                                nested[fieldName] = newValue;
-                            }
-                        }
+                        array[i] = JsonValue.Create(urlGenerator.AssetContent(appId, id));
                     }
                 }
 

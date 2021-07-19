@@ -1,21 +1,19 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
-using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using NodaTime;
 using Squidex.Areas.Api.Controllers.Schemas.Models;
 using Squidex.Domain.Apps.Core.Contents;
 using Squidex.Domain.Apps.Core.ConvertContent;
-using Squidex.Domain.Apps.Entities;
 using Squidex.Domain.Apps.Entities.Contents;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Reflection;
+using Squidex.Infrastructure.Validation;
 using Squidex.Web;
 
 namespace Squidex.Areas.Api.Controllers.Contents.Models
@@ -25,30 +23,30 @@ namespace Squidex.Areas.Api.Controllers.Contents.Models
         /// <summary>
         /// The if of the content item.
         /// </summary>
-        public Guid Id { get; set; }
+        public DomainId Id { get; set; }
 
         /// <summary>
         /// The user that has created the content item.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public RefToken CreatedBy { get; set; }
 
         /// <summary>
         /// The user that has updated the content item.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public RefToken LastModifiedBy { get; set; }
 
         /// <summary>
         /// The data of the content item.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public object Data { get; set; }
 
         /// <summary>
         /// The reference data for the frontend UI.
         /// </summary>
-        public NamedContentData? ReferenceData { get; set; }
+        public ContentData? ReferenceData { get; set; }
 
         /// <summary>
         /// The date and time when the content item has been created.
@@ -86,6 +84,11 @@ namespace Squidex.Areas.Api.Controllers.Contents.Models
         public ScheduleJobDto? ScheduleJob { get; set; }
 
         /// <summary>
+        /// The id of the schema.
+        /// </summary>
+        public DomainId SchemaId { get; set; }
+
+        /// <summary>
         /// The name of the schema.
         /// </summary>
         public string? SchemaName { get; set; }
@@ -105,11 +108,15 @@ namespace Squidex.Areas.Api.Controllers.Contents.Models
         /// </summary>
         public long Version { get; set; }
 
-        public static ContentDto FromContent(Context context, IEnrichedContentEntity content, Resources resources)
+        public static ContentDto FromContent(IEnrichedContentEntity content, Resources resources)
         {
-            var response = SimpleMapper.Map(content, new ContentDto());
+            var response = SimpleMapper.Map(content, new ContentDto
+            {
+                SchemaId = content.SchemaId.Id,
+                SchemaName = content.SchemaId.Name
+            });
 
-            if (context.ShouldFlatten())
+            if (resources.Context.ShouldFlatten())
             {
                 response.Data = content.Data.ToFlatten();
             }
@@ -140,18 +147,18 @@ namespace Squidex.Areas.Api.Controllers.Contents.Models
         {
             var app = resources.App;
 
-            var values = new { app, name = schema, id = Id };
+            var values = new { app, schema, id = Id };
 
             AddSelfLink(resources.Url<ContentsController>(x => nameof(x.GetContent), values));
 
             if (Version > 0)
             {
-                var versioned = new { app, name = schema, id = Id, version = Version - 1 };
+                var versioned = new { app, schema, values.id, version = Version - 1 };
 
                 AddGetLink("previous", resources.Url<ContentsController>(x => nameof(x.GetContentVersion), versioned));
             }
 
-            if (NewStatus.HasValue)
+            if (NewStatus != null)
             {
                 if (resources.CanDeleteContentVersion(schema))
                 {
@@ -179,17 +186,14 @@ namespace Squidex.Areas.Api.Controllers.Contents.Models
                 AddDeleteLink("delete", resources.Url<ContentsController>(x => nameof(x.DeleteContent), values));
             }
 
-            if (content.CanUpdate)
+            if (content.CanUpdate && resources.CanUpdateContent(schema))
             {
-                if (resources.CanUpdateContent(schema))
-                {
-                    AddPutLink("update", resources.Url<ContentsController>(x => nameof(x.PutContent), values));
-                }
+                AddPatchLink("patch", resources.Url<ContentsController>(x => nameof(x.PatchContent), values));
+            }
 
-                if (resources.CanUpdateContentPartial(schema))
-                {
-                    AddPatchLink("patch", resources.Url<ContentsController>(x => nameof(x.PatchContent), values));
-                }
+            if (content.CanUpdate && resources.CanUpdateContent(schema))
+            {
+                AddPutLink("update", resources.Url<ContentsController>(x => nameof(x.PutContent), values));
             }
 
             return this;

@@ -17,7 +17,7 @@ export class UsersProviderService {
 
     constructor(
         private readonly usersService: UsersService,
-        private readonly authService: AuthService
+        private readonly authService: AuthService,
     ) {
     }
 
@@ -27,13 +27,14 @@ export class UsersProviderService {
         if (!result) {
             const request =
                 this.usersService.getUser(id).pipe(
-                    catchError(error => {
+                    catchError(() => {
                         return of(new UserDto('Unknown', 'Unknown'));
                     }),
                     publishLast());
 
             (<ConnectableObservable<any>>request).connect();
 
+            // eslint-disable-next-line no-multi-assign
             result = this.caches[id] = request;
         }
 

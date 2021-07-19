@@ -5,16 +5,14 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
-using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
 using NodaTime;
 using Squidex.Domain.Apps.Entities.Rules.Repositories;
+using Squidex.Infrastructure;
 using Squidex.Infrastructure.MongoDb;
 
 namespace Squidex.Domain.Apps.Entities.MongoDb.Rules
@@ -23,14 +21,9 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Rules
     {
         static MongoRuleStatisticsCollection()
         {
-            var guidSerializer = new GuidSerializer().WithRepresentation(BsonType.String);
-
             BsonClassMap.RegisterClassMap<RuleStatistics>(cm =>
             {
                 cm.AutoMap();
-
-                cm.MapProperty(x => x.AppId).SetSerializer(guidSerializer);
-                cm.MapProperty(x => x.RuleId).SetSerializer(guidSerializer);
 
                 cm.SetIgnoreExtraElements(true);
             });
@@ -46,7 +39,8 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Rules
             return "RuleStatistics";
         }
 
-        protected override Task SetupCollectionAsync(IMongoCollection<RuleStatistics> collection, CancellationToken ct = default)
+        protected override Task SetupCollectionAsync(IMongoCollection<RuleStatistics> collection,
+            CancellationToken ct)
         {
             return collection.Indexes.CreateOneAsync(
                 new CreateIndexModel<RuleStatistics>(
@@ -56,14 +50,15 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Rules
                 cancellationToken: ct);
         }
 
-        public async Task<IReadOnlyList<RuleStatistics>> QueryByAppAsync(Guid appId)
+        public async Task<IReadOnlyList<RuleStatistics>> QueryByAppAsync(DomainId appId,
+            CancellationToken ct)
         {
-            var statistics = await Collection.Find(x => x.AppId == appId).ToListAsync();
+            var statistics = await Collection.Find(x => x.AppId == appId).ToListAsync(ct);
 
             return statistics;
         }
 
-        public Task IncrementSuccess(Guid appId, Guid ruleId, Instant now)
+        public Task IncrementSuccess(DomainId appId, DomainId ruleId, Instant now)
         {
             return Collection.UpdateOneAsync(
                 x => x.AppId == appId && x.RuleId == ruleId,
@@ -75,7 +70,7 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Rules
                 Upsert);
         }
 
-        public Task IncrementFailed(Guid appId, Guid ruleId, Instant now)
+        public Task IncrementFailed(DomainId appId, DomainId ruleId, Instant now)
         {
             return Collection.UpdateOneAsync(
                 x => x.AppId == appId && x.RuleId == ruleId,

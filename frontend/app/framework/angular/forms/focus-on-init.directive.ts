@@ -9,17 +9,17 @@ import { AfterViewInit, Directive, ElementRef, Input } from '@angular/core';
 import { Types } from '@app/framework/internal';
 
 @Directive({
-    selector: '[sqxFocusOnInit]'
+    selector: '[sqxFocusOnInit]',
 })
 export class FocusOnInitDirective implements AfterViewInit {
     @Input()
     public select: boolean;
 
     @Input('sqxFocusOnInit')
-    public enabled = true;
+    public enabled?: string | boolean | null = true;
 
     constructor(
-        private readonly element: ElementRef<HTMLElement>
+        private readonly element: ElementRef<HTMLElement>,
     ) {
     }
 
@@ -34,7 +34,7 @@ export class FocusOnInitDirective implements AfterViewInit {
             }
 
             if (this.select) {
-                const input: HTMLInputElement = <any>this.element.nativeElement;
+                const input = this.element.nativeElement as HTMLInputElement;
 
                 if (Types.isFunction(input.select)) {
                     input.select();

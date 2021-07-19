@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -33,7 +33,7 @@ namespace Squidex.Infrastructure
             try
             {
                 var fileInfo = new FileInfo(fileName);
-                var fileType = fileInfo.Extension.Substring(1).ToLowerInvariant();
+                var fileType = fileInfo.Extension[1..].ToLowerInvariant();
 
                 if (UnifiedExtensions.TryGetValue(fileType, out var unified))
                 {

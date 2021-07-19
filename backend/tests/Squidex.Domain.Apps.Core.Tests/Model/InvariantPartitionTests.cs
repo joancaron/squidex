@@ -1,14 +1,12 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System.Linq;
 using Xunit;
-
-#pragma warning disable xUnit2013 // Do not use equality check to check for collection size.
 
 namespace Squidex.Domain.Apps.Core.Model
 {

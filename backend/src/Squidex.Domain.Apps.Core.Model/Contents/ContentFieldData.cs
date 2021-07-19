@@ -1,12 +1,14 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Json.Objects;
 
@@ -29,35 +31,32 @@ namespace Squidex.Domain.Apps.Core.Contents
         {
         }
 
-        public ContentFieldData AddValue(object? value)
+        public bool TryGetNonNull(string key, [MaybeNullWhen(false)] out IJsonValue result)
         {
-            return AddJsonValue(JsonValue.Create(value));
-        }
+            result = null!;
 
-        public ContentFieldData AddValue(string key, object? value)
-        {
-            return AddJsonValue(key, JsonValue.Create(value));
-        }
-
-        public ContentFieldData AddJsonValue(IJsonValue value)
-        {
-            this[InvariantPartitioning.Key] = value;
-
-            return this;
-        }
-
-        public ContentFieldData AddJsonValue(string key, IJsonValue value)
-        {
-            Guard.NotNullOrEmpty(key, nameof(key));
-
-            if (Language.IsValidLanguage(key))
+            if (TryGetValue(key, out var found) && found != null && found.Type != JsonValueType.Null)
             {
-                this[key] = value;
+                result = found;
+                return true;
             }
-            else
-            {
-                this[key] = value;
-            }
+
+            return false;
+        }
+
+        public ContentFieldData AddInvariant(object? value)
+        {
+            return AddValue(InvariantPartitioning.Key, JsonValue.Create(value));
+        }
+
+        public ContentFieldData AddLocalized(string key, object? value)
+        {
+            return AddValue(key, JsonValue.Create(value));
+        }
+
+        public ContentFieldData AddValue(string key, IJsonValue? value)
+        {
+            this[key] = JsonValue.Create(value);
 
             return this;
         }
@@ -87,6 +86,11 @@ namespace Squidex.Domain.Apps.Core.Contents
         public override int GetHashCode()
         {
             return this.DictionaryHashCode();
+        }
+
+        public override string ToString()
+        {
+            return $"{{{string.Join(", ", this.Select(x => $"\"{x.Key}\":{x.Value.ToJsonString()}"))}}}";
         }
     }
 }

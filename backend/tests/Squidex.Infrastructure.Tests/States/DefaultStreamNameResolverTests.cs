@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -38,36 +38,6 @@ namespace Squidex.Infrastructure.States
             var name = sut.GetStreamName(typeof(MyUserDomainObject), id);
 
             Assert.Equal($"myUser-{id}", name);
-        }
-
-        [Fact]
-        public void Should_calculate_new_stream_if_valid()
-        {
-            var oldStream = "myUser-123";
-
-            var newStream = sut.WithNewId(oldStream, x => "456");
-
-            Assert.Equal("myUser-456", newStream);
-        }
-
-        [Fact]
-        public void Should_return_old_stream_if_format_not_valid()
-        {
-            var oldStream = "myUser|123";
-
-            var newStream = sut.WithNewId(oldStream, x => "456");
-
-            Assert.Equal(oldStream, newStream);
-        }
-
-        [Fact]
-        public void Should_return_old_stream_if_new_id_not_valid()
-        {
-            var oldStream = "myUser-123";
-
-            var newStream = sut.WithNewId(oldStream, x => null);
-
-            Assert.Equal(oldStream, newStream);
         }
     }
 }

@@ -5,9 +5,7 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable: readonly-array
-
-import { ChangeDetectorRef, OnDestroy } from '@angular/core';
+import { ChangeDetectorRef, Directive, OnDestroy } from '@angular/core';
 import { ControlValueAccessor } from '@angular/forms';
 import { Observable, Subscription } from 'rxjs';
 import { onErrorResumeNext, skip } from 'rxjs/operators';
@@ -16,6 +14,7 @@ import { Types } from './../utils/types';
 
 declare type UnsubscribeFunction = () => void;
 
+@Directive()
 export class ResourceOwner implements OnDestroy {
     private subscriptions: (Subscription | UnsubscribeFunction)[] = [];
 
@@ -50,13 +49,14 @@ export class ResourceOwner implements OnDestroy {
     }
 }
 
+@Directive()
 export abstract class StatefulComponent<T = any> extends State<T> implements OnDestroy {
     private readonly subscriptions = new ResourceOwner();
     private readonly subscription: Subscription;
 
-    constructor(
+    protected constructor(
         private readonly changeDetector: ChangeDetectorRef,
-        state: T
+        state: T,
     ) {
         super(state);
 
@@ -89,11 +89,13 @@ export abstract class StatefulComponent<T = any> extends State<T> implements OnD
     }
 }
 
-export abstract class StatefulControlComponent<T, TValue> extends StatefulComponent<T & { isDisabled: boolean }> implements ControlValueAccessor {
-    private fnChanged = (v: any) => { /* NOOP */ };
+type Disabled = { isDisabled: boolean };
+
+export abstract class StatefulControlComponent<T extends {}, TValue> extends StatefulComponent<Disabled & T> implements ControlValueAccessor {
+    private fnChanged = (_: any) => { /* NOOP */ };
     private fnTouched = () => { /* NOOP */ };
 
-    constructor(changeDetector: ChangeDetectorRef, state: T) {
+    protected constructor(changeDetector: ChangeDetectorRef, state: T) {
         super(changeDetector, { ...state, isDisabled: false });
     }
 
@@ -109,12 +111,18 @@ export abstract class StatefulControlComponent<T, TValue> extends StatefulCompon
         this.fnTouched();
     }
 
-    public callChange(value: TValue | null | undefined) {
+    public callChange(value: TValue | undefined | null) {
         this.fnChanged(value);
     }
 
     public setDisabledState(isDisabled: boolean): void {
-        this.next(s => ({ ...s, isDisabled }));
+        this.next({ isDisabled } as any);
+
+        this.onDisabled(this.snapshot.isDisabled);
+    }
+
+    public onDisabled(_isDisabled: boolean) {
+        /* NOOP */
     }
 
     public abstract writeValue(obj: any): void;

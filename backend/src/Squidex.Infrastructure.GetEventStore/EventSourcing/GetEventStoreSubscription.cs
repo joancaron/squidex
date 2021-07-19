@@ -1,14 +1,14 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System.Threading.Tasks;
 using EventStore.ClientAPI;
 using EventStore.ClientAPI.Exceptions;
 using Squidex.Infrastructure.Json;
+using Squidex.Infrastructure.Tasks;
 
 namespace Squidex.Infrastructure.EventSourcing
 {
@@ -32,10 +32,10 @@ namespace Squidex.Infrastructure.EventSourcing
         {
             this.connection = connection;
 
-            this.position = projectionClient.ParsePositionOrNull(position);
+            this.position = ProjectionClient.ParsePositionOrNull(position);
             this.prefix = prefix;
 
-            var streamName = projectionClient.CreateProjectionAsync(streamFilter).Result;
+            var streamName = AsyncHelper.Sync(() => projectionClient.CreateProjectionAsync(streamFilter));
 
             this.serializer = serializer;
             this.subscriber = subscriber;
@@ -43,15 +43,9 @@ namespace Squidex.Infrastructure.EventSourcing
             subscription = SubscribeToStream(streamName);
         }
 
-        public Task StopAsync()
+        public void Unsubscribe()
         {
             subscription.Stop();
-
-            return Task.CompletedTask;
-        }
-
-        public void WakeUp()
-        {
         }
 
         private EventStoreCatchUpSubscription SubscribeToStream(string streamName)
@@ -59,11 +53,11 @@ namespace Squidex.Infrastructure.EventSourcing
             var settings = CatchUpSubscriptionSettings.Default;
 
             return connection.SubscribeToStreamFrom(streamName, position, settings,
-                (s, e) =>
+                async (s, e) =>
                 {
                     var storedEvent = Formatter.Read(e, prefix, serializer);
 
-                    subscriber.OnEventAsync(this, storedEvent).Wait();
+                    await subscriber.OnEventAsync(this, storedEvent);
                 }, null,
                 (s, reason, ex) =>
                 {

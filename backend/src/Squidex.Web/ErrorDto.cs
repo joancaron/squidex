@@ -1,19 +1,23 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System.ComponentModel.DataAnnotations;
+using Squidex.Infrastructure.Validation;
 
 namespace Squidex.Web
 {
     public sealed class ErrorDto
     {
-        [Required]
+        [LocalizedRequired]
         [Display(Description = "Error message.")]
-        public string Message { get; set; }
+        public string? Message { get; set; }
+
+        [Display(Description = "The error code.")]
+        public string? ErrorCode { get; set; }
 
         [Display(Description = "The optional trace id.")]
         public string? TraceId { get; set; }
@@ -25,6 +29,6 @@ namespace Squidex.Web
         public string[]? Details { get; set; }
 
         [Display(Description = "Status code of the http response.")]
-        public int? StatusCode { get; set; } = 400;
+        public int StatusCode { get; set; } = 400;
     }
 }

@@ -12,11 +12,11 @@ import * as ProgressBar from 'progressbar.js';
     selector: 'sqx-progress-bar',
     styles: [`
         :host ::ng-deep svg {
-            vertical-align: top
-        }`
+            vertical-align: middle
+        }`,
     ],
     template: '',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProgressBarComponent implements OnChanges, OnInit {
     private progressBar: any;
@@ -37,17 +37,17 @@ export class ProgressBarComponent implements OnChanges, OnInit {
     public strokeWidth = 4;
 
     @Input()
-    public showText = true;
+    public showText?: boolean | null = true;
 
     @Input()
-    public animated = true;
+    public animated?: boolean | null = true;
 
     @Input()
     public value = 0;
 
     constructor(changeDetector: ChangeDetectorRef,
         private readonly element: ElementRef,
-        private readonly renderer: Renderer2
+        private readonly renderer: Renderer2,
     ) {
         changeDetector.detach();
     }
@@ -58,7 +58,7 @@ export class ProgressBarComponent implements OnChanges, OnInit {
             trailColor: this.trailColor,
             trailWidth: this.trailWidth,
             strokeWidth: this.strokeWidth,
-            svgStyle: { width: '100%', height: '100%' }
+            svgStyle: { width: '100%', height: '100%' },
         };
 
         this.renderer.setStyle(this.element.nativeElement, 'display', 'block');
@@ -88,7 +88,7 @@ export class ProgressBarComponent implements OnChanges, OnInit {
         }
 
         if (value > 0 && this.showText) {
-            this.progressBar.setText(Math.round(value) + '%');
+            this.progressBar.setText(`${Math.round(value)}%`);
         }
     }
 }

@@ -5,9 +5,9 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using Squidex.Domain.Apps.Entities.Apps;
+using Squidex.Infrastructure.Validation;
 using Squidex.Web;
 
 namespace Squidex.Areas.Api.Controllers.Apps.Models
@@ -17,28 +17,25 @@ namespace Squidex.Areas.Api.Controllers.Apps.Models
         /// <summary>
         /// The clients.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public ClientDto[] Items { get; set; }
 
         public static ClientsDto FromApp(IAppEntity app, Resources resources)
         {
-            var appName = app.Name;
-
             var result = new ClientsDto
             {
-                Items =
-                    app.Clients
-                        .Select(x => ClientDto.FromClient(x.Key, x.Value))
-                        .Select(x => x.WithLinks(resources, appName))
-                        .ToArray()
+                Items = app.Clients
+                    .Select(x => ClientDto.FromClient(x.Key, x.Value))
+                    .Select(x => x.CreateLinks(resources))
+                    .ToArray()
             };
 
-            return result.CreateLinks(resources, appName);
+            return result.CreateLinks(resources);
         }
 
-        private ClientsDto CreateLinks(Resources resources, string app)
+        private ClientsDto CreateLinks(Resources resources)
         {
-            var values = new { app };
+            var values = new { app = resources.App };
 
             AddSelfLink(resources.Url<AppClientsController>(x => nameof(x.GetClients), values));
 

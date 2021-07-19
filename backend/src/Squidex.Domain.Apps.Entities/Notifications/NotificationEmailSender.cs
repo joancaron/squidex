@@ -11,10 +11,11 @@ using Microsoft.Extensions.Options;
 using Squidex.Domain.Apps.Core;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Email;
-using Squidex.Infrastructure.Log;
+using Squidex.Log;
+using Squidex.Shared.Identity;
 using Squidex.Shared.Users;
 
-namespace Squidex.Domain.Apps.Entities.Apps.Notifications
+namespace Squidex.Domain.Apps.Entities.Notifications
 {
     public sealed class NotificationEmailSender : INotificationSender
     {
@@ -25,22 +26,22 @@ namespace Squidex.Domain.Apps.Entities.Apps.Notifications
 
         private sealed class TemplatesVars
         {
-            public IUser User { get; set; }
+            public IUser? User { get; set; }
 
-            public IUser? Assigner { get; set; }
+            public IUser? Assigner { get; init; }
 
-            public string AppName { get; set; }
+            public string AppName { get; init; }
 
-            public long? ApiCalls { get; set; }
+            public long? ApiCalls { get; init; }
 
-            public long? ApiCallsLimit { get; set; }
+            public long? ApiCallsLimit { get; init; }
 
             public string URL { get; set; }
         }
 
         public bool IsActive
         {
-            get { return true; }
+            get => true;
         }
 
         public NotificationEmailSender(
@@ -49,14 +50,10 @@ namespace Squidex.Domain.Apps.Entities.Apps.Notifications
             IUrlGenerator urlGenerator,
             ISemanticLog log)
         {
-            Guard.NotNull(texts, nameof(texts));
-            Guard.NotNull(emailSender, nameof(emailSender));
-            Guard.NotNull(urlGenerator, nameof(urlGenerator));
-            Guard.NotNull(log, nameof(log));
-
             this.texts = texts.Value;
             this.emailSender = emailSender;
             this.urlGenerator = urlGenerator;
+
             this.log = log;
         }
 
@@ -86,7 +83,7 @@ namespace Squidex.Domain.Apps.Entities.Apps.Notifications
 
             var vars = new TemplatesVars { Assigner = assigner, AppName = appName };
 
-            if (user.HasConsent())
+            if (user.Claims.HasConsent())
             {
                 return SendEmailAsync("ExistingUser",
                     texts.ExistingUserSubject,
@@ -152,13 +149,13 @@ namespace Squidex.Domain.Apps.Entities.Apps.Notifications
             if (vars.Assigner != null)
             {
                 text = text.Replace("$ASSIGNER_EMAIL", vars.Assigner.Email);
-                text = text.Replace("$ASSIGNER_NAME", vars.Assigner.DisplayName());
+                text = text.Replace("$ASSIGNER_NAME", vars.Assigner.Claims.DisplayName());
             }
 
             if (vars.User != null)
             {
                 text = text.Replace("$USER_EMAIL", vars.User.Email);
-                text = text.Replace("$USER_NAME", vars.User.DisplayName());
+                text = text.Replace("$USER_NAME", vars.User.Claims.DisplayName());
             }
 
             if (vars.ApiCallsLimit != null)

@@ -7,13 +7,12 @@
 
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Squidex.Infrastructure;
 using Squidex.Infrastructure.Orleans;
 using Squidex.Infrastructure.States;
 
 namespace Squidex.Domain.Apps.Entities.Contents.Counter
 {
-    public sealed class CounterGrain : GrainOfGuid, ICounterGrain
+    public sealed class CounterGrain : GrainOfString, ICounterGrain
     {
         private readonly IGrainState<State> state;
 
@@ -25,8 +24,6 @@ namespace Squidex.Domain.Apps.Entities.Contents.Counter
 
         public CounterGrain(IGrainState<State> state)
         {
-            Guard.NotNull(state, nameof(state));
-
             this.state = state;
         }
 

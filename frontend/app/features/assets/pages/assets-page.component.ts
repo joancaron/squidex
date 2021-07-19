@@ -6,18 +6,18 @@
  */
 
 import { Component, OnInit } from '@angular/core';
-import { FormControl } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
-import { AssetsState, DialogModel, LocalStoreService, Queries, Query, ResourceOwner, UIState } from '@app/shared';
+import { AssetsState, DialogModel, LocalStoreService, MathHelper, Queries, Query, QueryFullTextSynchronizer, ResourceOwner, Router2State, UIState } from '@app/shared';
+import { Settings } from '@app/shared/state/settings';
 
 @Component({
     selector: 'sqx-assets-page',
     styleUrls: ['./assets-page.component.scss'],
-    templateUrl: './assets-page.component.html'
+    templateUrl: './assets-page.component.html',
+    providers: [
+        Router2State,
+    ],
 })
 export class AssetsPageComponent extends ResourceOwner implements OnInit {
-    public assetsFilter = new FormControl();
-
     public queries = new Queries(this.uiState, 'assets');
 
     public addAssetFolderDialog = new DialogModel();
@@ -25,22 +25,27 @@ export class AssetsPageComponent extends ResourceOwner implements OnInit {
     public isListView: boolean;
 
     constructor(
+        public readonly assetsRoute: Router2State,
         public readonly assetsState: AssetsState,
         private readonly localStore: LocalStoreService,
-        private readonly route: ActivatedRoute,
-        private readonly uiState: UIState
+        private readonly uiState: UIState,
     ) {
         super();
 
-        this.isListView = this.localStore.getBoolean('squidex.assets.list-view');
+        this.isListView = this.localStore.getBoolean(Settings.Local.ASSETS_MODE);
     }
 
     public ngOnInit() {
-        this.own(
-            this.route.queryParams
-                .subscribe(p => {
-                    this.assetsState.search({ fullText: p['query'] });
-                }));
+        const initial =
+            this.assetsRoute.mapTo(this.assetsState)
+                .withPaging('assets', 30)
+                .withStringOr('parentId', MathHelper.EMPTY_GUID)
+                .withStrings('tagsSelected')
+                .withSynchronizer(QueryFullTextSynchronizer.INSTANCE)
+                .getInitial();
+
+        this.assetsState.load(false, initial);
+        this.assetsRoute.listen();
     }
 
     public reload() {
@@ -62,6 +67,6 @@ export class AssetsPageComponent extends ResourceOwner implements OnInit {
     public changeView(isListView: boolean) {
         this.isListView = isListView;
 
-        this.localStore.setBoolean('squidex.assets.list-view', isListView);
+        this.localStore.setBoolean(Settings.Local.ASSETS_MODE, isListView);
     }
 }

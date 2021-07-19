@@ -5,10 +5,8 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System.Threading;
-using System.Threading.Tasks;
+using System.Collections.Generic;
 using MongoDB.Driver;
-using Squidex.Infrastructure.MongoDb;
 
 namespace Squidex.Domain.Apps.Entities.MongoDb.Contents.Operations
 {
@@ -16,23 +14,20 @@ namespace Squidex.Domain.Apps.Entities.MongoDb.Contents.Operations
     {
         protected static readonly SortDefinitionBuilder<MongoContentEntity> Sort = Builders<MongoContentEntity>.Sort;
         protected static readonly UpdateDefinitionBuilder<MongoContentEntity> Update = Builders<MongoContentEntity>.Update;
-        protected static readonly FieldDefinitionBuilder<MongoContentEntity> Fields = FieldDefinitionBuilder<MongoContentEntity>.Instance;
         protected static readonly FilterDefinitionBuilder<MongoContentEntity> Filter = Builders<MongoContentEntity>.Filter;
         protected static readonly IndexKeysDefinitionBuilder<MongoContentEntity> Index = Builders<MongoContentEntity>.IndexKeys;
         protected static readonly ProjectionDefinitionBuilder<MongoContentEntity> Projection = Builders<MongoContentEntity>.Projection;
 
         public IMongoCollection<MongoContentEntity> Collection { get; private set; }
 
-        public Task PrepareAsync(IMongoCollection<MongoContentEntity> collection, CancellationToken ct = default)
+        public void Setup(IMongoCollection<MongoContentEntity> collection)
         {
             Collection = collection;
-
-            return PrepareAsync(ct);
         }
 
-        protected virtual Task PrepareAsync(CancellationToken ct = default)
+        public virtual IEnumerable<CreateIndexModel<MongoContentEntity>> CreateIndexes()
         {
-            return Task.CompletedTask;
+            yield break;
         }
     }
 }

@@ -37,9 +37,10 @@ export class CommentsState extends State<Snapshot> {
         private readonly commentsUrl: string,
         private readonly commentsService: CommentsService,
         private readonly dialogs: DialogService,
-        initialVersion = -1
+        private readonly orderDescending = false,
+        initialVersion = -1,
     ) {
-        super({ comments: [], version: new Version(initialVersion.toString()) });
+        super({ comments: [], version: new Version(initialVersion.toString()) }, 'Comments');
     }
 
     public load(silent = false): Observable<any> {
@@ -50,12 +51,16 @@ export class CommentsState extends State<Snapshot> {
 
                     for (const created of payload.createdComments) {
                         if (!comments.find(x => x.id === created.id)) {
-                            comments = [...comments, created];
+                            if (this.orderDescending) {
+                                comments = [created, ...comments];
+                            } else {
+                                comments = [...comments, created];
+                            }
                         }
                     }
 
                     for (const updated of payload.updatedComments) {
-                        comments = comments.replaceBy('id', updated);
+                        comments = comments.replacedBy('id', updated);
                     }
 
                     for (const deleted of payload.deletedComments) {
@@ -63,7 +68,7 @@ export class CommentsState extends State<Snapshot> {
                     }
 
                     return { ...s, comments, isLoaded: true, version: payload.version };
-                });
+                }, 'Loading Done');
             }),
             shareSubscribed(this.dialogs, { silent }));
     }
@@ -75,7 +80,7 @@ export class CommentsState extends State<Snapshot> {
                     const comments = [...s.comments, created];
 
                     return { ...s, comments };
-                });
+                }, 'Created');
             }),
             shareSubscribed(this.dialogs));
     }
@@ -84,10 +89,10 @@ export class CommentsState extends State<Snapshot> {
         return this.commentsService.deleteComment(this.commentsUrl, comment.id).pipe(
             tap(() => {
                 this.next(s => {
-                    const comments = s.comments.removeBy('id', comment);
+                    const comments = s.comments.removedBy('id', comment);
 
                     return { ...s, comments };
-                });
+                }, 'Deleted');
             }),
             shareSubscribed(this.dialogs));
     }
@@ -97,10 +102,10 @@ export class CommentsState extends State<Snapshot> {
             map(() => update(comment, text, now || DateTime.now())),
             tap(updated => {
                 this.next(s => {
-                    const comments = s.comments.replaceBy('id', updated);
+                    const comments = s.comments.replacedBy('id', updated);
 
                     return { ...s, comments };
-                });
+                }, 'Updated');
             }),
             shareSubscribed(this.dialogs));
     }

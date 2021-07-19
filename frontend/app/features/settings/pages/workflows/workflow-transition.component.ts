@@ -11,7 +11,7 @@ import { RoleDto, WorkflowTransitionValues, WorkflowTransitionView } from '@app/
 @Component({
     selector: 'sqx-workflow-transition',
     styleUrls: ['./workflow-transition.component.scss'],
-    templateUrl: './workflow-transition.component.html'
+    templateUrl: './workflow-transition.component.html',
 })
 export class WorkflowTransitionComponent {
     public readonly onBlur: { updateOn: 'blur' } = { updateOn: 'blur' };
@@ -29,7 +29,7 @@ export class WorkflowTransitionComponent {
     public roles: ReadonlyArray<string>;
 
     @Input()
-    public disabled: boolean;
+    public disabled?: boolean | null;
 
     public changeExpression(expression: string) {
         this.update.emit({ expression });
@@ -39,7 +39,7 @@ export class WorkflowTransitionComponent {
         this.update.emit(({ roles: roles || [] }) as any);
     }
 
-    public trackByRole(index: number, role: RoleDto) {
+    public trackByRole(_index: number, role: RoleDto) {
         return role.name;
     }
 }

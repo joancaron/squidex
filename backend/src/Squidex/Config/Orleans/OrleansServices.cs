@@ -20,20 +20,24 @@ using Squidex.Infrastructure;
 using Squidex.Infrastructure.Orleans;
 using Squidex.Web;
 
-#pragma warning disable CS0618 // Type or member is obsolete
-
 namespace Squidex.Config.Orleans
 {
     public static class OrleansServices
     {
         public static void ConfigureForSquidex(this ISiloBuilder builder, IConfiguration config)
         {
+            builder.AddOrleansPubSub();
+
             builder.ConfigureServices(siloServices =>
             {
-                siloServices.AddSingleton<IMongoClientFactory, DefaultMongoClientFactory>();
+                siloServices.AddSingletonAs<DefaultMongoClientFactory>()
+                    .As<IMongoClientFactory>();
 
-                siloServices.AddSingleton<IActivationLimiter, ActivationLimiter>();
-                siloServices.AddScoped<IActivationLimit, ActivationLimit>();
+                siloServices.AddSingletonAs<ActivationLimiter>()
+                    .As<IActivationLimiter>();
+
+                siloServices.AddScopedAs<ActivationLimit>()
+                    .As<IActivationLimit>();
 
                 siloServices.AddScoped(typeof(IGrainState<>), typeof(Infrastructure.Orleans.GrainState<>));
             });
@@ -54,14 +58,16 @@ namespace Squidex.Config.Orleans
                 options.HideTrace = true;
             });
 
+            builder.UseDashboardEmbeddedFiles();
             builder.UseDashboard(options =>
             {
                 options.HostSelf = false;
             });
 
+            builder.AddIncomingGrainCallFilter<LoggingFilter>();
+            builder.AddIncomingGrainCallFilter<ExceptionWrapperFilter>();
             builder.AddIncomingGrainCallFilter<ActivationLimiterFilter>();
             builder.AddIncomingGrainCallFilter<LocalCacheFilter>();
-            builder.AddIncomingGrainCallFilter<LoggingFilter>();
             builder.AddIncomingGrainCallFilter<StateFilter>();
 
             var orleansPortSilo = config.GetOptionalValue("orleans:siloPort", 11111);
@@ -96,6 +102,11 @@ namespace Squidex.Config.Orleans
 
                         options.Configure(config);
                     });
+
+                    if (config.GetValue<bool>("orleans:kubernetes"))
+                    {
+                        builder.UseKubernetesHosting();
+                    }
                 },
                 ["Development"] = () =>
                 {

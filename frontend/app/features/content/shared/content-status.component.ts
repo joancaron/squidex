@@ -12,7 +12,7 @@ import { ScheduleDto } from '@app/shared';
     selector: 'sqx-content-status',
     styleUrls: ['./content-status.component.scss'],
     templateUrl: './content-status.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ContentStatusComponent {
     @Input()
@@ -22,16 +22,16 @@ export class ContentStatusComponent {
     public statusColor: string;
 
     @Input()
-    public scheduled?: ScheduleDto;
+    public scheduled?: ScheduleDto | null;
 
     @Input()
     public layout: 'icon' | 'text' | 'multiline' = 'icon';
 
     @Input()
-    public truncate = false;
+    public truncate?: boolean | null;
 
     @Input()
-    public small = false;
+    public small?: boolean | null;
 
     public get isMultiline() {
         return this.layout === 'multiline';
@@ -43,7 +43,7 @@ export class ContentStatusComponent {
 
     public get tooltipText() {
         if (this.scheduled) {
-            return `Will be set to '${this.scheduled.status}' at ${this.scheduled.dueTime.toStringFormatUTC('PPpp')}`;
+            return `Will be set to '${this.scheduled.status}' at ${this.scheduled.dueTime.toStringFormat('PPpp')}`;
         } else {
             return this.status;
         }

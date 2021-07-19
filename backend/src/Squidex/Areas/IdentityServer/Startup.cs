@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -9,7 +9,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Squidex.Areas.IdentityServer.Config;
 using Squidex.Web;
 
 namespace Squidex.Areas.IdentityServer
@@ -20,7 +19,7 @@ namespace Squidex.Areas.IdentityServer
         {
             var environment = app.ApplicationServices.GetRequiredService<IWebHostEnvironment>();
 
-            app.Map(Constants.IdentityServerPrefix, identityApp =>
+            app.Map(Constants.PrefixIdentityServer, identityApp =>
             {
                 if (environment.IsDevelopment())
                 {
@@ -35,8 +34,6 @@ namespace Squidex.Areas.IdentityServer
 
                 identityApp.UseAuthentication();
                 identityApp.UseAuthorization();
-
-                identityApp.UseSquidexIdentityServer();
 
                 identityApp.UseEndpoints(endpoints =>
                 {

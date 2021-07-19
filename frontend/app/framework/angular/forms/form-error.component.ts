@@ -12,17 +12,17 @@ import { ErrorDto } from '@app/framework/internal';
     selector: 'sqx-form-error',
     styleUrls: ['./form-error.component.scss'],
     templateUrl: './form-error.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FormErrorComponent implements OnChanges {
     @Input()
     public error?: ErrorDto | null;
 
     @Input()
-    public bubble = false;
+    public bubble?: boolean | null;
 
     @Input()
-    public closeable = false;
+    public closeable?: boolean | null;
 
     public show: boolean;
 

@@ -1,35 +1,38 @@
 <sqx-title [message]="schema.displayName"></sqx-title>
 
-<sqx-panel desiredWidth="*" minWidth="50rem" showSidebar="true" grid="true">
+<sqx-panel desiredWidth="*" minWidth="50rem" [showSidebar]="true" [grid]="true" closeQueryParamsHandling="">
     <ng-container title>
-        Contents
+        {{ 'common.contents' | sqxTranslate }}
     </ng-container>
 
     <ng-container menu>
         <div class="row no-gutters pl-1">
             <div class="col-auto ml-8">
+                <sqx-notifo topic="apps/{{contentsState.appId}}/schemas/{{schema?.id}}/contents"></sqx-notifo>
+
                 <sqx-shortcut keys="ctrl+shift+r" (trigger)="reload()"></sqx-shortcut>
 
-                <button type="button" class="btn btn-text-secondary" (click)="reload()" title="Refresh Contents (CTRL + SHIFT + R)">
-                    <i class="icon-reset"></i> Refresh
+                <button type="button" class="btn btn-text-secondary" (click)="reload()" title="i18n:contents.refreshTooltip">
+                    <i class="icon-reset"></i> {{ 'common.refresh' | sqxTranslate }}
                 </button>
             </div>
             <div class="col pl-1">
-                <sqx-search-form formClass="form" placeholder="Fulltext search"
+                <sqx-search-form formClass="form" placeholder="{{ 'contents.searchPlaceholder' | sqxTranslate }}"
                     (queryChange)="search($event)"
-                    [query]="contentsState.contentsQuery | async"
-                    [queries]="queries"
-                    [queryModel]="queryModel"
-                    [language]="languageMaster"
-                    enableShortcut="true">
+                    [query]="contentsState.query | async"
+                    [queries]="queries | async"
+                    [queriesTypes]="'common.contents' | sqxTranslate"
+                    [queryModel]="queryModel | async"
+                    [language]="(languagesState.isoMasterLanguage | async)!"
+                    [enableShortcut]="true">
                 </sqx-search-form>
             </div>
             <div class="col-auto pl-1" *ngIf="languages.length > 1">
-                <sqx-language-selector class="languages-buttons" (selectedLanguageChange)="selectLanguage($event)" [languages]="languages"></sqx-language-selector>
+                <sqx-language-selector class="languages-buttons" [(selectedLanguage)]="language" [languages]="languages"></sqx-language-selector>
             </div>
             <div class="col-auto pl-1">
-                <button type="button" class="btn btn-success" #newButton routerLink="new" title="New Content (CTRL + SHIFT + G)" [disabled]="(contentsState.canCreateAny | async) === false">
-                    <i class="icon-plus"></i> New
+                <button type="button" class="btn btn-success" #newButton routerLink="new" title="i18n:contents.createContentTooltip" [disabled]="(contentsState.canCreateAny | async) === false">
+                    <i class="icon-plus"></i> {{ 'contents.create' | sqxTranslate }}
                 </button>
                 
                 <sqx-shortcut keys="ctrl+shift+g" (trigger)="newButton.click()"></sqx-shortcut>
@@ -39,23 +42,24 @@
 
     <ng-container content>
         <ng-container *ngIf="tableView.listFields | async; let listFields">    
-            <sqx-list-view [isLoading]="contentsState.isLoading | async" syncedHeader="true" table="true">
+            <sqx-list-view [isLoading]="contentsState.isLoading | async" [syncedHeader]="true" [table]="true">
                 <ng-container topHeader>
                     <div class="selection" *ngIf="selectionCount > 0">
-                        {{selectionCount}} items selected&nbsp;&nbsp;
+                        {{ 'contents.selectionCount' | sqxTranslate: { count: selectionCount } }}&nbsp;&nbsp;
             
-                        <button type="button" class="btn btn-outline-secondary btn-status mr-1" *ngFor="let status of nextStatuses | sqxKeys" (click)="changeSelectedStatus(status)">
+                        <button type="button" class="btn btn-outline-secondary btn-status mr-1" *ngFor="let status of selectionStatuses | sqxKeys" (click)="changeSelectedStatus(status)">
                             <sqx-content-status layout="text"
                                 [status]="status"
-                                [statusColor]="nextStatuses[status]">
+                                [statusColor]="selectionStatuses[status]">
                             </sqx-content-status>
                         </button>
                         
                         <button type="button" class="btn btn-danger" *ngIf="selectionCanDelete"
                             (sqxConfirmClick)="deleteSelected()"
-                            confirmTitle="Delete content" 
-                            confirmText="Do you really want to delete the selected content items?">
-                            Delete
+                            confirmTitle="i18n:contents.deleteConfirmTitle"
+                            confirmText="i18n:contents.deleteManyConfirmText"
+                            confirmRememberKey="deleteContents">
+                            {{ 'common.delete' | sqxTranslate }}
                         </button>
                     </div>
 
@@ -66,10 +70,9 @@
 
                         <ng-container *sqxModal="tableViewModal">
                             <div class="dropdown-menu" [sqxAnchoredTo]="buttonSettings" @fade position="bottom-right">
-                                <sqx-custom-view-editor
-                                    [allFields]="tableView.allFields"
+                                <sqx-custom-view-editor [allFields]="tableView.allFields" 
                                     (fieldNamesChange)="tableView.updateFields($event)"
-                                    [fieldNames]="tableView.listFieldNames | async">
+                                    [fieldNames]="$any(tableView.listFieldNames | async)">
                                 </sqx-custom-view-editor>
                             </div>
                         </ng-container>
@@ -81,16 +84,22 @@
                         <thead>
                             <tr>
                                 <th class="cell-select">
-                                    <input type="checkbox" class="form-check" [ngModel]="selectedAll" (ngModelChange)="selectAll($event)" />
+                                    <div class="custom-control custom-checkbox">
+                                        <input class="custom-control-input" type="checkbox" id="all_selected"
+                                            [ngModel]="selectedAll" 
+                                            (ngModelChange)="selectAll($event)">
+
+                                        <label class="custom-control-label" for="all_selected"></label>
+                                    </div>
                                 </th>
                                 <th class="cell-actions cell-actions-left">
-                                    Actions
+                                    {{ 'common.actions' | sqxTranslate }}
                                 </th>
                                 <th *ngFor="let field of listFields" [sqxContentListCell]="field">
                                     <sqx-content-list-header
                                         [field]="field"
                                         (queryChange)="search($event)"
-                                        [query]="contentsState.contentsQuery | async"
+                                        [query]="(contentsState.query | async)!"
                                         [language]="language">
                                     </sqx-content-list-header>
                                 </th>
@@ -102,14 +111,14 @@
                 <ng-container syncedContent>
                     <div class="table-container">
                         <table class="table table-items table-fixed" [style.minWidth]="listFields | sqxContentListWidth" [sqxSyncWidth]="header">
-                            <tbody *ngFor="let content of contentsState.contents | async; trackBy: trackByContent"
+                            <tbody *ngFor="let content of contentsState.contents | async; trackBy: trackByContent" 
                                 [sqxContent]="content"
                                 (delete)="delete(content)"
                                 [selected]="isItemSelected(content)"
                                 (selectedChange)="selectItem(content, $event)"
                                 (statusChange)="changeStatus(content, $event)"
+                                [cloneable]="contentsState.snapshot.canCreate"
                                 (clone)="clone(content)"
-                                [canClone]="contentsState.snapshot.canCreate"
                                 [language]="language"
                                 [link]="[content.id, 'history']"
                                 [listFields]="listFields">
@@ -119,7 +128,7 @@
                 </ng-container>
 
                 <ng-container footer>
-                    <sqx-pager [pager]="contentsState.contentsPager | async" (pagerChange)="contentsState.setPager($event)"></sqx-pager>
+                    <sqx-pager [paging]="contentsState.paging | async" (pagingChange)="contentsState.page($event)"></sqx-pager>
                 </ng-container>
             </sqx-list-view>
         </ng-container>
@@ -127,8 +136,12 @@
 
     <ng-container sidebar>
         <div class="panel-nav">
-            <a class="panel-link" routerLink="filters" routerLinkActive="active" title="Filters" titlePosition="left">
+            <a class="panel-link" routerLink="filters" routerLinkActive="active" queryParamsHandling="preserve" title="i18n:common.filters" titlePosition="left">
                 <i class="icon-filter"></i>
+            </a>
+
+            <a class="panel-link" routerLink="sidebar" routerLinkActive="active" queryParamsHandling="preserve" title="i18n:common.sidebar" titlePosition="left" *ngIf="schema.properties.contentsSidebarUrl">
+                <i class="icon-plugin"></i>
             </a>
         </div>
     </ng-container>
@@ -136,4 +149,4 @@
 
 <router-outlet></router-outlet>
 
-<sqx-due-time-selector #dueTimeSelector></sqx-due-time-selector>
+<sqx-due-time-selector [disabled]="disableScheduler" #dueTimeSelector></sqx-due-time-selector>

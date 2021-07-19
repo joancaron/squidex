@@ -5,10 +5,8 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable: only-arrow-functions
-
-import { empty, Observable } from 'rxjs';
-import { catchError, distinctUntilChanged, filter, map, onErrorResumeNext, publishReplay, refCount, switchMap } from 'rxjs/operators';
+import { EMPTY, Observable, ReplaySubject, throwError } from 'rxjs';
+import { catchError, distinctUntilChanged, filter, map, onErrorResumeNext, share, switchMap } from 'rxjs/operators';
 import { DialogService } from './../services/dialog.service';
 import { Version, versioned, Versioned } from './version';
 
@@ -20,7 +18,7 @@ export function mapVersioned<T = any, R = any>(project: (value: T, version: Vers
     };
 }
 
-type Options = { silent?: boolean };
+type Options = { silent?: boolean; throw?: boolean };
 
 export function shareSubscribed<T>(dialogs: DialogService, options?: Options) {
     return shareMapSubscribed<T, T>(dialogs, x => x, options);
@@ -28,7 +26,12 @@ export function shareSubscribed<T>(dialogs: DialogService, options?: Options) {
 
 export function shareMapSubscribed<T, R = T>(dialogs: DialogService, project: (value: T) => R, options?: Options) {
     return function mapOperation(source: Observable<T>) {
-        const shared = source.pipe(publishReplay(), refCount());
+        const shared = source.pipe(share({
+            connector: () => new ReplaySubject(1),
+            resetOnError: false,
+            resetOnComplete: false,
+            resetOnRefCountZero: false,
+        }));
 
         shared.pipe(
             catchError(error => {
@@ -36,11 +39,15 @@ export function shareMapSubscribed<T, R = T>(dialogs: DialogService, project: (v
                     dialogs.notifyError(error);
                 }
 
-                return empty();
+                if (options?.throw) {
+                    return throwError(() => error);
+                }
+
+                return EMPTY;
             }))
             .subscribe();
 
-        return shared.pipe(map(x => project(x)));
+        return shared.pipe(map(project));
     };
 }
 
@@ -52,7 +59,7 @@ export function defined<T>() {
 
 export function switchSafe<T, R>(project: (source: T) => Observable<R>) {
     return function mapOperation(source: Observable<T>) {
-        return source.pipe(switchMap(project), onErrorResumeNext<R, R>());
+        return source.pipe(switchMap(project), onErrorResumeNext());
     };
 }
 

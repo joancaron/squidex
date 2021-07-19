@@ -27,7 +27,7 @@ export class EditRoleForm extends Form<FormArray, UpdateRoleDto, RoleDto> {
     }
 
     public transformSubmit(value: any) {
-        return { permissions: value };
+        return { permissions: value, properties: {} };
     }
 
     public transformLoad(value: Partial<UpdateRoleDto>) {
@@ -54,9 +54,9 @@ export class AddPermissionForm extends Form<FormGroup, AddPermissionFormType> {
         super(formBuilder.group({
             permission: ['',
                 [
-                    Validators.required
-                ]
-            ]
+                    Validators.required,
+                ],
+            ],
         }));
     }
 }
@@ -68,9 +68,9 @@ export class AddRoleForm extends Form<FormGroup, CreateRoleDto> {
         super(formBuilder.group({
             name: ['',
                 [
-                    Validators.required
-                ]
-            ]
+                    Validators.required,
+                ],
+            ],
         }));
     }
 }

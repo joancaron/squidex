@@ -18,10 +18,15 @@ namespace Squidex.Infrastructure.Json.Objects
     {
         public JsonValueType Type
         {
-            get { return JsonValueType.Array; }
+            get => JsonValueType.Array;
         }
 
         public JsonArray()
+        {
+        }
+
+        public JsonArray(int capacity)
+            : base(new List<IJsonValue>(capacity))
         {
         }
 
@@ -35,12 +40,12 @@ namespace Squidex.Infrastructure.Json.Objects
         {
         }
 
-        internal JsonArray(params object?[] values)
+        internal JsonArray(IEnumerable<object?>? values)
             : base(ToList(values))
         {
         }
 
-        private static List<IJsonValue> ToList(IEnumerable<object?> values)
+        private static List<IJsonValue> ToList(IEnumerable<object?>? values)
         {
             return values?.Select(JsonValue.Create).ToList() ?? new List<IJsonValue>();
         }

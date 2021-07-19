@@ -7,31 +7,34 @@
 
 import { AfterViewInit, Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormGroup } from '@angular/forms';
-import { FieldDto, PatternDto } from '@app/shared';
+import { AppSettingsDto, FieldDto, LanguageDto } from '@app/shared';
 
 @Component({
     selector: 'sqx-field-form',
     styleUrls: ['./field-form.component.scss'],
-    templateUrl: './field-form.component.html'
+    templateUrl: './field-form.component.html',
 })
 export class FieldFormComponent implements AfterViewInit {
     @Input()
-    public showButtons: boolean;
+    public showButtons?: boolean | null;
 
     @Input()
-    public isEditable: boolean;
+    public isEditable?: boolean | null;
 
     @Input()
-    public editForm: FormGroup;
-
-    @Input()
-    public editFormSubmitted: boolean;
-
-    @Input()
-    public patterns: ReadonlyArray<PatternDto>;
+    public fieldForm: FormGroup;
 
     @Input()
     public field: FieldDto;
+
+    @Input()
+    public settings: AppSettingsDto;
+
+    @Input()
+    public languages: ReadonlyArray<LanguageDto>;
+
+    @Input()
+    public isLocalizable?: boolean | null;
 
     @Output()
     public cancel = new EventEmitter();
@@ -40,9 +43,9 @@ export class FieldFormComponent implements AfterViewInit {
 
     public ngAfterViewInit() {
         if (!this.isEditable) {
-            this.editForm.disable();
+            this.fieldForm.disable();
         } else {
-            this.editForm.enable();
+            this.fieldForm.enable();
         }
     }
 

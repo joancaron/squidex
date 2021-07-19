@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -16,7 +16,7 @@ using AppClientUpdatedV2 = Squidex.Domain.Apps.Events.Apps.AppClientUpdated;
 namespace Migrations.OldEvents
 {
     [EventType(nameof(AppClientUpdated))]
-    [Obsolete]
+    [Obsolete("New Event introduced")]
     public sealed class AppClientUpdated : AppEvent, IMigrated<IEvent>
     {
         public string Id { get; set; }

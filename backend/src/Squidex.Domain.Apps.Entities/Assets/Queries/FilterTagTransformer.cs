@@ -11,33 +11,32 @@ using Squidex.Domain.Apps.Core.Tags;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Queries;
 
+#pragma warning disable SA1313 // Parameter names should begin with lower-case letter
+
 namespace Squidex.Domain.Apps.Entities.Assets.Queries
 {
-    public sealed class FilterTagTransformer : TransformVisitor<ClrValue>
+    internal sealed class FilterTagTransformer : AsyncTransformVisitor<ClrValue, FilterTagTransformer.Args>
     {
-        private readonly ITagService tagService;
-        private readonly Guid appId;
+        private static readonly FilterTagTransformer Instance = new FilterTagTransformer();
 
-        private FilterTagTransformer(Guid appId, ITagService tagService)
+        public sealed record Args(DomainId AppId, ITagService TagService);
+
+        private FilterTagTransformer()
         {
-            this.appId = appId;
-
-            this.tagService = tagService;
         }
 
-        public static FilterNode<ClrValue>? Transform(FilterNode<ClrValue> nodeIn, Guid appId, ITagService tagService)
+        public static ValueTask<FilterNode<ClrValue>?> TransformAsync(FilterNode<ClrValue> nodeIn, DomainId appId, ITagService tagService)
         {
-            Guard.NotNull(nodeIn, nameof(nodeIn));
-            Guard.NotNull(tagService, nameof(tagService));
+            var args = new Args(appId, tagService);
 
-            return nodeIn.Accept(new FilterTagTransformer(appId, tagService));
+            return nodeIn.Accept(Instance, args);
         }
 
-        public override FilterNode<ClrValue>? Visit(CompareFilter<ClrValue> nodeIn)
+        public override async ValueTask<FilterNode<ClrValue>?> Visit(CompareFilter<ClrValue> nodeIn, Args args)
         {
             if (string.Equals(nodeIn.Path[0], nameof(IAssetEntity.Tags), StringComparison.OrdinalIgnoreCase) && nodeIn.Value.Value is string stringValue)
             {
-                var tagNames = Task.Run(() => tagService.GetTagIdsAsync(appId, TagGroups.Assets, HashSet.Of(stringValue))).Result;
+                var tagNames = await args.TagService.GetTagIdsAsync(args.AppId, TagGroups.Assets, HashSet.Of(stringValue));
 
                 if (tagNames.TryGetValue(stringValue, out var normalized))
                 {

@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Squidex Headless CMS
  *
  * @license
@@ -7,12 +7,13 @@
 
 import { Component, OnInit } from '@angular/core';
 import { AppDto, AppsState, AuthService, DialogModel, FeatureDto, LocalStoreService, NewsService, OnboardingService, UIOptions, UIState } from '@app/shared';
+import { Settings } from '@app/shared/state/settings';
 import { take } from 'rxjs/operators';
 
 @Component({
     selector: 'sqx-apps-page',
     styleUrls: ['./apps-page.component.scss'],
-    templateUrl: './apps-page.component.html'
+    templateUrl: './apps-page.component.html',
 })
 export class AppsPageComponent implements OnInit {
     public addAppDialog = new DialogModel();
@@ -32,7 +33,7 @@ export class AppsPageComponent implements OnInit {
         private readonly localStore: LocalStoreService,
         private readonly newsService: NewsService,
         private readonly onboardingService: OnboardingService,
-        private readonly uiOptions: UIOptions
+        private readonly uiOptions: UIOptions,
     ) {
         if (uiOptions.get('showInfo')) {
             this.info = uiOptions.get('more.info');
@@ -48,7 +49,7 @@ export class AppsPageComponent implements OnInit {
                     this.onboardingService.disable('dialog');
                     this.onboardingDialog.show();
                 } else if (!this.uiOptions.get('hideNews')) {
-                    const newsVersion = this.localStore.getInt('squidex.news.version');
+                    const newsVersion = this.localStore.getInt(Settings.Local.NEWS_VERSION);
 
                     this.newsService.getFeatures(newsVersion)
                         .subscribe(result => {
@@ -58,7 +59,7 @@ export class AppsPageComponent implements OnInit {
                                     this.newsDialog.show();
                                 }
 
-                                this.localStore.setInt('squidex.news.version', result.version);
+                                this.localStore.setInt(Settings.Local.NEWS_VERSION, result.version);
                             }
                         });
                 }
@@ -70,7 +71,11 @@ export class AppsPageComponent implements OnInit {
         this.addAppDialog.show();
     }
 
-    public trackByApp(index: number, app: AppDto) {
+    public leave(app: AppDto) {
+        this.appsState.leave(app);
+    }
+
+    public trackByApp(_index: number, app: AppDto) {
         return app.id;
     }
 }

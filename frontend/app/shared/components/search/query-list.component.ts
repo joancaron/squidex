@@ -12,7 +12,7 @@ import { equalsQuery, Query, SavedQuery } from '@app/shared/internal';
     selector: 'sqx-query-list',
     styleUrls: ['./query-list.component.scss'],
     templateUrl: './query-list.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class QueryListComponent {
     @Output()
@@ -22,13 +22,13 @@ export class QueryListComponent {
     public remove = new EventEmitter<SavedQuery>();
 
     @Input()
-    public queryUsed: Query | undefined;
+    public queryUsed?: Query | null;
 
     @Input()
-    public queries: ReadonlyArray<SavedQuery>;
+    public queries?: ReadonlyArray<SavedQuery> | null;
 
     @Input()
-    public canRemove: boolean;
+    public canRemove?: boolean | null;
 
     @Input()
     public types: string;
@@ -37,7 +37,7 @@ export class QueryListComponent {
         return equalsQuery(saved.query, this.queryUsed);
     }
 
-    public trackByQuery(index: number, query: SavedQuery) {
+    public trackByQuery(_index: number, query: SavedQuery) {
         return query.name;
     }
 }

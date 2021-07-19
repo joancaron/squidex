@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -20,30 +20,46 @@ namespace Squidex.Infrastructure.EventSourcing
 
         public DefaultEventDataFormatter(TypeNameRegistry typeNameRegistry, IJsonSerializer serializer)
         {
-            Guard.NotNull(typeNameRegistry, nameof(typeNameRegistry));
-            Guard.NotNull(serializer, nameof(serializer));
-
             this.typeNameRegistry = typeNameRegistry;
 
             this.serializer = serializer;
         }
 
-        public Envelope<IEvent> Parse(EventData eventData, Func<string, string>? stringConverter = null)
+        public Envelope<IEvent>? ParseIfKnown(StoredEvent storedEvent)
         {
-            var payloadType = typeNameRegistry.GetType(eventData.Type);
-            var payloadObj = serializer.Deserialize<IEvent>(eventData.Payload, payloadType, stringConverter);
-
-            if (payloadObj is IMigrated<IEvent> migratedEvent)
+            try
             {
-                payloadObj = migratedEvent.Migrate();
+                return Parse(storedEvent);
+            }
+            catch (TypeNameNotFoundException)
+            {
+                return null;
+            }
+        }
 
-                if (ReferenceEquals(migratedEvent, payloadObj))
+        public Envelope<IEvent> Parse(StoredEvent storedEvent)
+        {
+            Guard.NotNull(storedEvent, nameof(storedEvent));
+
+            var eventData = storedEvent.Data;
+
+            var payloadType = typeNameRegistry.GetType(eventData.Type);
+            var payloadValue = serializer.Deserialize<IEvent>(eventData.Payload, payloadType);
+
+            if (payloadValue is IMigrated<IEvent> migratedEvent)
+            {
+                payloadValue = migratedEvent.Migrate();
+
+                if (ReferenceEquals(migratedEvent, payloadValue))
                 {
                     Debug.WriteLine("Migration should return new event.");
                 }
             }
 
-            var envelope = new Envelope<IEvent>(payloadObj, eventData.Headers);
+            var envelope = new Envelope<IEvent>(payloadValue, eventData.Headers);
+
+            envelope.SetEventPosition(storedEvent.EventPosition);
+            envelope.SetEventStreamNumber(storedEvent.EventStreamNumber);
 
             return envelope;
         }

@@ -5,22 +5,16 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
+#pragma warning disable SA1313 // Parameter names should begin with lower-case letter
+
 namespace Squidex.Infrastructure.UsageTracking
 {
-    public sealed class ApiStatsSummary
+    public sealed record ApiStatsSummary(
+        double AverageElapsedMs,
+        long TotalCalls,
+        long TotalBytes,
+        long MonthCalls,
+        long MonthBytes)
     {
-        public long TotalCalls { get; }
-
-        public long TotalBytes { get; }
-
-        public double AverageElapsedMs { get; }
-
-        public ApiStatsSummary(long totalCalls, double averageElapsedMs, long totalBytes)
-        {
-            TotalCalls = totalCalls;
-            TotalBytes = totalBytes;
-
-            AverageElapsedMs = averageElapsedMs;
-        }
     }
 }

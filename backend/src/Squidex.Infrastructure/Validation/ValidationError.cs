@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -19,12 +19,12 @@ namespace Squidex.Infrastructure.Validation
 
         public string Message
         {
-            get { return message; }
+            get => message;
         }
 
         public IEnumerable<string> PropertyNames
         {
-            get { return propertyNames; }
+            get => propertyNames;
         }
 
         public ValidationError(string message, params string[] propertyNames)

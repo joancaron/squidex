@@ -1,32 +1,33 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Squidex.Infrastructure;
-using Squidex.Infrastructure.Queries;
 
 namespace Squidex.Domain.Apps.Entities.Assets.Repositories
 {
     public interface IAssetRepository
     {
-        Task<IReadOnlyList<IAssetEntity>> QueryByHashAsync(Guid appId, string hash);
+        IAsyncEnumerable<IAssetEntity> StreamAll(DomainId appId, CancellationToken ct = default);
 
-        Task<IResultList<IAssetEntity>> QueryAsync(Guid appId, Guid? parentId, ClrQuery query);
+        Task<IResultList<IAssetEntity>> QueryAsync(DomainId appId, DomainId? parentId, Q q, CancellationToken ct = default);
 
-        Task<IResultList<IAssetEntity>> QueryAsync(Guid appId, HashSet<Guid> ids);
+        Task<IReadOnlyList<DomainId>> QueryIdsAsync(DomainId appId, HashSet<DomainId> ids, CancellationToken ct = default);
 
-        Task<IReadOnlyList<Guid>> QueryIdsAsync(Guid appId, HashSet<Guid> ids);
+        Task<IReadOnlyList<DomainId>> QueryChildIdsAsync(DomainId appId, DomainId parentId, CancellationToken ct = default);
 
-        Task<IReadOnlyList<Guid>> QueryChildIdsAsync(Guid appId, Guid parentId);
+        Task<IAssetEntity?> FindAssetByHashAsync(DomainId appId, string hash, string fileName, long fileSize, CancellationToken ct = default);
 
-        Task<IAssetEntity?> FindAssetAsync(Guid id);
+        Task<IAssetEntity?> FindAssetBySlugAsync(DomainId appId, string slug, CancellationToken ct = default);
 
-        Task<IAssetEntity?> FindAssetBySlugAsync(Guid appId, string slug);
+        Task<IAssetEntity?> FindAssetAsync(DomainId id, CancellationToken ct = default);
+
+        Task<IAssetEntity?> FindAssetAsync(DomainId appId, DomainId id, CancellationToken ct = default);
     }
 }

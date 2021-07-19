@@ -10,6 +10,8 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
+#pragma warning disable CA1835 // Prefer the 'Memory'-based overloads for 'ReadAsync' and 'WriteAsync'
+
 namespace Squidex.Web.Pipeline
 {
     internal sealed class UsageStream : Stream
@@ -19,22 +21,22 @@ namespace Squidex.Web.Pipeline
 
         public long BytesWritten
         {
-            get { return bytesWritten; }
+            get => bytesWritten;
         }
 
         public override bool CanRead
         {
-            get { return false; }
+            get => false;
         }
 
         public override bool CanSeek
         {
-            get { return false; }
+            get => false;
         }
 
         public override bool CanWrite
         {
-            get { return inner.CanWrite; }
+            get => inner.CanWrite;
         }
 
         public override long Length
@@ -53,7 +55,7 @@ namespace Squidex.Web.Pipeline
             this.inner = inner;
         }
 
-        public override IAsyncResult BeginWrite(byte[] buffer, int offset, int count, AsyncCallback callback, object? state)
+        public override IAsyncResult BeginWrite(byte[] buffer, int offset, int count, AsyncCallback? callback, object? state)
         {
             var result = inner.BeginWrite(buffer, offset, count, callback, state);
 
@@ -64,7 +66,7 @@ namespace Squidex.Web.Pipeline
 
         public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
-            await base.WriteAsync(buffer, offset, count, cancellationToken);
+            await inner.WriteAsync(buffer, offset, count, cancellationToken);
 
             bytesWritten += count;
         }
@@ -78,7 +80,7 @@ namespace Squidex.Web.Pipeline
 
         public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
         {
-            await base.WriteAsync(buffer, cancellationToken);
+            await inner.WriteAsync(buffer, cancellationToken);
 
             bytesWritten += buffer.Length;
         }

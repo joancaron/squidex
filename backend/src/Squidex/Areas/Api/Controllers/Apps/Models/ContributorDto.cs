@@ -1,12 +1,14 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
+using Squidex.Infrastructure.Translations;
+using Squidex.Infrastructure.Validation;
+using Squidex.Shared.Identity;
 using Squidex.Shared.Users;
 using Squidex.Web;
 
@@ -14,24 +16,22 @@ namespace Squidex.Areas.Api.Controllers.Apps.Models
 {
     public sealed class ContributorDto : Resource
     {
-        private const string NotFound = "- not found -";
-
         /// <summary>
         /// The id of the user that contributes to the app.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public string ContributorId { get; set; }
 
         /// <summary>
         /// The display name.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public string ContributorName { get; set; }
 
         /// <summary>
         /// The email address.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public string ContributorEmail { get; set; }
 
         /// <summary>
@@ -46,22 +46,22 @@ namespace Squidex.Areas.Api.Controllers.Apps.Models
             return result;
         }
 
-        public ContributorDto WithUser(IDictionary<string, IUser> users)
+        public ContributorDto CreateUser(IDictionary<string, IUser> users)
         {
             if (users.TryGetValue(ContributorId, out var user))
             {
-                ContributorName = user.DisplayName()!;
+                ContributorName = user.Claims.DisplayName()!;
                 ContributorEmail = user.Email;
             }
             else
             {
-                ContributorName = NotFound;
+                ContributorName = T.Get("common.notFoundValue");
             }
 
             return this;
         }
 
-        public ContributorDto WithLinks(Resources resources)
+        public ContributorDto CreateLinks(Resources resources)
         {
             if (!resources.IsUser(ContributorId))
             {
@@ -69,12 +69,16 @@ namespace Squidex.Areas.Api.Controllers.Apps.Models
 
                 if (resources.CanAssignContributor)
                 {
-                    AddPostLink("update", resources.Url<AppContributorsController>(x => nameof(x.PostContributor), new { app }));
+                    var values = new { app };
+
+                    AddPostLink("update", resources.Url<AppContributorsController>(x => nameof(x.PostContributor), values));
                 }
 
                 if (resources.CanRevokeContributor)
                 {
-                    AddDeleteLink("delete", resources.Url<AppContributorsController>(x => nameof(x.DeleteContributor), new { app, id = ContributorId }));
+                    var values = new { app, id = ContributorId };
+
+                    AddDeleteLink("delete", resources.Url<AppContributorsController>(x => nameof(x.DeleteContributor), values));
                 }
             }
 

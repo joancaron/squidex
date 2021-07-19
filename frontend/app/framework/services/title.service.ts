@@ -1,32 +1,36 @@
-﻿/*
+/*
  * Squidex Headless CMS
  *
  * @license
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable: readonly-array
-
 import { Injectable } from '@angular/core';
+import { LocalizerService } from './localizer.service';
 
 export class TitlesConfig {
     constructor(
         public readonly prefix?: string,
         public readonly suffix?: string,
-        public readonly separator?: string
+        public readonly separator?: string,
     ) {
     }
 }
-
-export const TitleServiceFactory = (titles: TitlesConfig) => {
-    return new TitleService(titles);
-};
 
 @Injectable()
 export class TitleService {
     private readonly stack: any[] = [];
 
-    constructor(private readonly titles: TitlesConfig) {
+    constructor(
+        private readonly titles: TitlesConfig,
+        private readonly localizer: LocalizerService,
+    ) {
+        this.titles = new TitlesConfig(
+            this.localizer.getOrKey(titles.prefix),
+            this.localizer.getOrKey(titles.suffix),
+            this.titles.separator,
+        );
+
         this.updateTitle();
     }
 
@@ -56,7 +60,7 @@ export class TitleService {
         let title = '';
 
         if (this.stack.length > 0) {
-            title = this.stack.join(separator || ' | ');
+            title = this.stack.map(x => this.localizer.getOrKey(x)).join(separator || ' | ');
         }
 
         if (title) {

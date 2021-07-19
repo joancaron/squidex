@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -17,7 +17,7 @@ using AssetCreatedV2 = Squidex.Domain.Apps.Events.Assets.AssetCreated;
 namespace Migrations.OldEvents
 {
     [EventType(nameof(AssetCreated))]
-    [Obsolete]
+    [Obsolete("New Event introduced")]
     public sealed class AssetCreated : AssetEvent, IMigrated<IEvent>
     {
         public Guid ParentId { get; set; }
@@ -48,7 +48,7 @@ namespace Migrations.OldEvents
 
             result.Metadata = new AssetMetadata();
 
-            if (IsImage && PixelWidth.HasValue && PixelHeight.HasValue)
+            if (IsImage && PixelWidth != null && PixelHeight != null)
             {
                 result.Type = AssetType.Image;
 

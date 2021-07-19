@@ -6,10 +6,10 @@
 // ==========================================================================
 
 using System;
-using System.Collections.Generic;
+using System.Linq;
 using Squidex.Domain.Apps.Core.Schemas;
 using Squidex.Domain.Apps.Entities.Schemas.Commands;
-using Squidex.Infrastructure;
+using Squidex.Text;
 
 namespace Squidex.Domain.Apps.Entities.Apps.Templates.Builders
 {
@@ -34,8 +34,14 @@ namespace Squidex.Domain.Apps.Entities.Apps.Templates.Builders
 
         public SchemaBuilder WithLabel(string? label)
         {
-            command.Properties ??= new SchemaProperties();
-            command.Properties.Label = label;
+            if (command.Properties == null)
+            {
+                command.Properties = new SchemaProperties { Label = label };
+            }
+            else
+            {
+                command.Properties = command.Properties with { Label = label };
+            }
 
             return this;
         }
@@ -56,7 +62,7 @@ namespace Squidex.Domain.Apps.Entities.Apps.Templates.Builders
 
         public SchemaBuilder Singleton()
         {
-            command.IsSingleton = true;
+            command.Type = SchemaType.Singleton;
 
             return this;
         }
@@ -106,6 +112,15 @@ namespace Squidex.Domain.Apps.Entities.Apps.Templates.Builders
             return this;
         }
 
+        public SchemaBuilder AddReferences(string name, Action<ReferencesFieldBuilder> configure)
+        {
+            var field = AddField<ReferencesFieldProperties>(name);
+
+            configure(new ReferencesFieldBuilder(field, command));
+
+            return this;
+        }
+
         public SchemaBuilder AddString(string name, Action<StringFieldBuilder> configure)
         {
             var field = AddField<StringFieldProperties>(name);
@@ -124,6 +139,15 @@ namespace Squidex.Domain.Apps.Entities.Apps.Templates.Builders
             return this;
         }
 
+        public SchemaBuilder AddArray(string name, Action<ArrayFieldBuilder> configure)
+        {
+            var field = AddField<ArrayFieldProperties>(name);
+
+            configure(new ArrayFieldBuilder(field, command));
+
+            return this;
+        }
+
         private UpsertSchemaField AddField<T>(string name) where T : FieldProperties, new()
         {
             var field = new UpsertSchemaField
@@ -135,8 +159,14 @@ namespace Squidex.Domain.Apps.Entities.Apps.Templates.Builders
                 }
             };
 
-            command.Fields ??= new List<UpsertSchemaField>();
-            command.Fields.Add(field);
+            if (command.Fields == null)
+            {
+                command.Fields = new[] { field };
+            }
+            else
+            {
+                command.Fields = command.Fields.Union(Enumerable.Repeat(field, 1)).ToArray();
+            }
 
             return field;
         }

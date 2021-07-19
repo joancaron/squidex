@@ -12,14 +12,14 @@ import { picasso } from '@app/framework/internal';
     selector: 'sqx-avatar',
     styleUrls: ['./avatar.component.scss'],
     templateUrl: './avatar.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AvatarComponent implements OnChanges {
     @Input()
-    public identifier: string;
+    public identifier: string | undefined | null;
 
     @Input()
-    public image: string;
+    public image: string | undefined | null;
 
     @Input()
     public size = 50;

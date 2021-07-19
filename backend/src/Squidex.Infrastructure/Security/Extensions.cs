@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -16,17 +16,18 @@ namespace Squidex.Infrastructure.Security
         public static RefToken? Token(this ClaimsPrincipal principal)
         {
             var subjectId = principal.OpenIdSubject();
-
-            if (!string.IsNullOrWhiteSpace(subjectId))
-            {
-                return new RefToken(RefTokenType.Subject, subjectId);
-            }
+            var subjectName = principal.OpenIdName();
 
             var clientId = principal.OpenIdClientId();
 
+            if (!string.IsNullOrWhiteSpace(subjectId) && !string.IsNullOrWhiteSpace(subjectName))
+            {
+                return RefToken.User(subjectId);
+            }
+
             if (!string.IsNullOrWhiteSpace(clientId))
             {
-                return new RefToken(RefTokenType.Client, clientId);
+                return RefToken.Client(clientId);
             }
 
             return null;
@@ -57,14 +58,15 @@ namespace Squidex.Infrastructure.Security
             return principal.Claims.FirstOrDefault(x => x.Type == OpenIdClaims.Name)?.Value;
         }
 
-        public static string? OpenIdNickName(this ClaimsPrincipal principal)
-        {
-            return principal.Claims.FirstOrDefault(x => x.Type == OpenIdClaims.NickName)?.Value;
-        }
-
         public static string? OpenIdEmail(this ClaimsPrincipal principal)
         {
             return principal.Claims.FirstOrDefault(x => x.Type == OpenIdClaims.Email)?.Value;
+        }
+
+        public static string? GetEmail(this ClaimsPrincipal principal)
+        {
+            return principal.Claims.FirstOrDefault(x => x.Type == ClaimTypes.Email)?.Value ??
+                   principal.Claims.FirstOrDefault(x => x.Type == OpenIdClaims.Email)?.Value;
         }
 
         public static bool IsInClient(this ClaimsPrincipal principal, string client)

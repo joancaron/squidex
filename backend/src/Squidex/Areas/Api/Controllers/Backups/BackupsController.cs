@@ -5,12 +5,13 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Squidex.Areas.Api.Controllers.Backups.Models;
 using Squidex.Domain.Apps.Entities.Backup;
+using Squidex.Infrastructure;
 using Squidex.Infrastructure.Commands;
 using Squidex.Infrastructure.Security;
 using Squidex.Infrastructure.Tasks;
@@ -43,8 +44,8 @@ namespace Squidex.Areas.Api.Controllers.Backups
         /// </returns>
         [HttpGet]
         [Route("apps/{app}/backups/")]
-        [ProducesResponseType(typeof(BackupJobsDto), 200)]
-        [ApiPermission(Permissions.AppBackupsRead)]
+        [ProducesResponseType(typeof(BackupJobsDto), StatusCodes.Status200OK)]
+        [ApiPermissionOrAnonymous(Permissions.AppBackupsRead)]
         [ApiCosts(0)]
         public async Task<IActionResult> GetBackups(string app)
         {
@@ -61,12 +62,13 @@ namespace Squidex.Areas.Api.Controllers.Backups
         /// <param name="app">The name of the app.</param>
         /// <returns>
         /// 204 => Backup started.
+        /// 400 => Backup contingent reached.
         /// 404 => App not found.
         /// </returns>
         [HttpPost]
         [Route("apps/{app}/backups/")]
-        [ProducesResponseType(typeof(List<BackupJobDto>), 200)]
-        [ApiPermission(Permissions.AppBackupsCreate)]
+        [ProducesResponseType(typeof(List<BackupJobDto>), StatusCodes.Status200OK)]
+        [ApiPermissionOrAnonymous(Permissions.AppBackupsCreate)]
         [ApiCosts(0)]
         public IActionResult PostBackup(string app)
         {
@@ -81,15 +83,15 @@ namespace Squidex.Areas.Api.Controllers.Backups
         /// <param name="app">The name of the app.</param>
         /// <param name="id">The id of the backup to delete.</param>
         /// <returns>
-        /// 204 => Backup started.
+        /// 204 => Backup deleted.
         /// 404 => Backup or app not found.
         /// </returns>
         [HttpDelete]
         [Route("apps/{app}/backups/{id}")]
-        [ProducesResponseType(typeof(List<BackupJobDto>), 200)]
-        [ApiPermission(Permissions.AppBackupsDelete)]
+        [ProducesResponseType(typeof(List<BackupJobDto>), StatusCodes.Status200OK)]
+        [ApiPermissionOrAnonymous(Permissions.AppBackupsDelete)]
         [ApiCosts(0)]
-        public async Task<IActionResult> DeleteBackup(string app, Guid id)
+        public async Task<IActionResult> DeleteBackup(string app, DomainId id)
         {
             await backupService.DeleteBackupAsync(AppId, id);
 

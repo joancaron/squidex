@@ -11,27 +11,22 @@ import { AnalyticsService, ApiUrlConfig, hasAnyLink, HTTP, mapVersioned, pretify
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 
-export type ContributorsDto = Versioned<ContributorsPayload>;
-export type ContributorsPayload = {
-    readonly items: ReadonlyArray<ContributorDto>;
-
-    readonly maxContributors: number;
-
-    readonly canCreate: boolean;
-} & Resource;
-
 export class ContributorDto {
     public readonly _links: ResourceLinks;
 
     public readonly canUpdate: boolean;
     public readonly canRevoke: boolean;
 
+    public get token() {
+        return `subject:${this.contributorId}`;
+    }
+
     constructor(
         links: ResourceLinks,
         public readonly contributorId: string,
         public readonly contributorName: string,
         public readonly contributorEmail: string,
-        public readonly role: string
+        public readonly role: string,
     ) {
         this._links = links;
 
@@ -40,18 +35,21 @@ export class ContributorDto {
     }
 }
 
-export interface AssignContributorDto {
-    readonly contributorId: string;
-    readonly role: string;
-    readonly invite?: boolean;
-}
+export type ContributorsDto =
+    Versioned<ContributorsPayload>;
+
+export type ContributorsPayload =
+    Readonly<{ items: ReadonlyArray<ContributorDto>; maxContributors: number; canCreate: boolean } & Resource>;
+
+export type AssignContributorDto =
+    Readonly<{ contributorId: string; role: string; invite?: boolean }>;
 
 @Injectable()
 export class ContributorsService {
     constructor(
         private readonly http: HttpClient,
         private readonly apiUrl: ApiUrlConfig,
-        private readonly analytics: AnalyticsService
+        private readonly analytics: AnalyticsService,
     ) {
     }
 
@@ -62,7 +60,7 @@ export class ContributorsService {
             mapVersioned(({ body }) => {
                 return parseContributors(body);
             }),
-            pretifyError('Failed to load contributors. Please reload.'));
+            pretifyError('i18n:contributors.loadFailed'));
     }
 
     public postContributor(appName: string, dto: AssignContributorDto, version: Version): Observable<ContributorsDto> {
@@ -75,7 +73,7 @@ export class ContributorsService {
             tap(() => {
                 this.analytics.trackEvent('Contributor', 'Configured', appName);
             }),
-            pretifyError('Failed to add contributors. Please reload.'));
+            pretifyError('i18n:contributors.addFailed'));
     }
 
     public deleteContributor(appName: string, resource: Resource, version: Version): Observable<ContributorsDto> {
@@ -92,7 +90,7 @@ export class ContributorsService {
             tap(() => {
                 this.analytics.trackEvent('Contributor', 'Deleted', appName);
             }),
-            pretifyError('Failed to delete contributors. Please reload.'));
+            pretifyError('i18n:contributors.deleteFailed'));
     }
 }
 

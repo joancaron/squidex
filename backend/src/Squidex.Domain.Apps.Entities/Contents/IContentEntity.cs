@@ -1,12 +1,10 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
-// ==========================================================================
 
-using System;
 using Squidex.Domain.Apps.Core.Contents;
 using Squidex.Infrastructure;
 
@@ -18,15 +16,15 @@ namespace Squidex.Domain.Apps.Entities.Contents
         IEntityWithLastModifiedBy,
         IEntityWithVersion
     {
-        NamedId<Guid> AppId { get; }
+        NamedId<DomainId> AppId { get; }
 
-        NamedId<Guid> SchemaId { get; }
+        NamedId<DomainId> SchemaId { get; }
 
         Status? NewStatus { get; }
 
         Status Status { get; }
 
-        NamedContentData Data { get; }
+        ContentData Data { get; }
 
         ScheduleJob? ScheduleJob { get; }
     }

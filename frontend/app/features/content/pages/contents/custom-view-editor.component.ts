@@ -5,8 +5,6 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable: readonly-array
-
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, Output } from '@angular/core';
 
@@ -14,14 +12,14 @@ import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, Out
     selector: 'sqx-custom-view-editor',
     styleUrls: ['./custom-view-editor.component.scss'],
     templateUrl: './custom-view-editor.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CustomViewEditorComponent implements OnChanges {
     @Output()
     public fieldNamesChange = new EventEmitter<ReadonlyArray<string>>();
 
     @Input()
-    public fieldNames: ReadonlyArray<string>;
+    public fieldNames: string[];
 
     @Input()
     public allFields: ReadonlyArray<string>;
@@ -32,7 +30,7 @@ export class CustomViewEditorComponent implements OnChanges {
         this.fieldsNotAdded = this.allFields.filter(n => this.fieldNames.indexOf(n) < 0);
     }
 
-    public drop(event: CdkDragDrop<string[]>) {
+    public drop(event: CdkDragDrop<string[], any>) {
         moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
 
         this.updateFieldNames(event.container.data);

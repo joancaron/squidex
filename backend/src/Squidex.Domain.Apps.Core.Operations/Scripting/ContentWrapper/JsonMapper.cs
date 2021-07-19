@@ -1,7 +1,7 @@
 // ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -24,13 +24,13 @@ namespace Squidex.Domain.Apps.Core.Scripting.ContentWrapper
 
             switch (value)
             {
-                case JsonNull _:
+                case JsonNull:
                     return JsValue.Null;
-                case JsonScalar<string> s:
+                case JsonString s:
                     return new JsString(s.Value);
-                case JsonScalar<bool> b:
+                case JsonBoolean b:
                     return new JsBoolean(b.Value);
-                case JsonScalar<double> b:
+                case JsonNumber b:
                     return new JsNumber(b.Value);
                 case JsonObject obj:
                     return FromObject(obj, engine);
@@ -61,6 +61,8 @@ namespace Squidex.Domain.Apps.Core.Scripting.ContentWrapper
             {
                 target.FastAddProperty(key, Map(value, engine), false, true, true);
             }
+
+            target.PreventExtensions();
 
             return target;
         }
@@ -103,7 +105,7 @@ namespace Squidex.Domain.Apps.Core.Scripting.ContentWrapper
 
                 var result = JsonValue.Array();
 
-                for (var i = 0; i < arr.GetLength(); i++)
+                for (var i = 0; i < arr.Length; i++)
                 {
                     result.Add(Map(arr.Get(i.ToString())));
                 }
@@ -119,7 +121,7 @@ namespace Squidex.Domain.Apps.Core.Scripting.ContentWrapper
 
                 foreach (var (key, propertyDescriptor) in obj.GetOwnProperties())
                 {
-                    result[key] = Map(propertyDescriptor.Value);
+                    result[key.AsString()] = Map(propertyDescriptor.Value);
                 }
 
                 return result;

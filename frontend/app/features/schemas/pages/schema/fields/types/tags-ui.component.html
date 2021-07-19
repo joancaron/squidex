@@ -1,57 +1,32 @@
-<div [formGroup]="editForm">
+<div [formGroup]="fieldForm">
     <div class="form-group row">
-        <label class="col-3 col-form-label" for="{{field.fieldId}}_editorUrl">Editor Url</label>
-
-        <div class="col-6">
-            <input type="text" class="form-control" id="{{field.fieldId}}_editorUrl" formControlName="editorUrl" />
-
-            <sqx-form-hint>
-                Url to your plugin if you use a custom editor.
-            </sqx-form-hint>
-        </div>
-    </div>
-    <div class="form-group row">
-        <label class="col-3 col-form-label" for="{{field.fieldId}}_fieldPlaceholder">Placeholder</label>
-
-        <div class="col-6">
-            <input type="text" class="form-control" id="{{field.fieldId}}_fieldPlaceholder" maxlength="100" formControlName="placeholder" />
-
-            <sqx-form-hint>
-                Define the placeholder for the input control.
-            </sqx-form-hint>
-        </div>
-    </div>
-    <div class="form-group row">
-        <label class="col-3 col-form-label">Editor</label>
+        <label class="col-3 col-form-label" for="{{field.fieldId}}_fieldPlaceholder">{{ 'schemas.field.placeholder' | sqxTranslate }}</label>
 
         <div class="col-9">
-            <label class="btn btn-radio" [class.active]="editForm.controls['editor'].value === 'Tags'">
-                <input type="radio" class="radio-input" name="editor" formControlName="editor" value="Tags" />
+            <input type="text" class="form-control" id="{{field.fieldId}}_fieldPlaceholder" maxlength="100" formControlName="placeholder">
 
-                <i class="icon-control-Tags"></i>
+            <sqx-form-hint>
+                {{ 'schemas.field.placeholderHint' | sqxTranslate }}
+            </sqx-form-hint>
+        </div>
+    </div>
+    <div class="form-group row">
+        <label class="col-3 col-form-label">{{ 'schemas.field.editor' | sqxTranslate }}</label>
 
-                <span class="radio-label">Tags</span>
-            </label>
-            <label class="btn btn-radio" [class.active]="editForm.controls['editor'].value === 'Dropdown'">
-                <input type="radio" class="radio-input" name="editor" formControlName="editor" value="Dropdown" />
+        <div class="col-9">
+            <label class="btn btn-radio" *ngFor="let editor of editors" [class.active]="fieldForm.controls['editor'].value === editor">
+                <input type="radio" class="radio-input" name="editor" formControlName="editor" [value]="editor">
 
-                <i class="icon-control-Dropdown"></i>
+                <i class="icon-control-{{editor}}"></i>
 
-                <span class="radio-label" clas>Dropdown</span>
-            </label>
-            <label class="btn btn-radio" [class.active]="editForm.controls['editor'].value === 'Checkboxes'">
-                <input type="radio" class="radio-input" name="editor" formControlName="editor" value="Checkboxes" />
-
-                <i class="icon-control-Checkboxes"></i>
-
-                <span class="radio-label">Checkboxes</span>
+                <span class="radio-label">{{editor}}</span>
             </label>
         </div>
     </div>
     <div class="form-group row">
-        <label class="col-3 col-form-label">Allowed Values</label>
+        <label class="col-3 col-form-label">{{ 'schemas.field.allowedValues' | sqxTranslate }}</label>
 
-        <div class="col-6">
+        <div class="col-9">
             <sqx-tag-editor formControlName="allowedValues"></sqx-tag-editor>
         </div>
     </div>

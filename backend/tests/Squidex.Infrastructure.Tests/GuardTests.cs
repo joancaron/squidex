@@ -1,34 +1,17 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
-using System.Collections.Generic;
-using Squidex.Infrastructure.Validation;
 using Xunit;
 
 namespace Squidex.Infrastructure
 {
     public class GuardTests
     {
-        private sealed class MyValidatableValid : IValidatable
-        {
-            public void Validate(IList<ValidationError> errors)
-            {
-            }
-        }
-
-        private sealed class MyValidatableInvalid : IValidatable
-        {
-            public void Validate(IList<ValidationError> errors)
-            {
-                errors.Add(new ValidationError("error.", "error"));
-            }
-        }
-
         [Theory]
         [InlineData("")]
         [InlineData(" ")]
@@ -80,9 +63,21 @@ namespace Squidex.Infrastructure
         }
 
         [Fact]
+        public void NotEmpty_should_throw_for_empty_domainId()
+        {
+            Assert.Throws<ArgumentException>(() => Guard.NotEmpty((DomainId)default, "parameter"));
+        }
+
+        [Fact]
         public void NotEmpty_should_do_nothing_for_valid_guid()
         {
             Guard.NotEmpty(Guid.NewGuid(), "parameter");
+        }
+
+        [Fact]
+        public void NotEmpty_should_do_nothing_for_valid_id()
+        {
+            Guard.NotEmpty(DomainId.NewGuid(), "parameter");
         }
 
         [Fact]
@@ -313,7 +308,7 @@ namespace Squidex.Infrastructure
         [Fact]
         public void NotEmpty_should_throw_for_empty_collection()
         {
-            Assert.Throws<ArgumentException>(() => Guard.NotEmpty(new int[0], "parameter"));
+            Assert.Throws<ArgumentException>(() => Guard.NotEmpty(Array.Empty<int>(), "parameter"));
         }
 
         [Fact]
@@ -344,24 +339,6 @@ namespace Squidex.Infrastructure
         public void ValidFileName_should_do_nothing_for_valid_file_name()
         {
             Guard.ValidFileName("FileName", "Parameter");
-        }
-
-        [Fact]
-        public void Valid_should_throw_exception_if_null()
-        {
-            Assert.Throws<ArgumentNullException>(() => Guard.Valid(null, "Parameter", () => "Message"));
-        }
-
-        [Fact]
-        public void Valid_should_throw_exception_if_invalid()
-        {
-            Assert.Throws<ValidationException>(() => Guard.Valid(new MyValidatableInvalid(), "Parameter", () => "Message"));
-        }
-
-        [Fact]
-        public void Valid_should_do_nothing_if_valid()
-        {
-            Guard.Valid(new MyValidatableValid(), "Parameter", () => "Message");
         }
     }
 }

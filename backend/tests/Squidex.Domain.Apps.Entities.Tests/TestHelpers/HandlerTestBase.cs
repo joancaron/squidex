@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
+using System.Threading.Tasks;
 using FakeItEasy;
 using Squidex.Domain.Apps.Events;
 using Squidex.Infrastructure;
@@ -16,22 +17,22 @@ using Squidex.Infrastructure.Commands;
 using Squidex.Infrastructure.EventSourcing;
 using Squidex.Infrastructure.Orleans;
 using Squidex.Infrastructure.States;
+using Xunit;
 
 namespace Squidex.Domain.Apps.Entities.TestHelpers
 {
     public abstract class HandlerTestBase<TState>
     {
-        private readonly IStore<Guid> store = A.Fake<IStore<Guid>>();
-        private readonly IPersistence<TState> persistenceWithState = A.Fake<IPersistence<TState>>();
-        private readonly IPersistence persistence = A.Fake<IPersistence>();
+        private readonly IPersistenceFactory<TState> persistenceFactory = A.Fake<IStore<TState>>();
+        private readonly IPersistence<TState> persistence = A.Fake<IPersistence<TState>>();
 
-        protected RefToken Actor { get; } = new RefToken(RefTokenType.Subject, "me");
+        protected RefToken Actor { get; } = RefToken.User("me");
 
-        protected RefToken ActorClient { get; } = new RefToken(RefTokenType.Client, "client");
+        protected RefToken ActorClient { get; } = RefToken.Client("client");
 
-        protected Guid AppId { get; } = Guid.NewGuid();
+        protected DomainId AppId { get; } = DomainId.NewGuid();
 
-        protected Guid SchemaId { get; } = Guid.NewGuid();
+        protected DomainId SchemaId { get; } = DomainId.NewGuid();
 
         protected string AppName { get; } = "my-app";
 
@@ -39,55 +40,75 @@ namespace Squidex.Domain.Apps.Entities.TestHelpers
 
         protected ClaimsPrincipal User { get; } = Mocks.FrontendUser();
 
-        protected NamedId<Guid> AppNamedId
+        protected NamedId<DomainId> AppNamedId
         {
-            get { return NamedId.Of(AppId, AppName); }
+            get => NamedId.Of(AppId, AppName);
         }
 
-        protected NamedId<Guid> SchemaNamedId
+        protected NamedId<DomainId> SchemaNamedId
         {
-            get { return NamedId.Of(SchemaId, SchemaName); }
+            get => NamedId.Of(SchemaId, SchemaName);
         }
 
-        protected abstract Guid Id { get; }
+        protected abstract DomainId Id { get; }
 
-        public IStore<Guid> Store
+        public IPersistenceFactory<TState> PersistenceFactory
         {
-            get { return store; }
+            get => persistenceFactory;
         }
 
         public IEnumerable<Envelope<IEvent>> LastEvents { get; private set; } = Enumerable.Empty<Envelope<IEvent>>();
 
         protected HandlerTestBase()
         {
-            A.CallTo(() => store.WithSnapshotsAndEventSourcing(A<Type>._, Id, A<HandleSnapshot<TState>>._, A<HandleEvent>._))
-                .Returns(persistenceWithState);
-
-            A.CallTo(() => store.WithEventSourcing(A<Type>._, Id, A<HandleEvent>._))
+            A.CallTo(() => persistenceFactory.WithSnapshotsAndEventSourcing(A<Type>._, Id, A<HandleSnapshot<TState>>._, A<HandleEvent>._))
                 .Returns(persistence);
 
-            A.CallTo(() => persistenceWithState.WriteEventsAsync(A<IEnumerable<Envelope<IEvent>>>._))
-                .Invokes((IEnumerable<Envelope<IEvent>> events) => LastEvents = events);
+            A.CallTo(() => persistenceFactory.WithEventSourcing(A<Type>._, Id, A<HandleEvent>._))
+                .Returns(persistence);
 
-            A.CallTo(() => persistence.WriteEventsAsync(A<IEnumerable<Envelope<IEvent>>>._))
-                .Invokes((IEnumerable<Envelope<IEvent>> events) => LastEvents = events);
+            A.CallTo(() => persistence.WriteEventsAsync(A<IReadOnlyList<Envelope<IEvent>>>._))
+                .Invokes((IReadOnlyList<Envelope<IEvent>> events) => LastEvents = events);
+
+            A.CallTo(() => persistence.DeleteAsync())
+                .Invokes(() => LastEvents = Enumerable.Empty<Envelope<IEvent>>());
         }
 
-        protected CommandContext CreateContextForCommand<TCommand>(TCommand command) where TCommand : SquidexCommand
+        protected CommandContext CreateCommandContext<TCommand>(TCommand command) where TCommand : SquidexCommand
         {
             return new CommandContext(CreateCommand(command), A.Dummy<ICommandBus>());
+        }
+
+        protected async Task<CommandContext> HandleAsync<TCommand>(ICommandMiddleware middleware, TCommand command) where TCommand : SquidexCommand
+        {
+            var context = new CommandContext(CreateCommand(command), A.Dummy<ICommandBus>());
+
+            await middleware.HandleAsync(context);
+
+            return context;
+        }
+
+        protected async Task<object> PublishIdempotentAsync<T>(DomainObject<T> domainObject, IAggregateCommand command) where T : class, IDomainState<T>, new()
+        {
+            var result = await domainObject.ExecuteAsync(command);
+
+            var previousSnapshot = domainObject.Snapshot;
+            var previousVersion = domainObject.Snapshot.Version;
+
+            await domainObject.ExecuteAsync(command);
+
+            Assert.Same(previousSnapshot, domainObject.Snapshot);
+            Assert.Equal(previousVersion, domainObject.Snapshot.Version);
+
+            return result.Payload;
         }
 
         protected TCommand CreateCommand<TCommand>(TCommand command) where TCommand : SquidexCommand
         {
             command.ExpectedVersion = EtagVersion.Any;
+            command.Actor ??= Actor;
 
-            if (command.Actor == null)
-            {
-                command.Actor = Actor;
-            }
-
-            if (command.User == null && command.Actor.IsSubject)
+            if (command.User == null && command.Actor.IsUser)
             {
                 command.User = User;
             }

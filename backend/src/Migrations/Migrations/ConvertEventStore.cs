@@ -6,10 +6,10 @@
 // ==========================================================================
 
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using MongoDB.Bson;
 using MongoDB.Driver;
-using Newtonsoft.Json.Linq;
 using Squidex.Infrastructure.EventSourcing;
 using Squidex.Infrastructure.Migrations;
 
@@ -24,7 +24,7 @@ namespace Migrations.Migrations
             this.eventStore = eventStore;
         }
 
-        public async Task UpdateAsync()
+        public async Task UpdateAsync(CancellationToken ct)
         {
             if (eventStore is MongoEventStore mongoEventStore)
             {
@@ -32,20 +32,20 @@ namespace Migrations.Migrations
 
                 var filter = Builders<BsonDocument>.Filter;
 
-                var writesBatches = new List<WriteModel<BsonDocument>>();
+                var writes = new List<WriteModel<BsonDocument>>();
 
                 async Task WriteAsync(WriteModel<BsonDocument>? model, bool force)
                 {
                     if (model != null)
                     {
-                        writesBatches.Add(model);
+                        writes.Add(model);
                     }
 
-                    if (writesBatches.Count == 1000 || (force && writesBatches.Count > 0))
+                    if (writes.Count == 1000 || (force && writes.Count > 0))
                     {
-                        await collection.BulkWriteAsync(writesBatches);
+                        await collection.BulkWriteAsync(writes, cancellationToken: ct);
 
-                        writesBatches.Clear();
+                        writes.Clear();
                     }
                 }
 
@@ -53,14 +53,14 @@ namespace Migrations.Migrations
                 {
                     foreach (BsonDocument @event in commit["Events"].AsBsonArray)
                     {
-                        var meta = JObject.Parse(@event["Metadata"].AsString);
+                        var meta = BsonDocument.Parse(@event["Metadata"].AsString);
 
                         @event.Remove("EventId");
-                        @event["Metadata"] = meta.ToBson();
+                        @event["Metadata"] = meta;
                     }
 
                     await WriteAsync(new ReplaceOneModel<BsonDocument>(filter.Eq("_id", commit["_id"].AsString), commit), false);
-                });
+                }, ct);
 
                 await WriteAsync(null, true);
             }

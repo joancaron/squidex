@@ -15,7 +15,11 @@
 }
 
 .buttons {
-    @include absolute(8px, 8px, auto, auto);
+    @include absolute(8px, 8px);
+}
+
+.buttons2 {
+    @include absolute(.75rem, 1.75rem);
 }
 
 .save-search {
@@ -32,6 +36,14 @@
         font-size: .9rem;
         font-weight: normal;
         padding: 0 .5rem;
+    }
+
+    &:focus {
+        text-decoration: none;
+    }
+
+    &:hover {
+        text-decoration: none;
     }
 
     &.highlighted {

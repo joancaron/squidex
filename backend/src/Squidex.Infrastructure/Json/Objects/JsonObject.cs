@@ -33,27 +33,32 @@ namespace Squidex.Infrastructure.Json.Objects
 
         public IEnumerable<string> Keys
         {
-            get { return inner.Keys; }
+            get => inner.Keys;
         }
 
         public IEnumerable<IJsonValue> Values
         {
-            get { return inner.Values; }
+            get => inner.Values;
         }
 
         public int Count
         {
-            get { return inner.Count; }
+            get => inner.Count;
         }
 
         public JsonValueType Type
         {
-            get { return JsonValueType.Array; }
+            get => JsonValueType.Object;
         }
 
         public JsonObject()
         {
             inner = new Dictionary<string, IJsonValue>();
+        }
+
+        public JsonObject(int capacity)
+        {
+            inner = new Dictionary<string, IJsonValue>(capacity);
         }
 
         public JsonObject(JsonObject obj)
@@ -98,6 +103,20 @@ namespace Squidex.Infrastructure.Json.Objects
             return inner.TryGetValue(key, out value!);
         }
 
+        public bool TryGetValue<T>(string key, [MaybeNullWhen(false)] out T value) where T : class, IJsonValue
+        {
+            if (inner.TryGetValue(key, out var temp) && temp is T typed)
+            {
+                value = typed;
+                return true;
+            }
+            else
+            {
+                value = null!;
+                return false;
+            }
+        }
+
         public IEnumerator<KeyValuePair<string, IJsonValue>> GetEnumerator()
         {
             return inner.GetEnumerator();
@@ -113,7 +132,7 @@ namespace Squidex.Infrastructure.Json.Objects
             return Equals(obj as JsonObject);
         }
 
-        public bool Equals(IJsonValue other)
+        public bool Equals(IJsonValue? other)
         {
             return Equals(other as JsonObject);
         }

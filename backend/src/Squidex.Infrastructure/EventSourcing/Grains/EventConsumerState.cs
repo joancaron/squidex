@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -12,35 +12,50 @@ namespace Squidex.Infrastructure.EventSourcing.Grains
 {
     public sealed class EventConsumerState
     {
-        public bool IsStopped { get; set; }
+        public static readonly EventConsumerState Initial = new EventConsumerState();
 
-        public string? Error { get; set; }
+        public bool IsStopped { get; init; }
 
-        public string? Position { get; set; }
+        public string? Error { get; init; }
 
-        public EventConsumerState Reset()
+        public string? Position { get; init; }
+
+        public int Count { get; init; }
+
+        public bool IsPaused
         {
-            return new EventConsumerState();
+            get => IsStopped && string.IsNullOrWhiteSpace(Error);
         }
 
-        public EventConsumerState Handled(string position)
+        public bool IsFailed
         {
-            return new EventConsumerState { Position = position };
+            get => IsStopped && !string.IsNullOrWhiteSpace(Error);
         }
 
-        public EventConsumerState Failed(Exception ex)
+        public EventConsumerState()
         {
-            return new EventConsumerState { Position = Position, IsStopped = true, Error = ex?.ToString() };
         }
 
-        public EventConsumerState Stopped()
+        public EventConsumerState(string? position, int count)
         {
-            return new EventConsumerState { Position = Position, IsStopped = true };
+            Position = position;
+
+            Count = count;
+        }
+
+        public EventConsumerState Handled(string position, int offset = 1)
+        {
+            return new EventConsumerState(position, Count + offset);
+        }
+
+        public EventConsumerState Stopped(Exception? ex = null)
+        {
+            return new EventConsumerState(Position, Count) { IsStopped = true, Error = ex?.ToString() };
         }
 
         public EventConsumerState Started()
         {
-            return new EventConsumerState { Position = Position, IsStopped = false };
+            return new EventConsumerState(Position, Count);
         }
 
         public EventConsumerInfo ToInfo(string name)

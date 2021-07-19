@@ -1,14 +1,14 @@
 #
 # Stage 1, Build Backend
 #
-FROM mcr.microsoft.com/dotnet/core/sdk:3.1-buster as backend
+FROM mcr.microsoft.com/dotnet/sdk:5.0 as backend
 
-ARG SQUIDEX__VERSION=4.0.0
+ARG SQUIDEX__VERSION=5.0.0
 
 WORKDIR /src
 
 # Copy nuget project files.
-COPY backend/*.sln backend/NuGet.Config  ./
+COPY backend/*.sln ./
 
 # Copy the main source project files
 COPY backend/src/*/*.csproj ./
@@ -36,15 +36,20 @@ RUN dotnet publish --no-restore src/Squidex/Squidex.csproj --output /build/ --co
 #
 # Stage 2, Build Frontend
 #
-FROM buildkite/puppeteer:latest as frontend
+FROM buildkite/puppeteer:5.2.1 as frontend
 
 WORKDIR /src
+
+ENV CONTINUOUS_INTEGRATION=1
 
 # Copy Node project files.
 COPY frontend/package*.json /tmp/
 
+# Copy patches for broken npm packages
+COPY frontend/patches /tmp/patches
+
 # Install Node packages 
-RUN cd /tmp && npm install --loglevel=error
+RUN cd /tmp && npm set unsafe-perm true && npm install --loglevel=error
 
 COPY frontend .
 
@@ -59,13 +64,19 @@ RUN cp -a build /build/
 #
 # Stage 3, Build runtime
 #
-FROM mcr.microsoft.com/dotnet/core/aspnet:3.1-buster-slim
+FROM mcr.microsoft.com/dotnet/aspnet:5.0.0-buster-slim
+
+# Curl for debugging and libc-dev for Protobuf
+RUN apt-get update \
+ && apt-get install -y curl libc-dev
 
 # Default AspNetCore directory
 WORKDIR /app
 
-# Copy from build stages
+# Copy from backend build stages
 COPY --from=backend /build/ .
+
+# Copy from backend build stages to webserver folder
 COPY --from=frontend /build/ wwwroot/build/
 
 EXPOSE 80

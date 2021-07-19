@@ -12,11 +12,11 @@ import { FieldDto, GeolocationFieldPropertiesDto } from '@app/shared';
 @Component({
     selector: 'sqx-geolocation-validation',
     styleUrls: ['geolocation-validation.component.scss'],
-    templateUrl: 'geolocation-validation.component.html'
+    templateUrl: 'geolocation-validation.component.html',
 })
 export class GeolocationValidationComponent {
     @Input()
-    public editForm: FormGroup;
+    public fieldForm: FormGroup;
 
     @Input()
     public field: FieldDto;

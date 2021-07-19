@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -9,7 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using FakeItEasy;
-using Squidex.Infrastructure.Log;
+using Squidex.Log;
 using Xunit;
 
 namespace Squidex.Infrastructure.Commands
@@ -36,6 +36,11 @@ namespace Squidex.Infrastructure.Commands
             }
 
             public ISemanticLog CreateScope(Action<IObjectWriter> objectWriter)
+            {
+                throw new NotSupportedException();
+            }
+
+            public ISemanticLog CreateScope(ILogAppender appender)
             {
                 throw new NotSupportedException();
             }

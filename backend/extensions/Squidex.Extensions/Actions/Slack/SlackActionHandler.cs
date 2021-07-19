@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -12,7 +12,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Squidex.Domain.Apps.Core.HandleRules;
 using Squidex.Domain.Apps.Core.Rules.EnrichedEvents;
-using Squidex.Infrastructure;
 
 namespace Squidex.Extensions.Actions.Slack
 {
@@ -25,14 +24,12 @@ namespace Squidex.Extensions.Actions.Slack
         public SlackActionHandler(RuleEventFormatter formatter, IHttpClientFactory httpClientFactory)
             : base(formatter)
         {
-            Guard.NotNull(httpClientFactory, nameof(httpClientFactory));
-
             this.httpClientFactory = httpClientFactory;
         }
 
-        protected override (string Description, SlackJob Data) CreateJob(EnrichedEvent @event, SlackAction action)
+        protected override async Task<(string Description, SlackJob Data)> CreateJobAsync(EnrichedEvent @event, SlackAction action)
         {
-            var body = new { text = Format(action.Text, @event) };
+            var body = new { text = await FormatAsync(action.Text, @event) };
 
             var ruleJob = new SlackJob
             {

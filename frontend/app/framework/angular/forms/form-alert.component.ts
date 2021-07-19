@@ -11,18 +11,18 @@ import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
     selector: 'sqx-form-alert',
     styleUrls: ['./form-alert.component.scss'],
     templateUrl: './form-alert.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FormAlertComponent {
     @Input()
     public class: string;
 
     @Input()
-    public marginTop = 2;
+    public marginTop: number | string | undefined | null = 2;
 
     @Input()
-    public marginBottom = 4;
+    public marginBottom: number | string | undefined | null = 4;
 
     @Input()
-    public light = false;
+    public light?: boolean | null;
 }

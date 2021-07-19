@@ -6,51 +6,59 @@
  */
 
 import { AfterContentInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ContentChildren, forwardRef, Input, OnChanges, OnInit, QueryList, SimpleChanges, TemplateRef } from '@angular/core';
-import { ControlValueAccessor, FormControl, NG_VALUE_ACCESSOR } from '@angular/forms';
+import { FormControl, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { Keys, ModalModel, StatefulControlComponent, Types } from '@app/framework/internal';
 import { map } from 'rxjs/operators';
 
 export const SQX_DROPDOWN_CONTROL_VALUE_ACCESSOR: any = {
-    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => DropdownComponent), multi: true
+    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => DropdownComponent), multi: true,
 };
 
 interface State {
     // The suggested item.
     suggestedItems: ReadonlyArray<any>;
 
-    // The selected suggested item.
-    selectedItem: any;
-
     // The selected suggested index.
-    selectedIndex: number;
+    suggestedIndex: number;
+
+    // The selected item.
+    selectedItem?: any;
 
     // The current search query.
     query?: RegExp;
 }
-
-const NO_EMIT = { emitEvent: false };
 
 @Component({
     selector: 'sqx-dropdown',
     styleUrls: ['./dropdown.component.scss'],
     templateUrl: './dropdown.component.html',
     providers: [
-        SQX_DROPDOWN_CONTROL_VALUE_ACCESSOR
+        SQX_DROPDOWN_CONTROL_VALUE_ACCESSOR,
     ],
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class DropdownComponent extends StatefulControlComponent<State, ReadonlyArray<any>> implements AfterContentInit, ControlValueAccessor, OnChanges, OnInit {
+export class DropdownComponent extends StatefulControlComponent<State, ReadonlyArray<any>> implements AfterContentInit, OnChanges, OnInit {
+    private value: any;
+
     @Input()
-    public items: ReadonlyArray<any> = [];
+    public items: ReadonlyArray<any> | undefined | null = [];
 
     @Input()
     public searchProperty = 'name';
 
     @Input()
-    public canSearch = true;
+    public valueProperty?: string;
 
     @Input()
-    public separated = false;
+    public canSearch?: boolean | null = true;
+
+    @Input()
+    public separated?: boolean | null;
+
+    @Input()
+    public set disabled(value: boolean | null | undefined) {
+        this.setDisabledState(value === true);
+    }
 
     @ContentChildren(TemplateRef)
     public templates: QueryList<any>;
@@ -65,50 +73,47 @@ export class DropdownComponent extends StatefulControlComponent<State, ReadonlyA
     constructor(changeDetector: ChangeDetectorRef) {
         super(changeDetector, {
             selectedItem: undefined,
-            selectedIndex: -1,
-            suggestedItems: []
+            suggestedIndex: -1,
+            suggestedItems: [],
         });
     }
 
     public ngOnInit() {
         this.own(
             this.queryInput.valueChanges.pipe(
-                    map((queryText: string) => {
-                        if (!this.items || !queryText) {
-                            return { query: undefined, items: this.items };
-                        } else {
-                            const query = new RegExp(queryText, 'i');
+                map((queryText: string) => {
+                    if (!this.items || !queryText) {
+                        return { query: undefined, items: this.items };
+                    } else {
+                        const query = new RegExp(queryText, 'i');
 
-                            const items = this.items.filter(x => {
-                                if (Types.isString(x)) {
-                                    return query.test(x);
-                                } else {
-                                    return query.test(x[this.searchProperty]);
-                                }
-                            });
+                        const items = this.items.filter(x => {
+                            if (Types.isString(x)) {
+                                return query.test(x);
+                            } else {
+                                return query.test(x[this.searchProperty]);
+                            }
+                        });
 
-                            return { query, items };
-                        }
-                    }))
+                        return { query, items };
+                    }
+                }))
                 .subscribe(({ query, items }) => {
-                    this.next(s => ({
-                        ...s,
-                        suggestedIndex: 0,
+                    this.next({
                         suggestedItems: items || [],
-                        query
-                    }));
+                        query,
+                    });
                 }));
     }
 
     public ngOnChanges(changes: SimpleChanges) {
         if (changes['items']) {
-            this.resetSearch();
+            this.items = this.items || [];
 
-            this.next(s => ({
-                ...s,
-                suggestedIndex: 0,
-                suggestedItems: this.items || []
-            }));
+            this.next({ suggestedItems: this.items });
+
+            this.selectSearch('');
+            this.selectIndex(this.getSelectedIndex(this.value), false);
         }
     }
 
@@ -127,35 +132,32 @@ export class DropdownComponent extends StatefulControlComponent<State, ReadonlyA
     }
 
     public writeValue(obj: any) {
-        this.selectIndex(this.items && obj ? this.items.indexOf(obj) : 0, false);
+        this.value = obj;
+
+        this.selectIndex(this.getSelectedIndex(obj), false);
     }
 
-    public setDisabledState(isDisabled: boolean): void {
-        super.setDisabledState(isDisabled);
-
+    public onDisabled(isDisabled: boolean) {
         if (isDisabled) {
-            this.queryInput.disable(NO_EMIT);
+            this.queryInput.disable({ emitEvent: false });
         } else {
-            this.queryInput.enable(NO_EMIT);
+            this.queryInput.enable({ emitEvent: false });
         }
     }
 
     public onKeyDown(event: KeyboardEvent) {
-        switch (event.keyCode) {
-            case Keys.UP:
-                this.selectPrevIndex();
-                return false;
-            case Keys.DOWN:
-                this.selectNextIndex();
-                return false;
-            case Keys.ENTER:
-                this.selectIndexAndClose(this.snapshot.selectedIndex);
-                return false;
-            case Keys.ESCAPE:
-                if (this.dropdown.isOpen) {
-                    this.close();
-                    return false;
-                }
+        if (Keys.isEscape(event) && this.dropdown.isOpen) {
+            this.close();
+            return false;
+        } else if (Keys.isUp(event)) {
+            this.selectPrevIndex();
+            return false;
+        } else if (Keys.isDown(event)) {
+            this.selectNextIndex();
+            return false;
+        } else if (Keys.isEnter(event)) {
+            this.selectIndexAndClose(this.snapshot.suggestedIndex);
+            return false;
         }
 
         return true;
@@ -163,7 +165,7 @@ export class DropdownComponent extends StatefulControlComponent<State, ReadonlyA
 
     public open() {
         if (!this.dropdown.isOpen) {
-            this.resetSearch();
+            this.selectSearch('');
         }
 
         this.dropdown.show();
@@ -181,38 +183,66 @@ export class DropdownComponent extends StatefulControlComponent<State, ReadonlyA
         this.dropdown.hide();
     }
 
-    private resetSearch() {
-        this.queryInput.setValue('');
+    private selectSearch(value: string) {
+        this.queryInput.setValue(value);
     }
 
     public selectPrevIndex() {
-        this.selectIndex(this.snapshot.selectedIndex - 1, true);
+        this.selectIndex(this.snapshot.suggestedIndex - 1, true);
     }
 
     public selectNextIndex() {
-        this.selectIndex(this.snapshot.selectedIndex + 1, true);
+        this.selectIndex(this.snapshot.suggestedIndex + 1, true);
     }
 
-    public selectIndex(selectedIndex: number, emitEvents: boolean) {
-        if (selectedIndex < 0) {
-            selectedIndex = 0;
-        }
-
+    public selectIndex(suggestedIndex: number, fromUserAction: boolean) {
         const items = this.snapshot.suggestedItems || [];
 
-        if (selectedIndex >= items.length) {
-            selectedIndex = items.length - 1;
+        if (suggestedIndex < 0) {
+            suggestedIndex = 0;
         }
 
-        const value = items[selectedIndex];
+        if (suggestedIndex >= items.length) {
+            suggestedIndex = items.length - 1;
+        }
 
-        if (value !== this.snapshot.selectedItem) {
-            if (emitEvents) {
-                this.callChange(value);
-                this.callTouched();
+        const selectedItem = items[suggestedIndex];
+
+        if (fromUserAction) {
+            let selectedValue = selectedItem;
+
+            if (this.valueProperty && this.valueProperty.length > 0 && selectedValue) {
+                selectedValue = selectedValue[this.valueProperty];
             }
 
-            this.next(s => ({ ...s, selectedIndex, selectedItem: value }));
+            if (this.value !== selectedValue) {
+                this.value = selectedValue;
+
+                this.callChange(selectedValue);
+                this.callTouched();
+            }
         }
+
+        this.next({ suggestedIndex, selectedItem });
+    }
+
+    private getSelectedIndex(value: any) {
+        if (!value || !this.items) {
+            return -1;
+        }
+
+        if (this.valueProperty && this.valueProperty.length > 0) {
+            for (let i = 0; i < this.items.length; i++) {
+                const item = this.items[i];
+
+                if (item && item[this.valueProperty] === value) {
+                    return i;
+                }
+            }
+        } else {
+            return this.items.indexOf(value);
+        }
+
+        return -1;
     }
 }

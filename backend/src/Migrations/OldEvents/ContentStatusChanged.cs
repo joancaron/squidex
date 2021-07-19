@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -16,7 +16,7 @@ using ContentStatusChangedV2 = Squidex.Domain.Apps.Events.Contents.ContentStatus
 namespace Migrations.OldEvents
 {
     [EventType(nameof(ContentStatusChanged))]
-    [Obsolete]
+    [Obsolete("New Event introduced")]
     public sealed class ContentStatusChanged : ContentEvent, IMigrated<IEvent>
     {
         public string Change { get; set; }

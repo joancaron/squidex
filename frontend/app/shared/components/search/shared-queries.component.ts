@@ -12,14 +12,14 @@ import { Queries, Query } from '@app/shared/internal';
     selector: 'sqx-shared-queries',
     styleUrls: ['./shared-queries.component.scss'],
     templateUrl: './shared-queries.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SavedQueriesComponent {
     @Output()
     public search = new EventEmitter<Query>();
 
     @Input()
-    public queryUsed: Query;
+    public queryUsed: Query | undefined | null;
 
     @Input()
     public queries: Queries;

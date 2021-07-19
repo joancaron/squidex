@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -17,15 +17,14 @@ using Squidex.Domain.Apps.Core.HandleRules;
 using Squidex.Domain.Apps.Core.Rules;
 using Squidex.Domain.Apps.Core.Rules.EnrichedEvents;
 using Squidex.Domain.Apps.Core.Rules.Triggers;
+using Squidex.Domain.Apps.Core.TestHelpers;
 using Squidex.Domain.Apps.Events;
 using Squidex.Domain.Apps.Events.Contents;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.EventSourcing;
-using Squidex.Infrastructure.Log;
 using Squidex.Infrastructure.Reflection;
+using Squidex.Log;
 using Xunit;
-
-#pragma warning disable xUnit2009 // Do not use boolean check to check for string equality
 
 namespace Squidex.Domain.Apps.Core.Operations.HandleRules
 {
@@ -39,8 +38,8 @@ namespace Squidex.Domain.Apps.Core.Operations.HandleRules
         private readonly string actionDump = "MyDump";
         private readonly string actionName = "ValidAction";
         private readonly string actionDescription = "MyDescription";
-        private readonly Guid ruleId = Guid.NewGuid();
-        private readonly NamedId<Guid> appId = NamedId.Of(Guid.NewGuid(), "my-app");
+        private readonly DomainId ruleId = DomainId.NewGuid();
+        private readonly NamedId<DomainId> appId = NamedId.Of(DomainId.NewGuid(), "my-app");
         private readonly TypeNameRegistry typeNameRegistry = new TypeNameRegistry();
         private readonly RuleService sut;
 
@@ -48,11 +47,11 @@ namespace Squidex.Domain.Apps.Core.Operations.HandleRules
         {
         }
 
-        public sealed class InvalidAction : RuleAction
+        public sealed record InvalidAction : RuleAction
         {
         }
 
-        public sealed class ValidAction : RuleAction
+        public sealed record ValidAction : RuleAction
         {
         }
 
@@ -61,7 +60,7 @@ namespace Squidex.Domain.Apps.Core.Operations.HandleRules
             public int Value { get; set; }
         }
 
-        public sealed class InvalidTrigger : RuleTrigger
+        public sealed record InvalidTrigger : RuleTrigger
         {
             public override T Accept<T>(IRuleTriggerVisitor<T> visitor)
             {
@@ -95,127 +94,427 @@ namespace Squidex.Domain.Apps.Core.Operations.HandleRules
         }
 
         [Fact]
-        public async Task Should_not_create_job_if_rule_disabled()
+        public void Should_calculate_event_name_from_trigger_handler()
         {
-            var @event = Envelope.Create(new ContentCreated());
+            var @event = new ContentCreated();
 
-            var jobs = await sut.CreateJobsAsync(ValidRule().Disable(), ruleId, @event);
+            A.CallTo(() => ruleTriggerHandler.Handles(@event))
+                .Returns(true);
 
-            Assert.Empty(jobs);
+            A.CallTo(() => ruleTriggerHandler.GetName(@event))
+                .Returns("custom-name");
 
-            A.CallTo(() => ruleTriggerHandler.Trigger(A<AppEvent>._, A<RuleTrigger>._, ruleId))
+            var name = sut.GetName(@event);
+
+            Assert.Equal("custom-name", name);
+        }
+
+        [Fact]
+        public void Should_calculate_default_name_if_trigger_handler_returns_no_name()
+        {
+            var @event = new ContentCreated();
+
+            A.CallTo(() => ruleTriggerHandler.Handles(@event))
+                .Returns(true);
+
+            A.CallTo(() => ruleTriggerHandler.GetName(@event))
+                .Returns(null);
+
+            var name = sut.GetName(@event);
+
+            Assert.Equal("ContentCreated", name);
+
+            A.CallTo(() => ruleTriggerHandler.GetName(@event))
+                .MustHaveHappened();
+        }
+
+        [Fact]
+        public void Should_calculate_default_name_if_trigger_handler_cannot_not_handle_event()
+        {
+            var @event = new ContentCreated();
+
+            A.CallTo(() => ruleTriggerHandler.Handles(@event))
+                .Returns(false);
+
+            var name = sut.GetName(@event);
+
+            Assert.Equal("ContentCreated", name);
+
+            A.CallTo(() => ruleTriggerHandler.GetName(@event))
                 .MustNotHaveHappened();
         }
 
         [Fact]
-        public async Task Should_not_create_job_for_invalid_event()
+        public void Should_not_run_from_snapshots_if_no_trigger_handler_registered()
+        {
+            var result = sut.CanCreateSnapshotEvents(RuleInvalidTrigger());
+
+            Assert.False(result);
+        }
+
+        [Fact]
+        public void Should_not_run_from_snapshots_if_trigger_handler_does_not_support_it()
+        {
+            A.CallTo(() => ruleTriggerHandler.CanCreateSnapshotEvents)
+                .Returns(false);
+
+            var result = sut.CanCreateSnapshotEvents(Rule());
+
+            Assert.False(result);
+        }
+
+        [Fact]
+        public void Should_run_from_snapshots_if_trigger_handler_does_support_it()
+        {
+            A.CallTo(() => ruleTriggerHandler.CanCreateSnapshotEvents)
+                .Returns(true);
+
+            var result = sut.CanCreateSnapshotEvents(Rule());
+
+            Assert.True(result);
+        }
+
+        [Fact]
+        public async Task Should_not_create_job_from_snapshots_if_trigger_handler_does_not_support_it()
+        {
+            A.CallTo(() => ruleTriggerHandler.CanCreateSnapshotEvents)
+                .Returns(false);
+
+            var jobs = await sut.CreateSnapshotJobsAsync(Rule()).ToListAsync();
+
+            Assert.Empty(jobs);
+
+            A.CallTo(() => ruleTriggerHandler.CreateSnapshotEventsAsync(A<RuleContext>._, A<CancellationToken>._))
+                .MustNotHaveHappened();
+        }
+
+        [Fact]
+        public async Task Should_not_create_job_from_snapshots_if_rule_disabled()
+        {
+            A.CallTo(() => ruleTriggerHandler.CanCreateSnapshotEvents)
+                .Returns(true);
+
+            var jobs = await sut.CreateSnapshotJobsAsync(Rule(disable: true)).ToListAsync();
+
+            Assert.Empty(jobs);
+
+            A.CallTo(() => ruleTriggerHandler.CreateSnapshotEventsAsync(A<RuleContext>._, A<CancellationToken>._))
+                .MustNotHaveHappened();
+        }
+
+        [Fact]
+        public async Task Should_not_create_job_from_snapshots_if_no_trigger_handler_registered()
+        {
+            A.CallTo(() => ruleTriggerHandler.CanCreateSnapshotEvents)
+                .Returns(true);
+
+            var jobs = await sut.CreateSnapshotJobsAsync(RuleInvalidTrigger()).ToListAsync();
+
+            Assert.Empty(jobs);
+
+            A.CallTo(() => ruleTriggerHandler.CreateSnapshotEventsAsync(A<RuleContext>._, A<CancellationToken>._))
+                .MustNotHaveHappened();
+        }
+
+        [Fact]
+        public async Task Should_not_create_job_from_snapshots_if_no_action_handler_registered()
+        {
+            A.CallTo(() => ruleTriggerHandler.CanCreateSnapshotEvents)
+                .Returns(true);
+
+            var jobs = await sut.CreateSnapshotJobsAsync(RuleInvalidAction()).ToListAsync();
+
+            Assert.Empty(jobs);
+
+            A.CallTo(() => ruleTriggerHandler.CreateSnapshotEventsAsync(A<RuleContext>._, A<CancellationToken>._))
+                .MustNotHaveHappened();
+        }
+
+        [Fact]
+        public async Task Should_create_jobs_from_snapshots()
+        {
+            var context = Rule();
+
+            A.CallTo(() => ruleTriggerHandler.CanCreateSnapshotEvents)
+                .Returns(true);
+
+            A.CallTo(() => ruleTriggerHandler.Trigger(A<EnrichedEvent>._, context))
+                .Returns(true);
+
+            A.CallTo(() => ruleTriggerHandler.CreateSnapshotEventsAsync(context, default))
+                .Returns(new List<EnrichedEvent>
+                {
+                    new EnrichedContentEvent { AppId = appId },
+                    new EnrichedContentEvent { AppId = appId }
+                }.ToAsyncEnumerable());
+
+            var result = await sut.CreateSnapshotJobsAsync(context).ToListAsync();
+
+            Assert.Equal(2, result.Count(x => x.Job != null && x.Exception == null));
+        }
+
+        [Fact]
+        public async Task Should_create_jobs_with_exceptions_from_snapshots()
+        {
+            var context = Rule();
+
+            A.CallTo(() => ruleTriggerHandler.CanCreateSnapshotEvents)
+                .Returns(true);
+
+            A.CallTo(() => ruleTriggerHandler.Trigger(A<EnrichedEvent>._, context))
+                .Throws(new InvalidOperationException());
+
+            A.CallTo(() => ruleTriggerHandler.CreateSnapshotEventsAsync(context, default))
+                .Returns(new List<EnrichedEvent>
+                {
+                    new EnrichedContentEvent { AppId = appId },
+                    new EnrichedContentEvent { AppId = appId }
+                }.ToAsyncEnumerable());
+
+            var result = await sut.CreateSnapshotJobsAsync(context).ToListAsync();
+
+            Assert.Equal(2, result.Count(x => x.Job == null && x.Exception != null));
+        }
+
+        [Fact]
+        public async Task Should_create_debug_rob_if_rule_disabled()
+        {
+            var @event = Envelope.Create(new ContentCreated());
+
+            var (_, _, reason) = await sut.CreateJobsAsync(@event, Rule(disable: true)).SingleAsync();
+
+            Assert.Equal(SkipReason.Disabled, reason);
+
+            A.CallTo(() => ruleTriggerHandler.Trigger(A<Envelope<AppEvent>>._, A<RuleContext>._))
+                .MustNotHaveHappened();
+        }
+
+        [Fact]
+        public async Task Should_create_debug_job_for_invalid_event()
         {
             var @event = Envelope.Create(new InvalidEvent());
 
-            var jobs = await sut.CreateJobsAsync(ValidRule(), ruleId, @event);
+            var (_, _, reason) = await sut.CreateJobsAsync(@event, Rule()).SingleAsync();
 
-            Assert.Empty(jobs);
+            Assert.Equal(SkipReason.EventMismatch, reason);
 
-            A.CallTo(() => ruleTriggerHandler.Trigger(A<AppEvent>._, A<RuleTrigger>._, ruleId))
+            A.CallTo(() => ruleTriggerHandler.Trigger(A<Envelope<AppEvent>>._, A<RuleContext>._))
                 .MustNotHaveHappened();
         }
 
         [Fact]
-        public async Task Should_not_create_job_if_no_trigger_handler_registered()
+        public async Task Should_create_debug_job_if_no_trigger_handler_registered()
         {
             var @event = Envelope.Create(new ContentCreated());
 
-            var jobs = await sut.CreateJobsAsync(RuleInvalidTrigger(), ruleId, @event);
+            var (_, _, reason) = await sut.CreateJobsAsync(@event, RuleInvalidTrigger()).SingleAsync();
 
-            Assert.Empty(jobs);
+            Assert.Equal(SkipReason.NoTrigger, reason);
 
-            A.CallTo(() => ruleTriggerHandler.Trigger(A<AppEvent>._, A<RuleTrigger>._, ruleId))
+            A.CallTo(() => ruleTriggerHandler.Trigger(A<Envelope<AppEvent>>._, A<RuleContext>._))
                 .MustNotHaveHappened();
         }
 
         [Fact]
-        public async Task Should_not_create_job_if_no_action_handler_registered()
+        public async Task Should_create_debug_job_if_trigger_handler_does_not_handle_event()
         {
             var @event = Envelope.Create(new ContentCreated());
 
-            var jobs = await sut.CreateJobsAsync(RuleInvalidAction(), ruleId, @event);
+            var (_, _, reason) = await sut.CreateJobsAsync(@event, Rule()).SingleAsync();
 
-            Assert.Empty(jobs);
+            Assert.Equal(SkipReason.WrongEventForTrigger, reason);
 
-            A.CallTo(() => ruleTriggerHandler.Trigger(A<AppEvent>._, A<RuleTrigger>._, ruleId))
+            A.CallTo(() => ruleTriggerHandler.Trigger(A<Envelope<AppEvent>>._, A<RuleContext>._))
                 .MustNotHaveHappened();
         }
 
         [Fact]
-        public async Task Should_not_create_job_if_too_old()
+        public async Task Should_create_debug_job_if_no_action_handler_registered()
         {
-            var @event = Envelope.Create(new ContentCreated()).SetTimestamp(clock.GetCurrentInstant().Minus(Duration.FromDays(3)));
-
-            var jobs = await sut.CreateJobsAsync(ValidRule(), ruleId, @event);
-
-            Assert.Empty(jobs);
-
-            A.CallTo(() => ruleTriggerHandler.Trigger(A<AppEvent>._, A<RuleTrigger>._, ruleId))
-                .MustNotHaveHappened();
-        }
-
-        [Fact]
-        public async Task Should_not_create_job_if_not_triggered_with_precheck()
-        {
-            var rule = ValidRule();
-
             var @event = Envelope.Create(new ContentCreated());
 
-            A.CallTo(() => ruleTriggerHandler.Trigger(@event.Payload, rule.Trigger, ruleId))
-                .Returns(false);
-
-            var jobs = await sut.CreateJobsAsync(rule, ruleId, @event);
-
-            Assert.Empty(jobs);
-
-            A.CallTo(() => ruleTriggerHandler.CreateEnrichedEventsAsync(A<Envelope<AppEvent>>._))
-                .MustNotHaveHappened();
-        }
-
-        [Fact]
-        public async Task Should_not_create_job_if_enriched_event_not_created()
-        {
-            var rule = ValidRule();
-
-            var @event = Envelope.Create(new ContentCreated());
-
-            A.CallTo(() => ruleTriggerHandler.Trigger(@event.Payload, rule.Trigger, ruleId))
+            A.CallTo(() => ruleTriggerHandler.Handles(@event.Payload))
                 .Returns(true);
 
-            A.CallTo(() => ruleTriggerHandler.CreateEnrichedEventsAsync(A<Envelope<AppEvent>>.That.Matches(x => x.Payload == @event.Payload)))
-                .Returns(new List<EnrichedEvent>());
+            var (_, _, reason) = await sut.CreateJobsAsync(@event, RuleInvalidAction()).SingleAsync();
 
-            var jobs = await sut.CreateJobsAsync(rule, ruleId, @event);
+            Assert.Equal(SkipReason.NoAction, reason);
+
+            A.CallTo(() => ruleTriggerHandler.Trigger(A<Envelope<AppEvent>>._, A<RuleContext>._))
+                .MustNotHaveHappened();
+        }
+
+        [Fact]
+        public async Task Should_create_debug_job_if_too_old()
+        {
+            var @event =
+                Envelope.Create(new ContentCreated())
+                    .SetTimestamp(clock.GetCurrentInstant().Minus(Duration.FromDays(3)));
+
+            A.CallTo(() => ruleTriggerHandler.Handles(@event.Payload))
+                .Returns(true);
+
+            var (_, _, reason) = await sut.CreateJobsAsync(@event, Rule(ignoreStale: true)).SingleAsync();
+
+            Assert.Equal(SkipReason.TooOld, reason);
+
+            A.CallTo(() => ruleTriggerHandler.Trigger(A<Envelope<AppEvent>>._, A<RuleContext>._))
+                .MustNotHaveHappened();
+        }
+
+        [Fact]
+        public async Task Should_create_job_if_too_old_but_stale_events_are_not_ignored()
+        {
+            var context = Rule(ignoreStale: false);
+
+            var @event =
+                Envelope.Create(new ContentCreated())
+                    .SetTimestamp(clock.GetCurrentInstant().Minus(Duration.FromDays(3)));
+
+            A.CallTo(() => ruleTriggerHandler.Handles(@event.Payload))
+                .Returns(true);
+
+            A.CallTo(() => ruleTriggerHandler.Trigger(A<Envelope<AppEvent>>._, context))
+                .Returns(true);
+
+            A.CallTo(() => ruleTriggerHandler.Trigger(A<EnrichedEvent>._, context))
+                .Returns(true);
+
+            var jobs = await sut.CreateJobsAsync(@event, context).ToListAsync();
+
+            Assert.Empty(jobs);
+
+            A.CallTo(() => ruleTriggerHandler.Trigger(A<Envelope<AppEvent>>._, A<RuleContext>._))
+                .MustHaveHappened();
+        }
+
+        [Fact]
+        public async Task Should_create_debug_job_if_event_created_by_rule()
+        {
+            var context = Rule();
+
+            var @event = Envelope.Create(new ContentCreated { FromRule = true });
+
+            var (_, _, reason) = await sut.CreateJobsAsync(@event, context).SingleAsync();
+
+            Assert.Equal(SkipReason.FromRule, reason);
+
+            A.CallTo(() => ruleTriggerHandler.Trigger(A<Envelope<AppEvent>>._, A<RuleContext>._))
+                .MustNotHaveHappened();
+
+            A.CallTo(() => ruleTriggerHandler.CreateEnrichedEventsAsync(A<Envelope<AppEvent>>._, A<RuleContext>._, default))
+                .MustNotHaveHappened();
+        }
+
+        [Fact]
+        public async Task Should_create_debug_job_if_not_triggered_with_precheck()
+        {
+            var context = Rule();
+
+            var @event = Envelope.Create(new ContentCreated());
+
+            A.CallTo(() => ruleTriggerHandler.Handles(@event.Payload))
+                .Returns(true);
+
+            A.CallTo(() => ruleTriggerHandler.Trigger(MatchPayload(@event), context))
+                .Returns(false);
+
+            var (_, _, reason) = await sut.CreateJobsAsync(@event, context).SingleAsync();
+
+            Assert.Equal(SkipReason.ConditionDoesNotMatch, reason);
+
+            A.CallTo(() => ruleTriggerHandler.CreateEnrichedEventsAsync(A<Envelope<AppEvent>>._, A<RuleContext>._, default))
+                .MustNotHaveHappened();
+        }
+
+        [Fact]
+        public async Task Should_create_debug_job_if_condition_check_failed()
+        {
+            var context = Rule();
+
+            var @event = Envelope.Create(new ContentCreated());
+
+            A.CallTo(() => ruleTriggerHandler.Handles(@event.Payload))
+                .Returns(true);
+
+            A.CallTo(() => ruleTriggerHandler.Trigger(MatchPayload(@event), context))
+                .Throws(new InvalidOperationException());
+
+            var (_, _, reason) = await sut.CreateJobsAsync(@event, context).SingleAsync();
+
+            Assert.Equal(SkipReason.Failed, reason);
+        }
+
+        [Fact]
+        public async Task Should_not_create_jobs_if_enriched_event_not_created()
+        {
+            var context = Rule();
+
+            var @event = Envelope.Create(new ContentCreated());
+
+            A.CallTo(() => ruleTriggerHandler.Handles(@event.Payload))
+                .Returns(true);
+
+            A.CallTo(() => ruleTriggerHandler.Trigger(MatchPayload(@event), context))
+                .Returns(true);
+
+            A.CallTo(() => ruleTriggerHandler.CreateEnrichedEventsAsync(MatchPayload(@event), context, default))
+                .Returns(AsyncEnumerable.Empty<EnrichedEvent>());
+
+            var jobs = await sut.CreateJobsAsync(@event, context).ToListAsync();
 
             Assert.Empty(jobs);
         }
 
         [Fact]
-        public async Task Should_not_create_job_if_not_triggered()
+        public async Task Should_create_debug_job_if_not_triggered()
         {
-            var rule = ValidRule();
+            var context = Rule();
 
             var enrichedEvent = new EnrichedContentEvent { AppId = appId };
 
             var @event = Envelope.Create(new ContentCreated());
 
-            A.CallTo(() => ruleTriggerHandler.Trigger(@event.Payload, rule.Trigger, ruleId))
+            A.CallTo(() => ruleTriggerHandler.Handles(@event.Payload))
                 .Returns(true);
 
-            A.CallTo(() => ruleTriggerHandler.CreateEnrichedEventsAsync(A<Envelope<AppEvent>>.That.Matches(x => x.Payload == @event.Payload)))
-                .Returns(new List<EnrichedEvent> { enrichedEvent });
+            A.CallTo(() => ruleTriggerHandler.Trigger(MatchPayload(@event), context))
+                .Returns(true);
 
-            A.CallTo(() => ruleTriggerHandler.Trigger(enrichedEvent, rule.Trigger))
+            A.CallTo(() => ruleTriggerHandler.Trigger(enrichedEvent, context))
                 .Returns(false);
 
-            var jobs = await sut.CreateJobsAsync(rule, ruleId, @event);
+            A.CallTo(() => ruleTriggerHandler.CreateEnrichedEventsAsync(MatchPayload(@event), context, default))
+                .Returns(new List<EnrichedEvent> { enrichedEvent }.ToAsyncEnumerable());
 
-            Assert.Empty(jobs);
+            var (_, _, reason) = await sut.CreateJobsAsync(@event, context).SingleAsync();
+
+            Assert.Equal(SkipReason.ConditionDoesNotMatch, reason);
+        }
+
+        [Fact]
+        public async Task Should_create_debug_job_if_enrichment_failed()
+        {
+            var now = clock.GetCurrentInstant();
+
+            var context = Rule();
+
+            var @event =
+                Envelope.Create(new ContentCreated())
+                    .SetTimestamp(now);
+
+            A.CallTo(() => ruleTriggerHandler.Handles(@event.Payload))
+                .Returns(true);
+
+            A.CallTo(() => ruleTriggerHandler.Trigger(MatchPayload(@event), context))
+                .Returns(true);
+
+            A.CallTo(() => ruleTriggerHandler.CreateEnrichedEventsAsync(MatchPayload(@event), context, default))
+                .Throws(new InvalidOperationException());
+
+            var (_, _, reason) = await sut.CreateJobsAsync(@event, context).SingleAsync();
+
+            Assert.Equal(SkipReason.Failed, reason);
         }
 
         [Fact]
@@ -223,31 +522,72 @@ namespace Squidex.Domain.Apps.Core.Operations.HandleRules
         {
             var now = clock.GetCurrentInstant();
 
-            var rule = ValidRule();
+            var context = Rule();
 
             var enrichedEvent = new EnrichedContentEvent { AppId = appId };
 
-            var @event = Envelope.Create(new ContentCreated()).SetTimestamp(now);
+            var @event =
+                Envelope.Create(new ContentCreated())
+                    .SetTimestamp(now);
 
-            A.CallTo(() => ruleTriggerHandler.Trigger(@event.Payload, rule.Trigger, ruleId))
+            A.CallTo(() => ruleTriggerHandler.Handles(@event.Payload))
                 .Returns(true);
 
-            A.CallTo(() => ruleTriggerHandler.CreateEnrichedEventsAsync(A<Envelope<AppEvent>>.That.Matches(x => x.Payload == @event.Payload)))
-                .Returns(new List<EnrichedEvent> { enrichedEvent });
-
-            A.CallTo(() => ruleTriggerHandler.Trigger(enrichedEvent, rule.Trigger))
+            A.CallTo(() => ruleTriggerHandler.Trigger(MatchPayload(@event), context))
                 .Returns(true);
 
-            A.CallTo(() => ruleActionHandler.CreateJobAsync(enrichedEvent, rule.Action))
+            A.CallTo(() => ruleTriggerHandler.Trigger(enrichedEvent, context))
+                .Returns(true);
+
+            A.CallTo(() => ruleTriggerHandler.CreateEnrichedEventsAsync(MatchPayload(@event), context, default))
+                .Returns(new List<EnrichedEvent> { enrichedEvent }.ToAsyncEnumerable());
+
+            A.CallTo(() => ruleActionHandler.CreateJobAsync(enrichedEvent, context.Rule.Action))
                 .Returns((actionDescription, new ValidData { Value = 10 }));
 
-            var jobs = (await sut.CreateJobsAsync(rule, ruleId, @event))!;
+            var (job, _, _) = await sut.CreateJobsAsync(@event, context).SingleAsync();
 
-            var job = jobs.Single();
+            AssertJob(now, enrichedEvent, job!);
 
-            AssertJob(now, enrichedEvent, job);
+            A.CallTo(() => eventEnricher.EnrichAsync(enrichedEvent, MatchPayload(@event)))
+                .MustHaveHappened();
+        }
 
-            A.CallTo(() => eventEnricher.EnrichAsync(enrichedEvent, A<Envelope<AppEvent>>.That.Matches(x => x.Payload == @event.Payload)))
+        [Fact]
+        public async Task Should_create_job_with_exception_if_trigger_failed()
+        {
+            var now = clock.GetCurrentInstant();
+
+            var context = Rule();
+
+            var enrichedEvent = new EnrichedContentEvent { AppId = appId };
+
+            var @event =
+                Envelope.Create(new ContentCreated())
+                    .SetTimestamp(now);
+
+            A.CallTo(() => ruleTriggerHandler.Handles(@event.Payload))
+                .Returns(true);
+
+            A.CallTo(() => ruleTriggerHandler.Trigger(MatchPayload(@event), context))
+                .Returns(true);
+
+            A.CallTo(() => ruleTriggerHandler.Trigger(enrichedEvent, context))
+                .Returns(true);
+
+            A.CallTo(() => ruleTriggerHandler.CreateEnrichedEventsAsync(MatchPayload(@event), context, default))
+                .Returns(new List<EnrichedEvent> { enrichedEvent }.ToAsyncEnumerable());
+
+            A.CallTo(() => ruleActionHandler.CreateJobAsync(enrichedEvent, context.Rule.Action))
+                .Throws(new InvalidOperationException());
+
+            var (job, ex, _) = await sut.CreateJobsAsync(@event, context).SingleAsync();
+
+            Assert.NotNull(ex);
+            Assert.NotNull(job?.ActionData);
+            Assert.NotNull(job?.Description);
+
+            A.CallTo(() => eventEnricher.EnrichAsync(enrichedEvent, MatchPayload(@event)))
                 .MustHaveHappened();
         }
 
@@ -256,45 +596,50 @@ namespace Squidex.Domain.Apps.Core.Operations.HandleRules
         {
             var now = clock.GetCurrentInstant();
 
-            var rule = ValidRule();
+            var context = Rule();
 
             var enrichedEvent1 = new EnrichedContentEvent { AppId = appId };
             var enrichedEvent2 = new EnrichedContentEvent { AppId = appId };
 
-            var @event = Envelope.Create(new ContentCreated()).SetTimestamp(now);
+            var @event =
+                Envelope.Create(new ContentCreated())
+                    .SetTimestamp(now);
 
-            A.CallTo(() => ruleTriggerHandler.Trigger(@event.Payload, rule.Trigger, ruleId))
+            A.CallTo(() => ruleTriggerHandler.Handles(@event.Payload))
                 .Returns(true);
 
-            A.CallTo(() => ruleTriggerHandler.CreateEnrichedEventsAsync(A<Envelope<AppEvent>>.That.Matches(x => x.Payload == @event.Payload)))
-                .Returns(new List<EnrichedEvent> { enrichedEvent1, enrichedEvent2 });
-
-            A.CallTo(() => ruleTriggerHandler.Trigger(enrichedEvent1, rule.Trigger))
+            A.CallTo(() => ruleTriggerHandler.Trigger(MatchPayload(@event), context))
                 .Returns(true);
 
-            A.CallTo(() => ruleTriggerHandler.Trigger(enrichedEvent2, rule.Trigger))
+            A.CallTo(() => ruleTriggerHandler.Trigger(enrichedEvent1, context))
                 .Returns(true);
 
-            A.CallTo(() => ruleActionHandler.CreateJobAsync(enrichedEvent1, rule.Action))
+            A.CallTo(() => ruleTriggerHandler.Trigger(enrichedEvent2, context))
+                .Returns(true);
+
+            A.CallTo(() => ruleTriggerHandler.CreateEnrichedEventsAsync(MatchPayload(@event), context, default))
+                .Returns(new List<EnrichedEvent> { enrichedEvent1, enrichedEvent2 }.ToAsyncEnumerable());
+
+            A.CallTo(() => ruleActionHandler.CreateJobAsync(enrichedEvent1, context.Rule.Action))
                 .Returns((actionDescription, new ValidData { Value = 10 }));
 
-            A.CallTo(() => ruleActionHandler.CreateJobAsync(enrichedEvent2, rule.Action))
+            A.CallTo(() => ruleActionHandler.CreateJobAsync(enrichedEvent2, context.Rule.Action))
                 .Returns((actionDescription, new ValidData { Value = 10 }));
 
-            var jobs = (await sut.CreateJobsAsync(rule, ruleId, @event))!;
+            var jobs = await sut.CreateJobsAsync(@event, context, default).ToListAsync();
 
-            AssertJob(now, enrichedEvent1, jobs[0]);
-            AssertJob(now, enrichedEvent1, jobs[1]);
+            AssertJob(now, enrichedEvent1, jobs[0].Job!);
+            AssertJob(now, enrichedEvent1, jobs[1].Job!);
 
-            A.CallTo(() => eventEnricher.EnrichAsync(enrichedEvent1, A<Envelope<AppEvent>>.That.Matches(x => x.Payload == @event.Payload)))
+            A.CallTo(() => eventEnricher.EnrichAsync(enrichedEvent1, MatchPayload(@event)))
                 .MustHaveHappened();
 
-            A.CallTo(() => eventEnricher.EnrichAsync(enrichedEvent2, A<Envelope<AppEvent>>.That.Matches(x => x.Payload == @event.Payload)))
+            A.CallTo(() => eventEnricher.EnrichAsync(enrichedEvent2, MatchPayload(@event)))
                 .MustHaveHappened();
         }
 
         [Fact]
-        public async Task Should_return_succeeded_job_with_full_dump_when_handler_returns_no_exception()
+        public async Task Should_return_succeeded_job_with_full_dump_if_handler_returns_no_exception()
         {
             A.CallTo(() => ruleActionHandler.ExecuteJobAsync(A<ValidData>.That.Matches(x => x.Value == 10), A<CancellationToken>._))
                 .Returns(Result.Success(actionDump));
@@ -308,7 +653,7 @@ namespace Squidex.Domain.Apps.Core.Operations.HandleRules
         }
 
         [Fact]
-        public async Task Should_return_failed_job_with_full_dump_when_handler_returns_exception()
+        public async Task Should_return_failed_job_with_full_dump_if_handler_returns_exception()
         {
             A.CallTo(() => ruleActionHandler.ExecuteJobAsync(A<ValidData>.That.Matches(x => x.Value == 10), A<CancellationToken>._))
                 .Returns(Result.Failed(new InvalidOperationException(), actionDump));
@@ -322,7 +667,7 @@ namespace Squidex.Domain.Apps.Core.Operations.HandleRules
         }
 
         [Fact]
-        public async Task Should_return_timedout_job_with_full_dump_when_exception_from_handler_indicates_timeout()
+        public async Task Should_return_timedout_job_with_full_dump_if_exception_from_handler_indicates_timeout()
         {
             A.CallTo(() => ruleActionHandler.ExecuteJobAsync(A<ValidData>.That.Matches(x => x.Value == 10), A<CancellationToken>._))
                 .Returns(Result.Failed(new TimeoutException(), actionDump));
@@ -338,7 +683,7 @@ namespace Squidex.Domain.Apps.Core.Operations.HandleRules
         }
 
         [Fact]
-        public async Task Should_create_exception_details_when_job_to_execute_failed()
+        public async Task Should_create_exception_details_if_job_to_execute_failed()
         {
             var ex = new InvalidOperationException();
 
@@ -350,19 +695,47 @@ namespace Squidex.Domain.Apps.Core.Operations.HandleRules
             Assert.Equal(ex, result.Result.Exception);
         }
 
-        private static Rule RuleInvalidAction()
+        private RuleContext RuleInvalidAction()
         {
-            return new Rule(new ContentChangedTriggerV2(), new InvalidAction());
+            return new RuleContext
+            {
+                AppId = appId,
+                Rule = new Rule(new ContentChangedTriggerV2(), new InvalidAction()),
+                RuleId = ruleId
+            };
         }
 
-        private static Rule RuleInvalidTrigger()
+        private RuleContext RuleInvalidTrigger()
         {
-            return new Rule(new InvalidTrigger(), new ValidAction());
+            return new RuleContext
+            {
+                AppId = appId,
+                Rule = new Rule(new InvalidTrigger(), new ValidAction()),
+                RuleId = ruleId
+            };
         }
 
-        private static Rule ValidRule()
+        private RuleContext Rule(bool disable = false, bool ignoreStale = true)
         {
-            return new Rule(new ContentChangedTriggerV2(), new ValidAction());
+            var rule = new Rule(new ContentChangedTriggerV2(), new ValidAction());
+
+            if (disable)
+            {
+                rule = rule.Disable();
+            }
+
+            return new RuleContext
+            {
+                AppId = appId,
+                Rule = rule,
+                RuleId = ruleId,
+                IgnoreStale = ignoreStale
+            };
+        }
+
+        private static Envelope<AppEvent> MatchPayload(Envelope<IEvent> @event)
+        {
+            return A<Envelope<AppEvent>>.That.Matches(x => x.Payload == @event.Payload);
         }
 
         private void AssertJob(Instant now, EnrichedContentEvent enrichedEvent, RuleJob job)
@@ -376,7 +749,7 @@ namespace Squidex.Domain.Apps.Core.Operations.HandleRules
             Assert.Equal(now, job.Created);
             Assert.Equal(now.Plus(Duration.FromDays(30)), job.Expires);
 
-            Assert.NotEqual(Guid.Empty, job.Id);
+            Assert.NotEqual(DomainId.Empty, job.Id);
         }
     }
 }

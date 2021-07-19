@@ -8,25 +8,26 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { SqxFrameworkModule, SqxSharedModule } from '@app/shared';
-import { AppsPageComponent, NewsDialogComponent, OnboardingDialogComponent } from './declarations';
+import { AppComponent, AppsPageComponent, NewsDialogComponent, OnboardingDialogComponent } from './declarations';
 
 const routes: Routes = [
     {
         path: '',
-        component: AppsPageComponent
-    }
+        component: AppsPageComponent,
+    },
 ];
 
 @NgModule({
     imports: [
+        RouterModule.forChild(routes),
         SqxFrameworkModule,
         SqxSharedModule,
-        RouterModule.forChild(routes)
     ],
     declarations: [
+        AppComponent,
         AppsPageComponent,
         NewsDialogComponent,
-        OnboardingDialogComponent
-    ]
+        OnboardingDialogComponent,
+    ],
 })
 export class SqxFeatureAppsModule {}

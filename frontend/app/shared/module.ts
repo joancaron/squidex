@@ -1,11 +1,9 @@
-﻿/*
+/*
  * Squidex Headless CMS
  *
  * @license
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
-
-// tslint:disable: max-line-length
 
 import { DragDropModule } from '@angular/cdk/drag-drop';
 import { HTTP_INTERCEPTORS } from '@angular/common/http';
@@ -13,15 +11,16 @@ import { ModuleWithProviders, NgModule } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { SqxFrameworkModule } from '@app/framework';
 import { MentionModule } from 'angular-mentions';
-import { AppFormComponent, AppLanguagesService, AppMustExistGuard, AppsService, AppsState, AssetComponent, AssetDialogComponent, AssetFolderComponent, AssetFolderDialogComponent, AssetHistoryComponent, AssetPathComponent, AssetPreviewUrlPipe, AssetsDialogState, AssetsListComponent, AssetsSelectorComponent, AssetsService, AssetsState, AssetUploaderComponent, AssetUploaderState, AssetUrlPipe, AuthInterceptor, AuthService, AutoSaveService, BackupsService, BackupsState, ClientsService, ClientsState, CommentComponent, CommentsComponent, CommentsService, ContentMustExistGuard, ContentsService, ContentsState, ContributorsService, ContributorsState, FileIconPipe, FilterComparisonComponent, FilterLogicalComponent, FilterNodeComponent, GeolocationEditorComponent, GraphQlService, HelpComponent, HelpMarkdownPipe, HelpService, HistoryComponent, HistoryListComponent, HistoryMessagePipe, HistoryService, ImageCropperComponent, ImageFocusPointComponent, LanguageSelectorComponent, LanguagesService, LanguagesState, LoadAppsGuard, LoadLanguagesGuard, MarkdownEditorComponent, MustBeAuthenticatedGuard, MustBeNotAuthenticatedGuard, NewsService, PatternsService, PatternsState, PlansService, PlansState, QueryComponent, QueryListComponent, QueryPathComponent, ReferencesCheckboxesComponent, ReferencesDropdownComponent, ReferencesTagsComponent, RichEditorComponent, RolesService, RolesState, RuleEventsState, RulesService, RulesState, SavedQueriesComponent, SchemaCategoryComponent, SchemaMustExistGuard, SchemaMustExistPublishedGuard, SchemaMustNotBeSingletonGuard, SchemasService, SchemasState, SchemaTagSource, SearchFormComponent, SortingComponent, StockPhotoService, TableHeaderComponent, TranslationsService, UIService, UIState, UnsetAppGuard, UnsetContentGuard, UsagesService, UserDtoPicture, UserIdPicturePipe, UserNamePipe, UserNameRefPipe, UserPicturePipe, UserPictureRefPipe, UsersProviderService, UsersService, WorkflowsService, WorkflowsState } from './declarations';
-import { SearchService } from './services/search.service';
+import { NgxDocViewerModule } from 'ngx-doc-viewer';
+import { AppFormComponent, AppLanguagesService, AppMustExistGuard, AppsService, AppsState, AssetComponent, AssetDialogComponent, AssetFolderComponent, AssetFolderDialogComponent, AssetFolderDropdownComponent, AssetHistoryComponent, AssetPathComponent, AssetPreviewUrlPipe, AssetsListComponent, AssetsSelectorComponent, AssetsService, AssetsState, AssetTextEditorComponent, AssetUploaderComponent, AssetUploaderState, AssetUrlPipe, AuthInterceptor, AuthService, AutoSaveService, BackupsService, BackupsState, ClientsService, ClientsState, CommentComponent, CommentsComponent, CommentsService, ContentMustExistGuard, ContentsService, ContentsState, ContributorsService, ContributorsState, FileIconPipe, FilterComparisonComponent, FilterLogicalComponent, FilterNodeComponent, GeolocationEditorComponent, GraphQlService, HelpComponent, HelpMarkdownPipe, HelpService, HistoryComponent, HistoryListComponent, HistoryMessagePipe, HistoryService, ImageCropperComponent, ImageFocusPointComponent, LanguagesService, LanguagesState, LoadAppsGuard, LoadLanguagesGuard, LoadSchemasGuard, MarkdownEditorComponent, MustBeAuthenticatedGuard, MustBeNotAuthenticatedGuard, NewsService, NotifoComponent, PlansService, PlansState, PreviewableType, QueryComponent, QueryListComponent, QueryPathComponent, ReferencesCheckboxesComponent, ReferencesDropdownComponent, ReferencesTagsComponent, RichEditorComponent, RolesService, RolesState, RuleEventsState, RuleMustExistGuard, RuleSimulatorState, RulesService, RulesState, SavedQueriesComponent, SchemaCategoryComponent, SchemaMustExistGuard, SchemaMustExistPublishedGuard, SchemaMustNotBeSingletonGuard, SchemasService, SchemasState, SchemaTagSource, SearchFormComponent, SearchService, SortingComponent, StockPhotoService, TableHeaderComponent, TranslationsService, UIService, UIState, UnsetAppGuard, UsagesService, UserDtoPicture, UserIdPicturePipe, UserNamePipe, UserNameRefPipe, UserPicturePipe, UserPictureRefPipe, UsersProviderService, UsersService, WorkflowsService, WorkflowsState } from './declarations';
 
 @NgModule({
     imports: [
         DragDropModule,
         MentionModule,
+        NgxDocViewerModule,
         RouterModule,
-        SqxFrameworkModule
+        SqxFrameworkModule,
     ],
     declarations: [
         AppFormComponent,
@@ -29,11 +28,13 @@ import { SearchService } from './services/search.service';
         AssetDialogComponent,
         AssetFolderComponent,
         AssetFolderDialogComponent,
+        AssetFolderDropdownComponent,
         AssetHistoryComponent,
         AssetPathComponent,
         AssetPreviewUrlPipe,
         AssetsListComponent,
         AssetsSelectorComponent,
+        AssetTextEditorComponent,
         AssetUploaderComponent,
         AssetUrlPipe,
         CommentComponent,
@@ -50,8 +51,9 @@ import { SearchService } from './services/search.service';
         HistoryMessagePipe,
         ImageCropperComponent,
         ImageFocusPointComponent,
-        LanguageSelectorComponent,
         MarkdownEditorComponent,
+        NotifoComponent,
+        PreviewableType,
         QueryComponent,
         QueryListComponent,
         QueryPathComponent,
@@ -69,7 +71,7 @@ import { SearchService } from './services/search.service';
         UserNamePipe,
         UserNameRefPipe,
         UserPicturePipe,
-        UserPictureRefPipe
+        UserPictureRefPipe,
     ],
     exports: [
         AppFormComponent,
@@ -77,6 +79,7 @@ import { SearchService } from './services/search.service';
         AssetDialogComponent,
         AssetFolderComponent,
         AssetFolderDialogComponent,
+        AssetFolderDropdownComponent,
         AssetPathComponent,
         AssetPreviewUrlPipe,
         AssetsListComponent,
@@ -93,8 +96,9 @@ import { SearchService } from './services/search.service';
         HistoryComponent,
         HistoryListComponent,
         HistoryMessagePipe,
-        LanguageSelectorComponent,
         MarkdownEditorComponent,
+        NotifoComponent,
+        PreviewableType,
         QueryListComponent,
         ReferencesCheckboxesComponent,
         ReferencesDropdownComponent,
@@ -110,14 +114,11 @@ import { SearchService } from './services/search.service';
         UserNamePipe,
         UserNameRefPipe,
         UserPicturePipe,
-        UserPictureRefPipe
+        UserPictureRefPipe,
     ],
-    providers: [
-        AssetsDialogState
-    ]
 })
 export class SqxSharedModule {
-    public static forRoot(): ModuleWithProviders {
+    public static forRoot(): ModuleWithProviders<SqxSharedModule> {
         return {
             ngModule: SqxSharedModule,
             providers: [
@@ -147,31 +148,31 @@ export class SqxSharedModule {
                 LanguagesState,
                 LoadAppsGuard,
                 LoadLanguagesGuard,
+                LoadSchemasGuard,
                 MustBeAuthenticatedGuard,
                 MustBeNotAuthenticatedGuard,
                 NewsService,
-                PatternsService,
-                PatternsState,
                 PlansService,
                 PlansState,
                 RolesService,
                 RolesState,
                 RuleEventsState,
+                RuleMustExistGuard,
+                RuleSimulatorState,
                 RulesService,
                 RulesState,
-                SearchService,
                 SchemaMustExistGuard,
                 SchemaMustExistPublishedGuard,
                 SchemaMustNotBeSingletonGuard,
                 SchemasService,
                 SchemasState,
                 SchemaTagSource,
+                SearchService,
                 StockPhotoService,
                 TranslationsService,
                 UIService,
                 UIState,
                 UnsetAppGuard,
-                UnsetContentGuard,
                 UsagesService,
                 UsersProviderService,
                 UsersService,
@@ -180,9 +181,9 @@ export class SqxSharedModule {
                 {
                     provide: HTTP_INTERCEPTORS,
                     useClass: AuthInterceptor,
-                    multi: true
-                }
-            ]
+                    multi: true,
+                },
+            ],
         };
     }
 }

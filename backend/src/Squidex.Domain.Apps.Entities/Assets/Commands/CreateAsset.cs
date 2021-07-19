@@ -1,27 +1,29 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
-using System.Collections.Generic;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.Reflection;
 
 namespace Squidex.Domain.Apps.Entities.Assets.Commands
 {
-    public sealed class CreateAsset : UploadAssetCommand, IAppCommand
+    public sealed class CreateAsset : UploadAssetCommand, IMoveAssetCommand
     {
-        public NamedId<Guid> AppId { get; set; }
+        public DomainId ParentId { get; set; }
 
-        public Guid ParentId { get; set; }
-
-        public HashSet<string> Tags { get; } = new HashSet<string>();
+        public bool Duplicate { get; set; }
 
         public CreateAsset()
         {
-            AssetId = Guid.NewGuid();
+            AssetId = DomainId.NewGuid();
+        }
+
+        public MoveAsset AsMove()
+        {
+            return SimpleMapper.Map(this, new MoveAsset());
         }
     }
 }

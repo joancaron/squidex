@@ -8,6 +8,7 @@
 using System;
 using System.IO;
 using Newtonsoft.Json;
+using NewtonsoftException = Newtonsoft.Json.JsonException;
 
 namespace Squidex.Infrastructure.Json.Newtonsoft
 {
@@ -15,32 +16,6 @@ namespace Squidex.Infrastructure.Json.Newtonsoft
     {
         private readonly JsonSerializerSettings settings;
         private readonly JsonSerializer serializer;
-
-        private sealed class CustomReader : JsonTextReader
-        {
-            private readonly Func<string, string> stringConverter;
-
-            public override object? Value
-            {
-                get
-                {
-                    var value = base.Value;
-
-                    if (value is string s)
-                    {
-                        return stringConverter(s);
-                    }
-
-                    return value;
-                }
-            }
-
-            public CustomReader(TextReader reader, Func<string, string> stringConverter)
-                : base(reader)
-            {
-                this.stringConverter = stringConverter;
-            }
-        }
 
         public NewtonsoftJsonSerializer(JsonSerializerSettings settings)
         {
@@ -53,48 +28,71 @@ namespace Squidex.Infrastructure.Json.Newtonsoft
 
         public string Serialize<T>(T value, bool intented)
         {
-            return JsonConvert.SerializeObject(value, intented ? Formatting.Indented : Formatting.None, settings);
+            var formatting = intented ? Formatting.Indented : Formatting.None;
+
+            return JsonConvert.SerializeObject(value, formatting, settings);
         }
 
-        public void Serialize<T>(T value, Stream stream)
+        public void Serialize<T>(T value, Stream stream, bool leaveOpen = false)
         {
-            using (var writer = new StreamWriter(stream))
+            try
             {
-                serializer.Serialize(writer, value);
-
-                writer.Flush();
-            }
-        }
-
-        public T Deserialize<T>(string value, Type? actualType = null, Func<string, string>? stringConverter = null)
-        {
-            using (var textReader = new StringReader(value))
-            {
-                actualType ??= typeof(T);
-
-                using (var reader = GetReader(stringConverter, textReader))
+                using (var writer = new StreamWriter(stream, leaveOpen: leaveOpen))
                 {
-                    return (T)serializer.Deserialize(reader, actualType)!;
+                    serializer.Serialize(writer, value);
+
+                    writer.Flush();
                 }
             }
-        }
-
-        public T Deserialize<T>(Stream stream, Type? actualType = null, Func<string, string>? stringConverter = null)
-        {
-            using (var textReader = new StreamReader(stream))
+            catch (NewtonsoftException ex)
             {
-                actualType ??= typeof(T);
-
-                using (var reader = GetReader(stringConverter, textReader))
-                {
-                    return (T)serializer.Deserialize(reader, actualType)!;
-                }
+                throw new JsonException(ex.Message, ex);
             }
         }
 
-        private static JsonTextReader GetReader(Func<string, string>? stringConverter, TextReader textReader)
+        public T Deserialize<T>(string value, Type? actualType = null)
         {
-            return stringConverter != null ? new CustomReader(textReader, stringConverter) : new JsonTextReader(textReader);
+            try
+            {
+                using (var textReader = new StringReader(value))
+                {
+                    actualType ??= typeof(T);
+
+                    using (var reader = GetReader(textReader))
+                    {
+                        return (T)serializer.Deserialize(reader, actualType)!;
+                    }
+                }
+            }
+            catch (NewtonsoftException ex)
+            {
+                throw new JsonException(ex.Message, ex);
+            }
+        }
+
+        public T Deserialize<T>(Stream stream, Type? actualType = null, bool leaveOpen = false)
+        {
+            try
+            {
+                using (var textReader = new StreamReader(stream, leaveOpen: leaveOpen))
+                {
+                    actualType ??= typeof(T);
+
+                    using (var reader = GetReader(textReader))
+                    {
+                        return (T)serializer.Deserialize(reader, actualType)!;
+                    }
+                }
+            }
+            catch (NewtonsoftException ex)
+            {
+                throw new JsonException(ex.Message, ex);
+            }
+        }
+
+        private static JsonTextReader GetReader(TextReader textReader)
+        {
+            return new JsonTextReader(textReader);
         }
     }
 }

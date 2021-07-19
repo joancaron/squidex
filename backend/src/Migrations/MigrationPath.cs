@@ -18,7 +18,7 @@ namespace Migrations
 {
     public sealed class MigrationPath : IMigrationPath
     {
-        private const int CurrentVersion = 21;
+        private const int CurrentVersion = 25;
         private readonly IServiceProvider serviceProvider;
 
         public MigrationPath(IServiceProvider serviceProvider)
@@ -38,7 +38,7 @@ namespace Migrations
             return (CurrentVersion, migrations);
         }
 
-        private IEnumerable<IMigration> ResolveMigrators(int version)
+        private IEnumerable<IMigration?> ResolveMigrators(int version)
         {
             yield return serviceProvider.GetRequiredService<StopEventConsumers>();
 
@@ -46,6 +46,12 @@ namespace Migrations
             if (version < 6)
             {
                 yield return serviceProvider.GetRequiredService<ConvertEventStore>();
+            }
+
+            // Version 22: Integrate Domain Id.
+            if (version < 22)
+            {
+                yield return serviceProvider.GetRequiredService<AddAppIdToEventStream>();
             }
 
             // Version 07: Introduces AppId for backups.
@@ -68,60 +74,60 @@ namespace Migrations
                 }
 
                 // Version 12: Introduce roles.
-                if (version < 12)
+                // Version 24: Improve a naming in the languages config.
+                if (version < 24)
                 {
                     yield return serviceProvider.GetRequiredService<RebuildApps>();
                 }
 
                 // Version 14: Schema refactoring
-                if (version < 14)
+                // Version 22: Introduce domain id.
+                if (version < 22)
                 {
                     yield return serviceProvider.GetRequiredService<ClearSchemas>();
+                    yield return serviceProvider.GetRequiredService<ClearRules>();
                 }
 
                 // Version 18: Rebuild assets.
                 if (version < 18)
                 {
+                    yield return serviceProvider.GetService<RebuildAssetFolders>();
                     yield return serviceProvider.GetService<RebuildAssets>();
                 }
                 else
                 {
-                    // Version 17: Rename slug field.
-                    if (version < 17)
-                    {
-                        yield return serviceProvider.GetService<RenameAssetSlugField>();
-                    }
-
                     // Version 20: Rename slug field.
                     if (version < 20)
                     {
                         yield return serviceProvider.GetService<RenameAssetMetadata>();
                     }
+
+                    // Version 22: Introduce domain id.
+                    // Version 23: Fix parent id.
+                    if (version < 23)
+                    {
+                        yield return serviceProvider.GetRequiredService<ConvertDocumentIds>().ForAssets();
+                    }
                 }
 
                 // Version 21: Introduce content drafts V2.
-                if (version < 21)
+                // Version 25: Convert content ids to names.
+                if (version < 25)
                 {
                     yield return serviceProvider.GetRequiredService<RebuildContents>();
                 }
-            }
 
-            // Version 01: Introduce app patterns.
-            if (version < 1)
-            {
-                yield return serviceProvider.GetRequiredService<AddPatterns>();
+                // Version 16: Introduce file name slugs for assets.
+                if (version < 16)
+                {
+                    yield return serviceProvider.GetRequiredService<CreateAssetSlugs>();
+                }
             }
 
             // Version 13: Json refactoring
             if (version < 13)
             {
                 yield return serviceProvider.GetRequiredService<ConvertRuleEventsJson>();
-            }
-
-            // Version 16: Introduce file name slugs for assets.
-            if (version < 16)
-            {
-                yield return serviceProvider.GetRequiredService<CreateAssetSlugs>();
             }
 
             // Version 19: Unify indexes.

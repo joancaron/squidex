@@ -1,17 +1,18 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Identity;
+using Squidex.Infrastructure.Security;
+using Squidex.Web;
 
 namespace Squidex.Areas.IdentityServer.Controllers
 {
@@ -21,7 +22,12 @@ namespace Squidex.Areas.IdentityServer.Controllers
         {
             var externalLogin = await signInManager.GetExternalLoginInfoAsync(expectedXsrf);
 
-            var email = externalLogin.Principal.FindFirst(ClaimTypes.Email)?.Value;
+            if (externalLogin == null)
+            {
+                throw new InvalidOperationException("Request from external provider cannot be handled.");
+            }
+
+            var email = externalLogin.Principal.GetEmail();
 
             if (string.IsNullOrWhiteSpace(email))
             {
@@ -37,9 +43,11 @@ namespace Squidex.Areas.IdentityServer.Controllers
         {
             var externalSchemes = await signInManager.GetExternalAuthenticationSchemesAsync();
 
-            var externalProviders =
-                externalSchemes.Where(x => x.Name != OpenIdConnectDefaults.AuthenticationScheme)
-                    .Select(x => new ExternalProvider(x.Name, x.DisplayName)).ToList();
+            var externalProviders = externalSchemes
+                .Where(x => x.Name != OpenIdConnectDefaults.AuthenticationScheme)
+                .Where(x => x.Name != Constants.ApiSecurityScheme)
+                .Select(x => new ExternalProvider(x.Name, x.DisplayName ?? x.Name))
+                .ToList();
 
             return externalProviders;
         }

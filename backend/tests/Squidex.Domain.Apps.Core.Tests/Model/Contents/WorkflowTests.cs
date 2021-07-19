@@ -8,6 +8,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Squidex.Domain.Apps.Core.Contents;
+using Squidex.Infrastructure.Collections;
 using Xunit;
 
 namespace Squidex.Domain.Apps.Core.Model.Contents
@@ -15,7 +16,8 @@ namespace Squidex.Domain.Apps.Core.Model.Contents
     public class WorkflowTests
     {
         private readonly Workflow workflow = new Workflow(
-            Status.Draft, new Dictionary<Status, WorkflowStep>
+            Status.Draft,
+            new Dictionary<Status, WorkflowStep>
             {
                 [Status.Draft] =
                     new WorkflowStep(
@@ -23,13 +25,13 @@ namespace Squidex.Domain.Apps.Core.Model.Contents
                         {
                             [Status.Archived] = WorkflowTransition.When("ToArchivedExpr", "ToArchivedRole"),
                             [Status.Published] = WorkflowTransition.When("ToPublishedExpr", "ToPublishedRole")
-                        },
+                        }.ToImmutableDictionary(),
                         StatusColors.Draft),
                 [Status.Archived] =
                     new WorkflowStep(),
                 [Status.Published] =
                     new WorkflowStep()
-            });
+            }.ToImmutableDictionary());
 
         [Fact]
         public void Should_provide_default_workflow_if_none_found()
@@ -74,7 +76,7 @@ namespace Squidex.Domain.Apps.Core.Model.Contents
 
             Assert.True(found);
             Assert.Equal("ToArchivedExpr", transition?.Expression);
-            Assert.Equal("ToArchivedRole", transition?.Roles.Single());
+            Assert.Equal("ToArchivedRole", transition?.Roles?.Single());
         }
 
         [Fact]
@@ -116,14 +118,14 @@ namespace Squidex.Domain.Apps.Core.Model.Contents
 
             Assert.Equal(Status.Archived, status1);
             Assert.Equal("ToArchivedExpr", transition1?.Expression);
-            Assert.Equal("ToArchivedRole", transition1?.Roles.Single());
+            Assert.Equal("ToArchivedRole", transition1?.Roles?.Single());
             Assert.Same(workflow.Steps[status1], step1);
 
             var (status2, step2, transition2) = transitions[1];
 
             Assert.Equal(Status.Published, status2);
             Assert.Equal("ToPublishedExpr", transition2?.Expression);
-            Assert.Equal("ToPublishedRole", transition2?.Roles.Single());
+            Assert.Equal("ToPublishedRole", transition2?.Roles?.Single());
             Assert.Same(workflow.Steps[status2], step2);
         }
 

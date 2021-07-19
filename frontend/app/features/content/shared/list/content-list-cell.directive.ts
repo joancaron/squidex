@@ -6,12 +6,12 @@
  */
 
 import { Directive, ElementRef, Input, OnChanges, Pipe, PipeTransform, Renderer2 } from '@angular/core';
-import { MetaFields, RootFieldDto, TableField, Types } from '@app/shared';
+import { ContentDto, MetaFields, RootFieldDto, TableField, Types } from '@app/shared';
 
 export function getTableWidth(fields: ReadonlyArray<TableField>) {
     let result = 0;
 
-    for (let field of fields) {
+    for (const field of fields) {
         result += getCellWidth(field);
     }
 
@@ -42,7 +42,7 @@ export function getCellWidth(field: TableField) {
             case MetaFields.statusNext:
                 return 240;
             case MetaFields.statusColor:
-                return 80;
+                return 50;
             case MetaFields.version:
                 return 80;
         }
@@ -52,8 +52,24 @@ export function getCellWidth(field: TableField) {
 }
 
 @Pipe({
+    name: 'sqxContentsColumns',
+    pure: true,
+})
+export class ContentsColumnsPipe implements PipeTransform {
+    public transform(value: ReadonlyArray<ContentDto>) {
+        let columns = 1;
+
+        for (const content of value) {
+            columns = Math.max(columns, content.referenceFields.length);
+        }
+
+        return columns;
+    }
+}
+
+@Pipe({
     name: 'sqxContentListWidth',
-    pure: true
+    pure: true,
 })
 export class ContentListWidthPipe implements PipeTransform {
     public transform(value: ReadonlyArray<TableField>) {
@@ -66,7 +82,7 @@ export class ContentListWidthPipe implements PipeTransform {
 }
 
 @Directive({
-    selector: '[sqxContentListCell]'
+    selector: '[sqxContentListCell]',
 })
 export class ContentListCellDirective implements OnChanges {
     @Input('sqxContentListCell')
@@ -74,7 +90,7 @@ export class ContentListCellDirective implements OnChanges {
 
     constructor(
         private readonly element: ElementRef,
-        private readonly renderer: Renderer2
+        private readonly renderer: Renderer2,
     ) {
     }
 

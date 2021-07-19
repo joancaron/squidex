@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -10,7 +10,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using FakeItEasy;
 using FluentAssertions;
-using Squidex.Infrastructure.Log;
+using Squidex.Log;
 using Xunit;
 
 namespace Squidex.Infrastructure.UsageTracking
@@ -49,7 +49,7 @@ namespace Squidex.Infrastructure.UsageTracking
         {
             sut.Dispose();
 
-            await Assert.ThrowsAsync<ObjectDisposedException>(() => sut.GetForMonthAsync(key, date));
+            await Assert.ThrowsAsync<ObjectDisposedException>(() => sut.GetForMonthAsync(key, date, null));
         }
 
         [Fact]
@@ -57,11 +57,11 @@ namespace Squidex.Infrastructure.UsageTracking
         {
             sut.Dispose();
 
-            await Assert.ThrowsAsync<ObjectDisposedException>(() => sut.GetAsync(key, date, date));
+            await Assert.ThrowsAsync<ObjectDisposedException>(() => sut.GetAsync(key, date, date, null));
         }
 
         [Fact]
-        public async Task Should_sum_up_when_getting_monthly_calls()
+        public async Task Should_sum_up_if_getting_monthly_calls()
         {
             var dateFrom = new DateTime(date.Year, date.Month, 1);
             var dateTo = dateFrom.AddMonths(1).AddDays(-1);
@@ -70,21 +70,24 @@ namespace Squidex.Infrastructure.UsageTracking
             {
                 new StoredUsage("category1", date.AddDays(1), Counters(a: 10, b: 15)),
                 new StoredUsage("category1", date.AddDays(3), Counters(a: 13, b: 18)),
-                new StoredUsage("category1", date.AddDays(5), Counters(a: 15)),
-                new StoredUsage("category1", date.AddDays(7), Counters(b: 22))
+                new StoredUsage("category2", date.AddDays(5), Counters(a: 15)),
+                new StoredUsage("category2", date.AddDays(7), Counters(b: 22))
             };
 
             A.CallTo(() => usageStore.QueryAsync(key, dateFrom, dateTo))
                 .Returns(originalData);
 
-            var result = await sut.GetForMonthAsync(key, date);
+            var result1 = await sut.GetForMonthAsync(key, date, null);
+            var result2 = await sut.GetForMonthAsync(key, date, "category2");
 
-            Assert.Equal(38, result["A"]);
-            Assert.Equal(55, result["B"]);
+            Assert.Equal(38, result1["A"]);
+            Assert.Equal(55, result1["B"]);
+
+            Assert.Equal(22, result2["B"]);
         }
 
         [Fact]
-        public async Task Should_sum_up_when_getting_last_calls_calls()
+        public async Task Should_sum_up_if_getting_last_calls_calls()
         {
             var dateFrom = date;
             var dateTo = dateFrom.AddDays(10);
@@ -93,17 +96,20 @@ namespace Squidex.Infrastructure.UsageTracking
             {
                 new StoredUsage("category1", date.AddDays(1), Counters(a: 10, b: 15)),
                 new StoredUsage("category1", date.AddDays(3), Counters(a: 13, b: 18)),
-                new StoredUsage("category1", date.AddDays(5), Counters(a: 15)),
-                new StoredUsage("category1", date.AddDays(7), Counters(b: 22))
+                new StoredUsage("category2", date.AddDays(5), Counters(a: 15)),
+                new StoredUsage("category2", date.AddDays(7), Counters(b: 22))
             };
 
             A.CallTo(() => usageStore.QueryAsync(key, dateFrom, dateTo))
                 .Returns(originalData);
 
-            var result = await sut.GetAsync(key, dateFrom, dateTo);
+            var result1 = await sut.GetAsync(key, dateFrom, dateTo, null);
+            var result2 = await sut.GetAsync(key, dateFrom, dateTo, "category2");
 
-            Assert.Equal(38, result["A"]);
-            Assert.Equal(55, result["B"]);
+            Assert.Equal(38, result1["A"]);
+            Assert.Equal(55, result1["B"]);
+
+            Assert.Equal(22, result2["B"]);
         }
 
         [Fact]
@@ -125,9 +131,11 @@ namespace Squidex.Infrastructure.UsageTracking
                     (dateFrom.AddDays(1), new Counters()),
                     (dateFrom.AddDays(2), new Counters()),
                     (dateFrom.AddDays(3), new Counters()),
-                    (dateFrom.AddDays(4), new Counters()),
+                    (dateFrom.AddDays(4), new Counters())
                 }
             };
+
+            result.Should().BeEquivalentTo(expected);
         }
 
         [Fact]

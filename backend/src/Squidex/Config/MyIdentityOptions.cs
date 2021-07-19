@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -18,6 +18,8 @@ namespace Squidex.Config
         public string AdminEmail { get; set; }
 
         public string AdminPassword { get; set; }
+
+        public string[] AdminApps { get; set; }
 
         public string AdminClientId { get; set; }
 
@@ -45,9 +47,17 @@ namespace Squidex.Config
 
         public string OidcAuthority { get; set; }
 
+        public string OidcMetadataAddress { get; set; }
+
         public string OidcRoleClaimType { get; set; }
 
+        public string OidcResponseType { get; set; }
+
+        public string OidcOnSignoutRedirectUrl { get; set; }
+
         public string[] OidcScopes { get; set; }
+
+        public bool OidcGetClaimsFromUserInfoEndpoint { get; set; }
 
         public Dictionary<string, string[]> OidcRoleMapping { get; set; }
 

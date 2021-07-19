@@ -7,18 +7,16 @@
 
 import { Component, Input, OnChanges } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
-import { AddPreviewUrlForm, ConfigurePreviewUrlsForm, SchemaDetailsDto, SchemasState } from '@app/shared';
+import { ConfigurePreviewUrlsForm, SchemaDto, SchemasState } from '@app/shared';
 
 @Component({
     selector: 'sqx-schema-preview-urls-form',
     styleUrls: ['./schema-preview-urls-form.component.scss'],
-    templateUrl: './schema-preview-urls-form.component.html'
+    templateUrl: './schema-preview-urls-form.component.html',
 })
 export class SchemaPreviewUrlsFormComponent implements OnChanges {
     @Input()
-    public schema: SchemaDetailsDto;
-
-    public addForm = new AddPreviewUrlForm(this.formBuilder);
+    public schema: SchemaDto;
 
     public editForm = new ConfigurePreviewUrlsForm(this.formBuilder);
 
@@ -26,7 +24,7 @@ export class SchemaPreviewUrlsFormComponent implements OnChanges {
 
     constructor(
         private readonly formBuilder: FormBuilder,
-        private readonly schemasState: SchemasState
+        private readonly schemasState: SchemasState,
     ) {
     }
 
@@ -37,22 +35,8 @@ export class SchemaPreviewUrlsFormComponent implements OnChanges {
         this.editForm.setEnabled(this.isEditable);
     }
 
-    public cancelAdd() {
-        this.addForm.submitCompleted();
-    }
-
     public add() {
-        if (!this.isEditable) {
-            return;
-        }
-
-        const value = this.addForm.submit();
-
-        if (value) {
-            this.editForm.add(value);
-
-            this.cancelAdd();
-        }
+        this.editForm.add();
     }
 
     public saveSchema() {
@@ -64,7 +48,7 @@ export class SchemaPreviewUrlsFormComponent implements OnChanges {
 
         if (value) {
             this.schemasState.configurePreviewUrls(this.schema, value)
-                .subscribe(update => {
+                .subscribe(() => {
                     this.editForm.submitCompleted({ noReset: true });
                 }, error => {
                     this.editForm.submitFailed(error);

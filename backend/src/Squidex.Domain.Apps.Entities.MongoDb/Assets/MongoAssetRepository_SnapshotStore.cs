@@ -1,75 +1,108 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MongoDB.Bson;
 using MongoDB.Driver;
-using Squidex.Domain.Apps.Entities.Assets.State;
+using Squidex.Domain.Apps.Entities.Assets.DomainObject;
 using Squidex.Infrastructure;
-using Squidex.Infrastructure.Log;
 using Squidex.Infrastructure.MongoDb;
 using Squidex.Infrastructure.Reflection;
 using Squidex.Infrastructure.States;
+using Squidex.Log;
 
 namespace Squidex.Domain.Apps.Entities.MongoDb.Assets
 {
-    public sealed partial class MongoAssetRepository : ISnapshotStore<AssetState, Guid>
+    public sealed partial class MongoAssetRepository : ISnapshotStore<AssetDomainObject.State>
     {
-        async Task<(AssetState Value, long Version)> ISnapshotStore<AssetState, Guid>.ReadAsync(Guid key)
+        async Task<(AssetDomainObject.State Value, bool Valid, long Version)> ISnapshotStore<AssetDomainObject.State>.ReadAsync(DomainId key)
         {
             using (Profiler.TraceMethod<MongoAssetRepository>())
             {
                 var existing =
-                    await Collection.Find(x => x.Id == key)
+                    await Collection.Find(x => x.DocumentId == key)
                         .FirstOrDefaultAsync();
 
                 if (existing != null)
                 {
-                    return (Map(existing), existing.Version);
+                    return (Map(existing), true, existing.Version);
                 }
 
-                return (null!, EtagVersion.NotFound);
+                return (null!, true, EtagVersion.Empty);
             }
         }
 
-        async Task ISnapshotStore<AssetState, Guid>.WriteAsync(Guid key, AssetState value, long oldVersion, long newVersion)
+        async Task ISnapshotStore<AssetDomainObject.State>.WriteAsync(DomainId key, AssetDomainObject.State value, long oldVersion, long newVersion)
         {
             using (Profiler.TraceMethod<MongoAssetRepository>())
             {
-                var entity = SimpleMapper.Map(value, new MongoAssetEntity());
+                var entity = Map(value);
 
-                entity.Version = newVersion;
-                entity.IndexedAppId = value.AppId.Id;
-
-                await Collection.UpsertVersionedAsync(key, oldVersion, entity);
+                await Collection.UpsertVersionedAsync(key, oldVersion, newVersion, entity);
             }
         }
 
-        async Task ISnapshotStore<AssetState, Guid>.ReadAllAsync(Func<AssetState, long, Task> callback, CancellationToken ct)
+        async Task ISnapshotStore<AssetDomainObject.State>.WriteManyAsync(IEnumerable<(DomainId Key, AssetDomainObject.State Value, long Version)> snapshots)
+        {
+            using (Profiler.TraceMethod<MongoAssetFolderRepository>())
+            {
+                var entities = snapshots.Select(Map).ToList();
+
+                if (entities.Count == 0)
+                {
+                    return;
+                }
+
+                await Collection.InsertManyAsync(entities, InsertUnordered);
+            }
+        }
+
+        async Task ISnapshotStore<AssetDomainObject.State>.ReadAllAsync(Func<AssetDomainObject.State, long, Task> callback,
+            CancellationToken ct)
         {
             using (Profiler.TraceMethod<MongoAssetRepository>())
             {
-                await Collection.Find(new BsonDocument(), options: Batching.Options).ForEachPipelineAsync(x => callback(Map(x), x.Version), ct);
+                await Collection.Find(new BsonDocument(), Batching.Options).ForEachPipedAsync(x => callback(Map(x), x.Version), ct);
             }
         }
 
-        async Task ISnapshotStore<AssetState, Guid>.RemoveAsync(Guid key)
+        async Task ISnapshotStore<AssetDomainObject.State>.RemoveAsync(DomainId key)
         {
             using (Profiler.TraceMethod<MongoAssetRepository>())
             {
-                await Collection.DeleteOneAsync(x => x.Id == key);
+                await Collection.DeleteOneAsync(x => x.DocumentId == key);
             }
         }
 
-        private static AssetState Map(MongoAssetEntity existing)
+        private static MongoAssetEntity Map(AssetDomainObject.State value)
         {
-            return SimpleMapper.Map(existing, new AssetState());
+            var entity = SimpleMapper.Map(value, new MongoAssetEntity());
+
+            entity.IndexedAppId = value.AppId.Id;
+
+            return entity;
+        }
+
+        private static MongoAssetEntity Map((DomainId Key, AssetDomainObject.State Value, long Version) snapshot)
+        {
+            var entity = Map(snapshot.Value);
+
+            entity.DocumentId = snapshot.Key;
+
+            return entity;
+        }
+
+        private static AssetDomainObject.State Map(MongoAssetEntity existing)
+        {
+            return SimpleMapper.Map(existing, new AssetDomainObject.State());
         }
     }
 }

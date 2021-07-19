@@ -11,12 +11,12 @@ import { MathHelper, ModalModel, StatefulControlComponent } from '@app/framework
 import { FocusComponent } from './../forms-helper';
 
 export const SQX_COLOR_PICKER_CONTROL_VALUE_ACCESSOR: any = {
-    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => ColorPickerComponent), multi: true
+    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => ColorPickerComponent), multi: true,
 };
 
 interface State {
     // The current value.
-    value?: string;
+    value: string;
 
     // The foreground color.
     foreground: string;
@@ -27,9 +27,9 @@ interface State {
     styleUrls: ['./color-picker.component.scss'],
     templateUrl: './color-picker.component.html',
     providers: [
-        SQX_COLOR_PICKER_CONTROL_VALUE_ACCESSOR
+        SQX_COLOR_PICKER_CONTROL_VALUE_ACCESSOR,
     ],
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ColorPickerComponent extends StatefulControlComponent<State, string> implements FocusComponent {
     private wasOpen = false;
@@ -41,16 +41,16 @@ export class ColorPickerComponent extends StatefulControlComponent<State, string
     public mode: 'Input' | 'Circle' = 'Input';
 
     @Input()
-    public set disabled(value: boolean) {
-        super.setDisabledState(value);
+    public set disabled(value: boolean | null | undefined) {
+        this.setDisabledState(value === true);
     }
 
     public modal = new ModalModel();
 
     constructor(changeDetector: ChangeDetectorRef) {
-        super(changeDetector, { foreground: 'black' });
+        super(changeDetector, { foreground: 'black', value: 'black' });
 
-        this.modal.isOpen.subscribe(open => {
+        this.modal.isOpenChanges.subscribe(open => {
             if (open) {
                 this.wasOpen = true;
             } else {
@@ -63,17 +63,17 @@ export class ColorPickerComponent extends StatefulControlComponent<State, string
         });
     }
 
-    public writeValue(obj: any) {
+    public writeValue(value: any) {
         const previousColor = this.snapshot.value;
 
-        if (previousColor !== obj) {
+        if (previousColor !== value) {
             let foreground = 'black';
 
-            if (MathHelper.toLuminance(MathHelper.parseColor(obj)!) < .5) {
+            if (MathHelper.toLuminance(MathHelper.parseColor(value)!) < 0.5) {
                 foreground = 'white';
             }
 
-            this.next(s => ({ ...s, value: obj, foreground }));
+            this.next({ value, foreground });
         }
     }
 

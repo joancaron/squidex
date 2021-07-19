@@ -5,20 +5,23 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { ChangeDetectorRef, Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
-import { ApiUrlConfig, AppsState, ContentDto, LanguageDto, ManualContentsState, Query, QueryModel, queryModelFromSchema, ResourceOwner, SchemaDetailsDto, SchemaDto, SchemasState, Types } from '@app/shared';
+import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
+import { ApiUrlConfig, AppsState, ComponentContentsState, ContentDto, LanguageDto, Query, QueryModel, queryModelFromSchema, ResourceOwner, SchemaDto, SchemasState } from '@app/shared';
 
 @Component({
     selector: 'sqx-content-selector',
     styleUrls: ['./content-selector.component.scss'],
     templateUrl: './content-selector.component.html',
     providers: [
-        ManualContentsState
-    ]
+        ComponentContentsState,
+    ],
 })
 export class ContentSelectorComponent extends ResourceOwner implements OnInit {
     @Output()
     public select = new EventEmitter<ReadonlyArray<ContentDto>>();
+
+    @Input()
+    public schemaName?: string | null;
 
     @Input()
     public schemaIds: ReadonlyArray<string>;
@@ -30,26 +33,25 @@ export class ContentSelectorComponent extends ResourceOwner implements OnInit {
     public languages: ReadonlyArray<LanguageDto>;
 
     @Input()
-    public allowDuplicates: boolean;
+    public allowDuplicates?: boolean | null;
 
     @Input()
     public alreadySelected: ReadonlyArray<ContentDto>;
 
-    public schema: SchemaDetailsDto;
+    public schema: SchemaDto;
     public schemas: ReadonlyArray<SchemaDto> = [];
 
     public queryModel: QueryModel;
 
-    public selectedItems:  { [id: string]: ContentDto; } = {};
+    public selectedItems: { [id: string]: ContentDto } = {};
     public selectionCount = 0;
     public selectedAll = false;
 
     constructor(
         public readonly appsState: AppsState,
         public readonly apiUrl: ApiUrlConfig,
-        public readonly contentsState: ManualContentsState,
+        public readonly contentsState: ComponentContentsState,
         public readonly schemasState: SchemasState,
-        private readonly changeDetector: ChangeDetectorRef
     ) {
         super();
     }
@@ -61,7 +63,7 @@ export class ContentSelectorComponent extends ResourceOwner implements OnInit {
                     this.updateModel();
                 }));
 
-        this.schemas = this.schemasState.snapshot.schemas;
+        this.schemas = this.schemasState.snapshot.schemas.filter(x => x.canReadContents);
 
         if (this.schemaIds && this.schemaIds.length > 0) {
             this.schemas = this.schemas.filter(x => this.schemaIds.indexOf(x.id) >= 0);
@@ -70,24 +72,15 @@ export class ContentSelectorComponent extends ResourceOwner implements OnInit {
         this.selectSchema(this.schemas[0]);
     }
 
-    public selectSchema(selected: string | SchemaDto) {
-        if (Types.is(selected, SchemaDto)) {
-            selected = selected.id;
+    public selectSchema(schema: SchemaDto) {
+        this.schema = schema;
+
+        if (schema) {
+            this.contentsState.schema = schema;
+            this.contentsState.load();
+
+            this.updateModel();
         }
-
-        this.schemasState.loadSchema(selected, true)
-            .subscribe(schema => {
-                if (schema) {
-                    this.schema = schema;
-
-                    this.contentsState.schema = schema;
-                    this.contentsState.load();
-
-                    this.updateModel();
-
-                    this.changeDetector.markForCheck();
-                }
-            });
     }
 
     public reload() {
@@ -112,10 +105,6 @@ export class ContentSelectorComponent extends ResourceOwner implements OnInit {
 
     public emitSelect() {
         this.select.emit(Object.values(this.selectedItems));
-    }
-
-    public selectLanguage(language: LanguageDto) {
-        this.language = language;
     }
 
     public selectAll(isSelected: boolean) {
@@ -153,7 +142,7 @@ export class ContentSelectorComponent extends ResourceOwner implements OnInit {
         }
     }
 
-    public trackByContent(index: number, content: ContentDto): string {
+    public trackByContent(_index: number, content: ContentDto): string {
         return content.id;
     }
 }

@@ -5,12 +5,10 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable: max-line-length
-
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { SqxFrameworkModule, SqxSharedModule } from '@app/shared';
-import { AdministrationAreaComponent, ClusterPageComponent, EventConsumerComponent, EventConsumersPageComponent, EventConsumersService, EventConsumersState, RestorePageComponent, UnsetUserGuard, UserComponent, UserMustExistGuard, UserPageComponent, UsersPageComponent, UsersService, UsersState } from './declarations';
+import { AdministrationAreaComponent, ClusterPageComponent, EventConsumerComponent, EventConsumersPageComponent, EventConsumersService, EventConsumersState, RestorePageComponent, UserComponent, UserMustExistGuard, UserPageComponent, UsersPageComponent, UsersService, UsersState } from './declarations';
 
 const routes: Routes = [
     {
@@ -22,43 +20,38 @@ const routes: Routes = [
                 children: [
                     {
                         path: 'event-consumers',
-                        component: EventConsumersPageComponent
+                        component: EventConsumersPageComponent,
                     },
                     {
                         path: 'cluster',
-                        component: ClusterPageComponent
+                        component: ClusterPageComponent,
                     },
                     {
                         path: 'restore',
-                        component: RestorePageComponent
+                        component: RestorePageComponent,
                     },
                     {
                         path: 'users',
                         component: UsersPageComponent,
                         children: [
                             {
-                                path: 'new',
-                                component: UserPageComponent,
-                                canActivate: [UnsetUserGuard]
-                            },
-                            {
                                 path: ':userId',
                                 component: UserPageComponent,
-                                canActivate: [UserMustExistGuard]
-                            }
-                        ]
-                    }
-                ]
-            }
-        ]
-    }
+                                canActivate: [UserMustExistGuard],
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
+    },
 ];
 
 @NgModule({
     imports: [
-        SqxSharedModule,
+        RouterModule.forChild(routes),
         SqxFrameworkModule,
-        RouterModule.forChild(routes)
+        SqxSharedModule,
     ],
     declarations: [
         AdministrationAreaComponent,
@@ -68,15 +61,14 @@ const routes: Routes = [
         RestorePageComponent,
         UserComponent,
         UserPageComponent,
-        UsersPageComponent
+        UsersPageComponent,
     ],
     providers: [
         EventConsumersService,
         EventConsumersState,
-        UnsetUserGuard,
         UserMustExistGuard,
         UsersService,
-        UsersState
-    ]
+        UsersState,
+    ],
 })
 export class SqxFeatureAdministrationModule {}

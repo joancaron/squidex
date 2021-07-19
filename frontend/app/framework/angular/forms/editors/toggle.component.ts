@@ -10,7 +10,7 @@ import { NG_VALUE_ACCESSOR } from '@angular/forms';
 import { StatefulControlComponent, Types } from '@app/framework/internal';
 
 export const SQX_TOGGLE_CONTROL_VALUE_ACCESSOR: any = {
-    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => ToggleComponent), multi: true
+    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => ToggleComponent), multi: true,
 };
 
 interface State {
@@ -23,49 +23,50 @@ interface State {
     styleUrls: ['./toggle.component.scss'],
     templateUrl: './toggle.component.html',
     providers: [
-        SQX_TOGGLE_CONTROL_VALUE_ACCESSOR
-    ]
+        SQX_TOGGLE_CONTROL_VALUE_ACCESSOR,
+    ],
 })
 export class ToggleComponent extends StatefulControlComponent<State, boolean | null> {
     @Input()
-    public threeStates = false;
+    public threeStates?: boolean | null;
 
-    public set disabled(value: boolean) {
-        this.setDisabledState(value);
+    @Input()
+    public set disabled(value: boolean | null | undefined) {
+        this.setDisabledState(value === true);
     }
 
     constructor(changeDetector: ChangeDetectorRef) {
         super(changeDetector, {
-            isChecked: null
+            isChecked: null,
         });
     }
 
     public writeValue(obj: any) {
         const isChecked = Types.isBoolean(obj) ? obj : null;
 
-        this.next(s => ({ ...s, isChecked  }));
+        this.next({ isChecked });
     }
 
-    public changeState(event: MouseEvent) {
-        let { isDisabled, isChecked } = this.snapshot;
+    public changeState() {
+        const isDisabled = this.snapshot.isDisabled;
 
         if (isDisabled) {
             return;
         }
 
-        if (this.threeStates && (event.ctrlKey || event.shiftKey)) {
+        let isChecked = this.snapshot.isChecked;
+
+        if (this.threeStates) {
             if (isChecked) {
                 isChecked = null;
-            } else if (isChecked === null) {
-                isChecked = false;
             } else {
-                isChecked = true;
+                isChecked = isChecked !== null;
             }
         } else {
             isChecked = !(isChecked === true);
         }
 
-        this.next(s => ({ ...s, isChecked }));
+        this.next({ isChecked });
 
         this.callChange(isChecked);
         this.callTouched();

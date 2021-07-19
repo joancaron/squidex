@@ -1,13 +1,12 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
-using Newtonsoft.Json;
-using Squidex.Infrastructure.Json.Newtonsoft;
+using NodaTime;
 using Squidex.Infrastructure.UsageTracking;
 
 namespace Squidex.Areas.Api.Controllers.Statistics.Models
@@ -17,8 +16,7 @@ namespace Squidex.Areas.Api.Controllers.Statistics.Models
         /// <summary>
         /// The date when the usage was tracked.
         /// </summary>
-        [JsonConverter(typeof(DateConverter))]
-        public DateTime Date { get; set; }
+        public LocalDate Date { get; set; }
 
         /// <summary>
         /// The total number of API calls.
@@ -39,10 +37,10 @@ namespace Squidex.Areas.Api.Controllers.Statistics.Models
         {
             var result = new CallsUsagePerDateDto
             {
-                Date = DateTime.SpecifyKind(stats.Date, DateTimeKind.Utc),
+                Date = LocalDate.FromDateTime(DateTime.SpecifyKind(stats.Date, DateTimeKind.Utc)),
                 TotalBytes = stats.TotalBytes,
                 TotalCalls = stats.TotalCalls,
-                AverageElapsedMs = stats.AverageElapsedMs,
+                AverageElapsedMs = stats.AverageElapsedMs
             };
 
             return result;

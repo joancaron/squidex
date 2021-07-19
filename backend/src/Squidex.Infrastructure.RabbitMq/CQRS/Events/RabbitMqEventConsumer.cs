@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -10,6 +10,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using RabbitMQ.Client;
+using Squidex.Hosting;
+using Squidex.Hosting.Configuration;
 using Squidex.Infrastructure.EventSourcing;
 using Squidex.Infrastructure.Json;
 
@@ -27,21 +29,16 @@ namespace Squidex.Infrastructure.CQRS.Events
 
         public string Name
         {
-            get { return eventPublisherName; }
+            get => eventPublisherName;
         }
 
         public string EventsFilter
         {
-            get { return eventsFilter; }
+            get => eventsFilter;
         }
 
         public RabbitMqEventConsumer(IJsonSerializer jsonSerializer, string eventPublisherName, string uri, string exchange, string eventsFilter)
         {
-            Guard.NotNullOrEmpty(uri, nameof(uri));
-            Guard.NotNullOrEmpty(eventPublisherName, nameof(eventPublisherName));
-            Guard.NotNullOrEmpty(exchange, nameof(exchange));
-            Guard.NotNull(jsonSerializer, nameof(jsonSerializer));
-
             connectionFactory = new ConnectionFactory { Uri = new Uri(uri, UriKind.Absolute) };
             connection = new Lazy<IConnection>(connectionFactory.CreateConnection);
             channel = new Lazy<IModel>(connection.Value.CreateModel);
@@ -69,29 +66,28 @@ namespace Squidex.Infrastructure.CQRS.Events
 
                 if (!currentConnection.IsOpen)
                 {
-                    throw new ConfigurationException($"RabbitMq event bus failed to connect to {connectionFactory.Endpoint}");
+                    var error = new ConfigurationError($"RabbitMq event bus failed to connect to {connectionFactory.Endpoint}.");
+
+                    throw new ConfigurationException(error);
                 }
 
                 return Task.CompletedTask;
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                throw new ConfigurationException($"RabbitMq event bus failed to connect to {connectionFactory.Endpoint}", e);
+                var error = new ConfigurationError($"RabbitMq event bus failed to connect to {connectionFactory.Endpoint}.");
+
+                throw new ConfigurationException(error, ex);
             }
-        }
-
-        public bool Handles(StoredEvent @event)
-        {
-            return true;
-        }
-
-        public Task ClearAsync()
-        {
-            return Task.CompletedTask;
         }
 
         public Task On(Envelope<IEvent> @event)
         {
+            if (@event.Headers.Restored())
+            {
+                return Task.CompletedTask;
+            }
+
             var jsonString = jsonSerializer.Serialize(@event);
             var jsonBytes = Encoding.UTF8.GetBytes(jsonString);
 

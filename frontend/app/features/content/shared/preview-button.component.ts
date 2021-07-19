@@ -6,7 +6,9 @@
  */
 
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, OnInit } from '@angular/core';
-import { ContentDto, fadeAnimation, interpolate, LocalStoreService, ModalModel, SchemaDetailsDto, StatefulComponent } from '@app/shared';
+import { ContentDto, fadeAnimation, interpolate, LocalStoreService, ModalModel, SchemaDto, Settings, StatefulComponent } from '@app/shared';
+import { Observable } from 'rxjs';
+import { take } from 'rxjs/operators';
 
 interface State {
     // The name of the selected preview config.
@@ -21,24 +23,27 @@ interface State {
     styleUrls: ['./preview-button.component.scss'],
     templateUrl: './preview-button.component.html',
     animations: [
-        fadeAnimation
+        fadeAnimation,
     ],
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PreviewButtonComponent extends StatefulComponent<State> implements OnInit {
+    @Input()
+    public confirm?: () => Observable<boolean>;
+
     @Input()
     public content: ContentDto;
 
     @Input()
-    public schema: SchemaDetailsDto;
+    public schema: SchemaDto;
 
     public dropdown = new ModalModel();
 
     constructor(changeDetector: ChangeDetectorRef,
-        private readonly localStore: LocalStoreService
+        private readonly localStore: LocalStoreService,
     ) {
         super(changeDetector, {
-            previewNamesMore: []
+            previewNamesMore: [],
         });
     }
 
@@ -56,7 +61,16 @@ export class PreviewButtonComponent extends StatefulComponent<State> implements 
         if (name) {
             this.selectUrl(name);
 
-            this.navigateTo(name);
+            if (this.confirm) {
+                this.confirm().pipe(take(1))
+                    .subscribe(confirmed => {
+                        if (confirmed) {
+                            this.navigateTo(name);
+                        }
+                    });
+            } else {
+                this.navigateTo(name);
+            }
         }
 
         this.dropdown.hide();
@@ -88,6 +102,6 @@ export class PreviewButtonComponent extends StatefulComponent<State> implements 
     }
 
     private configKey() {
-        return `squidex.schemas.${this.schema.id}.preview-button`;
+        return Settings.Local.SCHEMA_PREVIEW(this.schema.id);
     }
 }

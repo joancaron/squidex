@@ -6,10 +6,10 @@
  */
 
 import { Directive, HostListener, Input, Renderer2 } from '@angular/core';
-import { DialogService, Notification, Types } from '@app/framework/internal';
+import { DialogService, Types } from '@app/framework/internal';
 
 @Directive({
-    selector: '[sqxCopy]'
+    selector: '[sqxCopy]',
 })
 export class CopyDirective {
     @Input('sqxCopy')
@@ -17,7 +17,7 @@ export class CopyDirective {
 
     constructor(
         private readonly dialogs: DialogService,
-        private readonly renderer: Renderer2
+        private readonly renderer: Renderer2,
     ) {
     }
 
@@ -65,9 +65,11 @@ export class CopyDirective {
         try {
             document.execCommand('copy');
 
-            this.dialogs.notify(Notification.info('Value has been added to your clipboard.'));
+            this.dialogs.notifyInfo('i18n:common.clipboardAdded');
+
+            return true;
         } catch (e) {
-            console.log('Copy failed');
+            return false;
         }
     }
 }

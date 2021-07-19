@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -9,84 +9,89 @@ using System;
 using System.Collections.Immutable;
 using Squidex.Domain.Apps.Core.Schemas;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.Json;
 
 namespace Squidex.Domain.Apps.Core.ValidateContent
 {
-    public sealed class ValidationContext
+    public sealed class ValidationContext : ValidatorContext
     {
-        public ImmutableQueue<string> Path { get; }
+        public ImmutableQueue<string> Path { get; private set; } = ImmutableQueue<string>.Empty;
 
-        public NamedId<Guid> AppId { get; }
+        public IJsonSerializer JsonSerializer { get; }
 
-        public NamedId<Guid> SchemaId { get; }
+        public ResolvedComponents Components { get; }
 
-        public Schema Schema { get; }
+        public DomainId ContentId { get; }
 
-        public Guid ContentId { get; }
-
-        public bool IsOptional { get; }
-
-        public ValidationMode Mode { get; }
+        public bool IsOptional { get; private set; }
 
         public ValidationContext(
-            NamedId<Guid> appId,
-            NamedId<Guid> schemaId,
+            IJsonSerializer jsonSerializer,
+            NamedId<DomainId> appId,
+            NamedId<DomainId> schemaId,
             Schema schema,
-            Guid contentId,
-            ValidationMode mode = ValidationMode.Default)
-            : this(appId, schemaId, schema, contentId, ImmutableQueue<string>.Empty, false, mode)
+            ResolvedComponents components,
+            DomainId contentId)
+            : base(appId, schemaId, schema)
         {
-        }
+            JsonSerializer = jsonSerializer;
 
-        private ValidationContext(
-            NamedId<Guid> appId,
-            NamedId<Guid> schemaId,
-            Schema schema,
-            Guid contentId,
-            ImmutableQueue<string> path,
-            bool isOptional,
-            ValidationMode mode = ValidationMode.Default)
-        {
-            AppId = appId;
+            Components = components;
             ContentId = contentId;
-            IsOptional = isOptional;
-            Mode = mode;
-            Path = path;
-
-            Schema = schema;
-            SchemaId = schemaId;
         }
 
-        public ValidationContext Optimized(bool isOptimized = true)
+        public ValidationContext Optimized(bool optimized = true)
         {
-            var mode = isOptimized ? ValidationMode.Optimized : ValidationMode.Default;
-
-            if (Mode == mode)
-            {
-                return this;
-            }
-
-            return Clone(Path, IsOptional, mode);
+            return WithMode(optimized ? ValidationMode.Optimized : ValidationMode.Default);
         }
 
-        public ValidationContext Optional(bool isOptional)
+        public ValidationContext AsPublishing(bool publish = true)
+        {
+            return WithAction(publish ? ValidationAction.Publish : ValidationAction.Upsert);
+        }
+
+        public ValidationContext Optional(bool isOptional = true)
         {
             if (IsOptional == isOptional)
             {
                 return this;
             }
 
-            return Clone(Path, isOptional, Mode);
+            return Clone(clone => clone.IsOptional = isOptional);
+        }
+
+        public ValidationContext WithAction(ValidationAction action)
+        {
+            if (Action == action)
+            {
+                return this;
+            }
+
+            return Clone(clone => clone.Action = action);
+        }
+
+        public ValidationContext WithMode(ValidationMode mode)
+        {
+            if (Mode == mode)
+            {
+                return this;
+            }
+
+            return Clone(clone => clone.Mode = mode);
         }
 
         public ValidationContext Nested(string property)
         {
-            return Clone(Path.Enqueue(property), IsOptional, Mode);
+            return Clone(clone => clone.Path = clone.Path.Enqueue(property));
         }
 
-        private ValidationContext Clone(ImmutableQueue<string> path, bool isOptional, ValidationMode mode)
+        private ValidationContext Clone(Action<ValidationContext> updater)
         {
-            return new ValidationContext(AppId, SchemaId, Schema, ContentId, path, isOptional, mode);
+            var clone = (ValidationContext)MemberwiseClone();
+
+            updater(clone);
+
+            return clone;
         }
     }
 }

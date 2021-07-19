@@ -8,24 +8,37 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Elasticsearch.Net;
 using Squidex.Domain.Apps.Entities.Apps;
+using Squidex.Hosting;
 using Squidex.Infrastructure;
 
 namespace Squidex.Domain.Apps.Entities.Contents.Text.Elastic
 {
     [ExcludeFromCodeCoverage]
-    public sealed class ElasticSearchTextIndex : ITextIndex
+    public sealed class ElasticSearchTextIndex : ITextIndex, IInitializable
     {
-        private const string IndexName = "contents";
         private readonly ElasticLowLevelClient client;
+        private readonly string indexName;
+        private readonly bool waitForTesting;
 
-        public ElasticSearchTextIndex()
+        public ElasticSearchTextIndex(string configurationString, string indexName, bool waitForTesting = false)
         {
-            var config = new ConnectionConfiguration(new Uri("http://localhost:9200"));
+            var config = new ConnectionConfiguration(new Uri(configurationString));
 
             client = new ElasticLowLevelClient(config);
+
+            this.indexName = indexName;
+
+            this.waitForTesting = waitForTesting;
+        }
+
+        public Task InitializeAsync(CancellationToken ct = default)
+        {
+            return ElasticSearchMapping.ApplyAsync(client, indexName, ct);
         }
 
         public Task ClearAsync()
@@ -33,81 +46,72 @@ namespace Squidex.Domain.Apps.Entities.Contents.Text.Elastic
             return Task.CompletedTask;
         }
 
-        public async Task ExecuteAsync(NamedId<Guid> appId, NamedId<Guid> schemaId, params IndexCommand[] commands)
+        public async Task ExecuteAsync(params IndexCommand[] commands)
         {
+            var args = new List<object>();
+
             foreach (var command in commands)
             {
-                switch (command)
+                CommandFactory.CreateCommands(command, args, indexName);
+            }
+
+            if (args.Count > 0)
+            {
+                var result = await client.BulkAsync<StringResponse>(PostData.MultiJson(args));
+
+                if (!result.Success)
                 {
-                    case UpsertIndexEntry upsert:
-                        await UpsertAsync(appId, schemaId, upsert);
-                        break;
-                    case UpdateIndexEntry update:
-                        await UpdateAsync(update);
-                        break;
-                    case DeleteIndexEntry delete:
-                        await DeleteAsync(delete);
-                        break;
+                    throw new InvalidOperationException($"Failed with ${result.Body}", result.OriginalException);
                 }
             }
-        }
 
-        private async Task UpsertAsync(NamedId<Guid> appId, NamedId<Guid> schemaId, UpsertIndexEntry upsert)
-        {
-            var data = new
+            if (waitForTesting)
             {
-                appId = appId.Id,
-                appName = appId.Name,
-                contentId = upsert.ContentId,
-                schemaId = schemaId.Id,
-                schemaName = schemaId.Name,
-                serveAll = upsert.ServeAll,
-                servePublished = upsert.ServePublished,
-                texts = upsert.Texts,
-            };
-
-            var result = await client.IndexAsync<StringResponse>(IndexName, upsert.DocId, CreatePost(data));
-
-            if (!result.Success)
-            {
-                throw new InvalidOperationException($"Failed with ${result.Body}", result.OriginalException);
+                await Task.Delay(1000);
             }
         }
 
-        private async Task UpdateAsync(UpdateIndexEntry update)
+        public Task<List<DomainId>?> SearchAsync(IAppEntity app, GeoQuery query, SearchScope scope)
         {
-            var data = new
+            return Task.FromResult<List<DomainId>?>(null);
+        }
+
+        public async Task<List<DomainId>?> SearchAsync(IAppEntity app, TextQuery query, SearchScope scope)
+        {
+            Guard.NotNull(app, nameof(app));
+            Guard.NotNull(query, nameof(query));
+
+            var queryText = query.Text;
+
+            if (string.IsNullOrWhiteSpace(queryText))
             {
-                doc = new
+                return null;
+            }
+
+            var isFuzzy = queryText.EndsWith("~", StringComparison.OrdinalIgnoreCase);
+
+            if (isFuzzy)
+            {
+                queryText = queryText[..^1];
+            }
+
+            var field = "texts.*";
+
+            if (queryText.Length >= 4 && queryText.IndexOf(":", StringComparison.OrdinalIgnoreCase) == 2)
+            {
+                var candidateLanguage = queryText.Substring(0, 2);
+
+                if (Language.IsValidLanguage(candidateLanguage))
                 {
-                    update.ServeAll,
-                    update.ServePublished
+                    field = $"texts.{candidateLanguage}";
+
+                    queryText = queryText[3..];
                 }
-            };
-
-            var result = await client.UpdateAsync<StringResponse>(IndexName, update.DocId, CreatePost(data));
-
-            if (!result.Success)
-            {
-                throw new InvalidOperationException($"Failed with ${result.Body}", result.OriginalException);
             }
-        }
 
-        private Task DeleteAsync(DeleteIndexEntry delete)
-        {
-            return client.DeleteAsync<StringResponse>(IndexName, delete.DocId);
-        }
-
-        private static PostData CreatePost<T>(T data)
-        {
-            return new SerializableData<T>(data);
-        }
-
-        public async Task<List<Guid>?> SearchAsync(string? queryText, IAppEntity app, SearchFilter? filter, SearchScope scope)
-        {
             var serveField = GetServeField(scope);
 
-            var query = new
+            var elasticQuery = new
             {
                 query = new
                 {
@@ -119,7 +123,7 @@ namespace Squidex.Domain.Apps.Entities.Contents.Text.Elastic
                             {
                                 term = new Dictionary<string, object>
                                 {
-                                    ["appId.keyword"] = app.Id
+                                    ["appId.keyword"] = app.Id.ToString()
                                 }
                             },
                             new
@@ -133,11 +137,12 @@ namespace Squidex.Domain.Apps.Entities.Contents.Text.Elastic
                             {
                                 multi_match = new
                                 {
+                                    fuzziness = isFuzzy ? (object)"AUTO" : 0,
                                     fields = new[]
                                     {
-                                        "texts.*"
+                                        field
                                     },
-                                    query = queryText
+                                    query = query.Text
                                 }
                             }
                         },
@@ -151,40 +156,40 @@ namespace Squidex.Domain.Apps.Entities.Contents.Text.Elastic
                 size = 2000
             };
 
-            if (filter?.SchemaIds.Count > 0)
+            if (query.Filter?.SchemaIds?.Length > 0)
             {
                 var bySchema = new
                 {
-                    term = new Dictionary<string, object>
+                    terms = new Dictionary<string, object>
                     {
-                        ["schemaId.keyword"] = filter.SchemaIds
+                        ["schemaId.keyword"] = query.Filter.SchemaIds.Select(x => x.ToString()).ToArray()
                     }
                 };
 
-                if (filter.Must)
+                if (query.Filter.Must)
                 {
-                    query.query.@bool.must.Add(bySchema);
+                    elasticQuery.query.@bool.must.Add(bySchema);
                 }
                 else
                 {
-                    query.query.@bool.should.Add(bySchema);
+                    elasticQuery.query.@bool.should.Add(bySchema);
                 }
             }
 
-            var result = await client.SearchAsync<DynamicResponse>(IndexName, CreatePost(query));
+            var result = await client.SearchAsync<DynamicResponse>(indexName, CreatePost(elasticQuery));
 
             if (!result.Success)
             {
                 throw result.OriginalException;
             }
 
-            var ids = new List<Guid>();
+            var ids = new List<DomainId>();
 
             foreach (var item in result.Body.hits.hits)
             {
                 if (item != null)
                 {
-                    ids.Add(Guid.Parse(item["_source"]["contentId"]));
+                    ids.Add(DomainId.Create(item["_source"]["contentId"]));
                 }
             }
 
@@ -196,6 +201,11 @@ namespace Squidex.Domain.Apps.Entities.Contents.Text.Elastic
             return scope == SearchScope.Published ?
                 "servePublished" :
                 "serveAll";
+        }
+
+        private static PostData CreatePost<T>(T data)
+        {
+            return new SerializableData<T>(data);
         }
     }
 }

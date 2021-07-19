@@ -5,12 +5,16 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { DateTime, Duration } from '@app/framework/internal';
+import { DateHelper, DateTime, Duration } from '@app/framework/internal';
 import { DatePipe, DayOfWeekPipe, DayPipe, DurationPipe, FromNowPipe, FullDateTimePipe, ISODatePipe, MonthPipe, ShortDatePipe, ShortTimePipe } from './date-time.pipes';
 
 const dateTime = DateTime.parseISO('2013-10-03T12:13:14.125', false);
 
 describe('DurationPipe', () => {
+    beforeEach(() => {
+        DateHelper.setlocale(null);
+    });
+
     it('should format to standard duration string', () => {
         const duration = Duration.create(dateTime, dateTime.addMinutes(10).addDays(13).addSeconds(10));
 
@@ -22,7 +26,7 @@ describe('DurationPipe', () => {
         expect(actual).toBe(expected);
     });
 
-    [null, undefined].map(x => {
+    [null, undefined].forEach(x => {
         it('should use fallback for non value', () => {
             const actual = new DurationPipe().transform(x, '-');
 
@@ -32,6 +36,10 @@ describe('DurationPipe', () => {
 });
 
 describe('DatePipe', () => {
+    beforeEach(() => {
+        DateHelper.setlocale(null);
+    });
+
     it('should format to two digit day number and short month name and year', () => {
         const pipe = new DatePipe();
 
@@ -41,7 +49,7 @@ describe('DatePipe', () => {
         expect(actual).toBe(expected);
     });
 
-    [null, undefined].map(x => {
+    [null, undefined].forEach(x => {
         it('should use fallback for non value', () => {
             const actual = new DatePipe().transform(x, '-');
 
@@ -51,6 +59,10 @@ describe('DatePipe', () => {
 });
 
 describe('DayPipe', () => {
+    beforeEach(() => {
+        DateHelper.setlocale(null);
+    });
+
     it('should format to day numbers', () => {
         const pipe = new DayPipe();
 
@@ -60,7 +72,7 @@ describe('DayPipe', () => {
         expect(actual).toBe(expected);
     });
 
-    [null, undefined].map(x => {
+    [null, undefined].forEach(x => {
         it('should use fallback for non value', () => {
             const actual = new DayPipe().transform(x, '-');
 
@@ -70,6 +82,10 @@ describe('DayPipe', () => {
 });
 
 describe('DayOfWeekPipe', () => {
+    beforeEach(() => {
+        DateHelper.setlocale(null);
+    });
+
     it('should format to short week of day string', () => {
         const pipe = new DayOfWeekPipe();
 
@@ -79,7 +95,7 @@ describe('DayOfWeekPipe', () => {
         expect(actual).toBe(expected);
     });
 
-    [null, undefined].map(x => {
+    [null, undefined].forEach(x => {
         it('should use fallback for non value', () => {
             const actual = new DayOfWeekPipe().transform(x, '-');
 
@@ -89,6 +105,10 @@ describe('DayOfWeekPipe', () => {
 });
 
 describe('FromNowPipe', () => {
+    beforeEach(() => {
+        DateHelper.setlocale(null);
+    });
+
     it('should format to from now string', () => {
         const pipe = new FromNowPipe();
 
@@ -98,7 +118,7 @@ describe('FromNowPipe', () => {
         expect(actual).toBe(expected);
     });
 
-    [null, undefined].map(x => {
+    [null, undefined].forEach(x => {
         it('should use fallback for non value', () => {
             const actual = new FromNowPipe().transform(x, '-');
 
@@ -108,6 +128,10 @@ describe('FromNowPipe', () => {
 });
 
 describe('FullDateTimePipe', () => {
+    beforeEach(() => {
+        DateHelper.setlocale(null);
+    });
+
     it('should format to nice string', () => {
         const pipe = new FullDateTimePipe();
 
@@ -117,7 +141,7 @@ describe('FullDateTimePipe', () => {
         expect(actual).toBe(expected);
     });
 
-    [null, undefined].map(x => {
+    [null, undefined].forEach(x => {
         it('should use fallback for non value', () => {
             const actual = new FullDateTimePipe().transform(x, '-');
 
@@ -127,6 +151,10 @@ describe('FullDateTimePipe', () => {
 });
 
 describe('MonthPipe', () => {
+    beforeEach(() => {
+        DateHelper.setlocale(null);
+    });
+
     it('should format to long month name', () => {
         const pipe = new MonthPipe();
 
@@ -136,7 +164,7 @@ describe('MonthPipe', () => {
         expect(actual).toBe(expected);
     });
 
-    [null, undefined].map(x => {
+    [null, undefined].forEach(x => {
         it('should use fallback for non value', () => {
             const actual = new MonthPipe().transform(x, '-');
 
@@ -146,6 +174,10 @@ describe('MonthPipe', () => {
 });
 
 describe('ShortDatePipe', () => {
+    beforeEach(() => {
+        DateHelper.setlocale(null);
+    });
+
     it('should format to two digit day number and short month name', () => {
         const pipe = new ShortDatePipe();
 
@@ -155,7 +187,7 @@ describe('ShortDatePipe', () => {
         expect(actual).toBe(expected);
     });
 
-    [null, undefined].map(x => {
+    [null, undefined].forEach(x => {
         it('should use fallback for non value', () => {
             const actual = new ShortDatePipe().transform(x, '-');
 
@@ -165,6 +197,10 @@ describe('ShortDatePipe', () => {
 });
 
 describe('ShortTimePipe', () => {
+    beforeEach(() => {
+        DateHelper.setlocale(null);
+    });
+
     it('should format to short time string', () => {
         const pipe = new ShortTimePipe();
 
@@ -174,7 +210,7 @@ describe('ShortTimePipe', () => {
         expect(actual).toBe(expected);
     });
 
-    [null, undefined].map(x => {
+    [null, undefined].forEach(x => {
         it('should use fallback for non value', () => {
             const actual = new ShortTimePipe().transform(x, '-');
 
@@ -184,6 +220,10 @@ describe('ShortTimePipe', () => {
 });
 
 describe('ISODatePipe', () => {
+    beforeEach(() => {
+        DateHelper.setlocale(null);
+    });
+
     it('should format to short time string', () => {
         const pipe = new ISODatePipe();
 
@@ -193,7 +233,7 @@ describe('ISODatePipe', () => {
         expect(actual).toBe(expected);
     });
 
-    [null, undefined].map(x => {
+    [null, undefined].forEach(x => {
         it('should use fallback for non value', () => {
             const actual = new ISODatePipe().transform(x, '-');
 

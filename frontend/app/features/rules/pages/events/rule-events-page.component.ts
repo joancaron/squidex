@@ -7,19 +7,23 @@
 
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import { ResourceOwner, RuleEventDto, RuleEventsState } from '@app/shared';
+import { ResourceOwner, Router2State, RuleEventDto, RuleEventsState } from '@app/shared';
 
 @Component({
     selector: 'sqx-rule-events-page',
     styleUrls: ['./rule-events-page.component.scss'],
-    templateUrl: './rule-events-page.component.html'
+    templateUrl: './rule-events-page.component.html',
+    providers: [
+        Router2State,
+    ],
 })
 export class RuleEventsPageComponent extends ResourceOwner implements OnInit {
     public selectedEventId: string | null = null;
 
     constructor(
+        private readonly route: ActivatedRoute,
+        public readonly ruleEventsRoute: Router2State,
         public readonly ruleEventsState: RuleEventsState,
-        private readonly route: ActivatedRoute
     ) {
         super();
     }
@@ -27,11 +31,16 @@ export class RuleEventsPageComponent extends ResourceOwner implements OnInit {
     public ngOnInit() {
         this.own(
             this.route.queryParams
-                .subscribe(x => {
-                    this.ruleEventsState.filterByRule(x.ruleId);
-                }));
+                .subscribe(() => {
+                    const initial =
+                        this.ruleEventsRoute.mapTo(this.ruleEventsState)
+                            .withPaging('rules', 30)
+                            .withString('ruleId')
+                            .withString('query')
+                            .getInitial();
 
-        this.ruleEventsState.load();
+                    this.ruleEventsState.load(false, initial);
+                }));
     }
 
     public reload() {
@@ -47,10 +56,14 @@ export class RuleEventsPageComponent extends ResourceOwner implements OnInit {
     }
 
     public selectEvent(id: string) {
-        this.selectedEventId = this.selectedEventId !== id ? id : null;
+        if (this.selectedEventId === id) {
+            this.selectedEventId = null;
+        } else {
+            this.selectedEventId = id;
+        }
     }
 
-    public trackByRuleEvent(index: number, ruleEvent: RuleEventDto) {
+    public trackByRuleEvent(_index: number, ruleEvent: RuleEventDto) {
         return ruleEvent.id;
     }
 }

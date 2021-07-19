@@ -5,10 +5,11 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Threading.Tasks;
 using FakeItEasy;
 using Orleans;
+using Squidex.Domain.Apps.Entities.Comments.DomainObject;
+using Squidex.Infrastructure;
 using Xunit;
 
 namespace Squidex.Domain.Apps.Entities.Comments
@@ -26,7 +27,7 @@ namespace Squidex.Domain.Apps.Entities.Comments
         [Fact]
         public async Task Should_get_comments_from_grain()
         {
-            var commentsId = Guid.NewGuid().ToString();
+            var commentsId = DomainId.NewGuid();
             var comments = new CommentsResult();
 
             var grain = A.Fake<ICommentsGrain>();
@@ -34,7 +35,7 @@ namespace Squidex.Domain.Apps.Entities.Comments
             A.CallTo(() => grain.GetCommentsAsync(11))
                 .Returns(comments);
 
-            A.CallTo(() => grainFactory.GetGrain<ICommentsGrain>(commentsId, null))
+            A.CallTo(() => grainFactory.GetGrain<ICommentsGrain>(commentsId.ToString(), null))
                 .Returns(grain);
 
             var result = await sut.GetCommentsAsync(commentsId, 11);

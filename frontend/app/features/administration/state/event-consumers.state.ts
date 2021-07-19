@@ -37,14 +37,14 @@ export class EventConsumersState extends State<Snapshot> {
 
     constructor(
         private readonly dialogs: DialogService,
-        private readonly eventConsumersService: EventConsumersService
+        private readonly eventConsumersService: EventConsumersService,
     ) {
-        super({ eventConsumers: [] });
+        super({ eventConsumers: [] }, 'EventConsumers');
     }
 
     public load(isReload = false, silent = false): Observable<any> {
         if (isReload && !silent) {
-            this.resetState();
+            this.resetState('Loading Initial');
         }
 
         return this.loadInternal(isReload, silent);
@@ -52,23 +52,23 @@ export class EventConsumersState extends State<Snapshot> {
 
     private loadInternal(isReload: boolean, silent: boolean): Observable<any> {
         if (!silent) {
-            this.next({ isLoading: true });
+            this.next({ isLoading: true }, 'Loading Started');
         }
 
         return this.eventConsumersService.getEventConsumers().pipe(
             tap(({ items: eventConsumers }) => {
                 if (isReload && !silent) {
-                    this.dialogs.notifyInfo('Event Consumers reloaded.');
+                    this.dialogs.notifyInfo('i18n:eventConsumers.reloaded');
                 }
 
                 this.next({
                     eventConsumers,
                     isLoaded: true,
-                    isLoading: false
-                });
+                    isLoading: false,
+                }, 'Loading Success');
             }),
             finalize(() => {
-                this.next({ isLoading: false });
+                this.next({ isLoading: false }, 'Loading Done');
             }),
             shareSubscribed(this.dialogs, { silent }));
     }
@@ -99,9 +99,9 @@ export class EventConsumersState extends State<Snapshot> {
 
     private replaceEventConsumer(eventConsumer: EventConsumerDto) {
         this.next(s => {
-            const eventConsumers = s.eventConsumers.replaceBy('name', eventConsumer);
+            const eventConsumers = s.eventConsumers.replacedBy('name', eventConsumer);
 
             return { ...s, eventConsumers };
-        });
+        }, 'Updated');
     }
 }

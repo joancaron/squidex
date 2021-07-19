@@ -1,33 +1,33 @@
-<sqx-title message="User Management"></sqx-title>
+<sqx-title message="i18n:users.listPageTitle"></sqx-title>
 
-<sqx-panel desiredWidth="50rem" grid="true">
+<sqx-panel desiredWidth="50rem" [grid]="true" closeQueryParamsHandling="">
     <ng-container title>
-        Users
+        {{ 'users.listTitle' | sqxTranslate }}
     </ng-container>
 
     <ng-container menu>
-        <button type="button" class="btn btn-text-secondary mr-1" (click)="reload()" title="Refresh Users (CTRL + SHIFT + R)">
-            <i class="icon-reset"></i> Refresh
+        <button type="button" class="btn btn-text-secondary mr-1" (click)="reload()" title="i18n:users.refreshTooltip">
+            <i class="icon-reset"></i> {{ 'common.refresh' | sqxTranslate }}
         </button>
 
         <sqx-shortcut keys="ctrl+shift+r" (trigger)="reload()"></sqx-shortcut>
         <sqx-shortcut keys="ctrl+shift+f" (trigger)="inputFind.focus()"></sqx-shortcut>
 
         <form class="form-inline mr-1" (ngSubmit)="search()">
-            <input class="form-control" #inputFind [formControl]="usersFilter" placeholder="Search for user" />
+            <input class="form-control" #inputFind [formControl]="usersFilter" placeholder="{{ 'users.search' | sqxTranslate }}">
         </form>
 
         <ng-container *ngIf="usersState.canCreate | async">
             <sqx-shortcut keys="ctrl+shift+n" (trigger)="buttonNew.click()"></sqx-shortcut>
 
-            <button type="button" class="btn btn-success" #buttonNew routerLink="new" title="New User (CTRL + N)">
-                <i class="icon-plus"></i> New
+            <button type="button" class="btn btn-success" #buttonNew routerLink="new" title="i18n:users.createTooltip">
+                <i class="icon-plus"></i> {{ 'users.create' | sqxTranslate }}
             </button>
         </ng-container>
     </ng-container>
 
     <ng-container content>
-        <sqx-list-view [isLoading]="usersState.isLoading | async" table="true">
+        <sqx-list-view [isLoading]="usersState.isLoading | async" [table]="true">
             <ng-container header>
                 <table class="table table-items table-fixed" #header>
                     <thead>
@@ -36,13 +36,13 @@
                                 &nbsp;
                             </th>
                             <th class="cell-auto">
-                                Name
+                                <span class="truncate">{{ 'common.name' | sqxTranslate }}</span>
                             </th>
                             <th class="cell-auto">
-                                Email
+                                <span class="truncate">{{ 'common.email' | sqxTranslate }}</span>
                             </th>
-                            <th class="cell-actions">
-                                Actions
+                            <th class="cell-actions-lg">
+                                <span class="truncate">{{ 'common.actions' | sqxTranslate }}</span>
                             </th>
                         </tr>
                     </thead>
@@ -51,14 +51,12 @@
                 
             <div content>
                 <table class="table table-items table-fixed" *ngIf="usersState.users | async; let users" [sqxSyncWidth]="header">
-                    <tbody *ngFor="let user of users; trackBy: trackByUser"
-                        [sqxUser]="user">
-                    </tbody>
+                    <tbody *ngFor="let user of users; trackBy: trackByUser" [sqxUser]="user"></tbody>
                 </table>
             </div>
     
             <ng-container footer>
-                <sqx-pager [pager]="usersState.usersPager | async" (pagerChange)="usersState.setPager($event)"></sqx-pager>
+                <sqx-pager [paging]="usersState.paging | async" (pagingChange)="usersState.page($event)"></sqx-pager>
             </ng-container>
         </sqx-list-view>
     </ng-container>

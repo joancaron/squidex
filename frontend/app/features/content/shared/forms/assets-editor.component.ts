@@ -6,18 +6,18 @@
  */
 
 import { CdkDragDrop } from '@angular/cdk/drag-drop';
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, forwardRef, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, forwardRef, Input, OnInit } from '@angular/core';
 import { NG_VALUE_ACCESSOR } from '@angular/forms';
-import { AppsState, AssetDto, AssetsService, DialogModel, LocalStoreService, MessageBus, sorted, StatefulControlComponent, Types } from '@app/shared';
+import { AppsState, AssetDto, AssetsService, DialogModel, LocalStoreService, MessageBus, Settings, sorted, StatefulControlComponent, Types } from '@app/shared';
 
 export const SQX_ASSETS_EDITOR_CONTROL_VALUE_ACCESSOR: any = {
-    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => AssetsEditorComponent), multi: true
+    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => AssetsEditorComponent), multi: true,
 };
 
 class AssetUpdated {
     constructor(
         public readonly asset: AssetDto,
-        public readonly source: any
+        public readonly source: any,
     ) {
     }
 }
@@ -41,12 +41,18 @@ interface State {
     styleUrls: ['./assets-editor.component.scss'],
     templateUrl: './assets-editor.component.html',
     providers: [
-        SQX_ASSETS_EDITOR_CONTROL_VALUE_ACCESSOR
+        SQX_ASSETS_EDITOR_CONTROL_VALUE_ACCESSOR,
     ],
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AssetsEditorComponent extends StatefulControlComponent<State, ReadonlyArray<string>> implements OnInit {
-    public isCompact = false;
+    @Input()
+    public folderId?: string;
+
+    @Input()
+    public set disabled(value: boolean | null | undefined) {
+        this.setDisabledState(value === true);
+    }
 
     public assetsDialog = new DialogModel();
 
@@ -54,12 +60,12 @@ export class AssetsEditorComponent extends StatefulControlComponent<State, Reado
         private readonly appsState: AppsState,
         private readonly assetsService: AssetsService,
         private readonly localStore: LocalStoreService,
-        private readonly messageBus: MessageBus
+        private readonly messageBus: MessageBus,
     ) {
         super(changeDetector, {
             assets: [],
             assetFiles: [],
-            isListView: localStore.getBoolean('squidex.assets.list-view')
+            isListView: localStore.getBoolean(Settings.Local.ASSETS_MODE),
         });
     }
 
@@ -93,22 +99,25 @@ export class AssetsEditorComponent extends StatefulControlComponent<State, Reado
             this.messageBus.of(AssetUpdated)
                 .subscribe(event => {
                     if (event.source !== this) {
-                        this.setAssets(this.snapshot.assets.replaceBy('id', event.asset));
+                        this.setAssets(this.snapshot.assets.replacedBy('id', event.asset));
                     }
                 }));
     }
 
     public setCompact(isCompact: boolean) {
-        this.next(s => ({ ...s, isCompact: isCompact }));
+        this.next({ isCompact });
     }
 
     public setAssets(assets: ReadonlyArray<AssetDto>) {
-        this.next(s => ({ ...s, assets }));
+        this.next({ assets });
     }
 
     public addFiles(files: ReadonlyArray<File>) {
         for (const file of files) {
-            this.next(s => ({ ...s, assetFiles: [file, ...s.assetFiles] }));
+            this.next(s => ({
+                ...s,
+                assetFiles: [file, ...s.assetFiles],
+            }));
         }
     }
 
@@ -127,7 +136,7 @@ export class AssetsEditorComponent extends StatefulControlComponent<State, Reado
             this.next(s => ({
                 ...s,
                 assetFiles: s.assetFiles.removed(file),
-                assets: [asset, ...s.assets]
+                assets: [asset, ...s.assets],
             }));
 
             this.updateValue();
@@ -151,11 +160,14 @@ export class AssetsEditorComponent extends StatefulControlComponent<State, Reado
     }
 
     public removeLoadingAsset(file: File) {
-        this.next(s => ({ ...s, assetFiles: s.assetFiles.removed(file) }));
+        this.next(s => ({
+            ...s,
+            assetFiles: s.assetFiles.removed(file),
+        }));
     }
 
     public changeView(isListView: boolean) {
-        this.next(s => ({ ...s, isListView }));
+        this.next({ isListView });
 
         this.localStore.setBoolean('squidex.assets.list-view', isListView);
     }
@@ -172,7 +184,7 @@ export class AssetsEditorComponent extends StatefulControlComponent<State, Reado
         this.callTouched();
     }
 
-    public trackByAsset(index: number, asset: AssetDto) {
+    public trackByAsset(_index: number, asset: AssetDto) {
         return asset.id;
     }
 }

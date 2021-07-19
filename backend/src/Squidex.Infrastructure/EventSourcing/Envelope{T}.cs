@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -14,12 +14,12 @@ namespace Squidex.Infrastructure.EventSourcing
 
         public EnvelopeHeaders Headers
         {
-            get { return headers; }
+            get => headers;
         }
 
         public T Payload
         {
-            get { return payload; }
+            get => payload;
         }
 
         public Envelope(T payload, EnvelopeHeaders? headers = null)

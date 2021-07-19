@@ -12,7 +12,7 @@ using TestSuite.Fixtures;
 using Xunit;
 
 #pragma warning disable SA1300 // Element should begin with upper-case letter
-#pragma warning disable SA1507 // Code should not contain multiple blank lines in a row
+#pragma warning disable CS0618 // Type or member is obsolete
 
 namespace TestSuite.ApiTests
 {
@@ -79,6 +79,21 @@ namespace TestSuite.ApiTests
             Assert.Equal(300L, asset.Metadata["pixelHeight"]);
             Assert.Equal(300L, asset.Metadata["pixelWidth"]);
             Assert.Equal(96L, asset.Metadata["imageQuality"]);
+            Assert.Equal(AssetType.Image, asset.Type);
+        }
+
+        [Fact]
+        public async Task Should_fix_orientation()
+        {
+            var asset = await _.UploadFileAsync("Assets/logo-wide-rotated.jpg", "image/jpg");
+
+            // Should parse image metadata and fix orientation.
+            Assert.True(asset.IsImage);
+            Assert.Equal(135, asset.PixelHeight);
+            Assert.Equal(600, asset.PixelWidth);
+            Assert.Equal(135L, asset.Metadata["pixelHeight"]);
+            Assert.Equal(600L, asset.Metadata["pixelWidth"]);
+            Assert.Equal(79L, asset.Metadata["imageQuality"]);
             Assert.Equal(AssetType.Image, asset.Type);
         }
 

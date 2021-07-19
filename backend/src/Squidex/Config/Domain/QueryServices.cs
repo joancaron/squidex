@@ -5,15 +5,12 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using GraphQL;
-using GraphQL.DataLoader;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Squidex.Domain.Apps.Core;
-using Squidex.Domain.Apps.Entities.Assets;
 using Squidex.Domain.Apps.Entities.Contents.GraphQL;
-using Squidex.Web;
+using Squidex.Domain.Apps.Entities.Contents.GraphQL.Types;
+using Squidex.Domain.Apps.Entities.Contents.GraphQL.Types.Primitives;
 using Squidex.Web.Services;
 
 namespace Squidex.Config.Domain
@@ -24,23 +21,23 @@ namespace Squidex.Config.Domain
         {
             var exposeSourceUrl = config.GetOptionalValue("assetStore:exposeSourceUrl", true);
 
-            services.AddSingletonAs(c => new UrlGenerator(
-                    c.GetRequiredService<IOptions<UrlsOptions>>(),
-                    c.GetRequiredService<IAssetFileStore>(),
-                    exposeSourceUrl))
+            services.Configure<GraphQLOptions>(config,
+                "graphql");
+
+            services.AddSingletonAs(c => ActivatorUtilities.CreateInstance<UrlGenerator>(c, exposeSourceUrl))
                 .As<IUrlGenerator>();
 
-            services.AddSingletonAs(x => new FuncDependencyResolver(x.GetRequiredService))
-                .As<IDependencyResolver>();
-
-            services.AddSingletonAs<DataLoaderContextAccessor>()
-                .As<IDataLoaderContextAccessor>();
-
-            services.AddSingletonAs<DataLoaderDocumentListener>()
+            services.AddSingletonAs<SharedTypes>()
                 .AsSelf();
 
-            services.AddSingletonAs<CachingGraphQLService>()
-                .As<IGraphQLService>();
+            services.AddSingletonAs<InstantGraphType>()
+                .AsSelf();
+
+            services.AddSingletonAs<JsonGraphType>()
+                .AsSelf();
+
+            services.AddSingletonAs<JsonNoopGraphType>()
+                .AsSelf();
 
             services.AddSingletonAs<CachingGraphQLService>()
                 .As<IGraphQLService>();

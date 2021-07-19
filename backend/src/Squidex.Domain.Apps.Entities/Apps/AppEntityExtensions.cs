@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -13,7 +13,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
     {
         public static PartitionResolver PartitionResolver(this IAppEntity entity)
         {
-            return entity.LanguagesConfig.ToResolver();
+            return entity.Languages.ToResolver();
         }
     }
 }

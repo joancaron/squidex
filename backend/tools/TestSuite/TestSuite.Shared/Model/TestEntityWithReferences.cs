@@ -5,7 +5,6 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
@@ -42,6 +41,6 @@ namespace TestSuite.Model
     public sealed class TestEntityWithReferencesData
     {
         [JsonConverter(typeof(InvariantConverter))]
-        public Guid[] References { get; set; }
+        public string[] References { get; set; }
     }
 }

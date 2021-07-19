@@ -11,6 +11,7 @@ using System.Linq;
 using FluentAssertions;
 using Squidex.Domain.Apps.Core.HandleRules;
 using Squidex.Domain.Apps.Core.Rules;
+using Squidex.Infrastructure.Validation;
 using Xunit;
 
 namespace Squidex.Domain.Apps.Core.Operations.HandleRules
@@ -34,10 +35,16 @@ namespace Squidex.Domain.Apps.Core.Operations.HandleRules
             Display = "Action display",
             Description = "Action description.",
             ReadMore = "https://www.readmore.com/")]
-        public sealed class MyInvalidRuleAction : RuleAction
+        public sealed record MyInvalidRuleAction : RuleAction
         {
             [DataType(DataType.Custom)]
             public string Custom { get; set; }
+        }
+
+        public enum ActionEnum
+        {
+            Yes,
+            No
         }
 
         [RuleAction(
@@ -47,9 +54,9 @@ namespace Squidex.Domain.Apps.Core.Operations.HandleRules
             Display = "Action display",
             Description = "Action description.",
             ReadMore = "https://www.readmore.com/")]
-        public sealed class MyRuleAction : RuleAction
+        public sealed record MyRuleAction : RuleAction
         {
-            [Required]
+            [LocalizedRequired]
             [Display(Name = "Url Name", Description = "Url Description")]
             [DataType(DataType.Url)]
             [Formattable]
@@ -66,6 +73,12 @@ namespace Squidex.Domain.Apps.Core.Operations.HandleRules
 
             [DataType(DataType.Password)]
             public string Password { get; set; }
+
+            [DataType(DataType.Text)]
+            public ActionEnum Enum { get; set; }
+
+            [DataType(DataType.Text)]
+            public ActionEnum? EnumOptional { get; set; }
 
             [DataType(DataType.Text)]
             public bool Boolean { get; set; }
@@ -138,6 +151,26 @@ namespace Squidex.Domain.Apps.Core.Operations.HandleRules
                 Description = null,
                 Editor = RuleActionPropertyEditor.Password,
                 IsRequired = false
+            });
+
+            expected.Properties.Add(new RuleActionProperty
+            {
+                Name = "enum",
+                Display = "Enum",
+                Description = null,
+                Editor = RuleActionPropertyEditor.Dropdown,
+                IsRequired = false,
+                Options = new[] { "Yes", "No" }
+            });
+
+            expected.Properties.Add(new RuleActionProperty
+            {
+                Name = "enumOptional",
+                Display = "EnumOptional",
+                Description = null,
+                Editor = RuleActionPropertyEditor.Dropdown,
+                IsRequired = false,
+                Options = new[] { "Yes", "No" }
             });
 
             expected.Properties.Add(new RuleActionProperty

@@ -1,93 +1,114 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using NodaTime.Text;
+using Squidex.Domain.Apps.Core.Contents;
 using Squidex.Domain.Apps.Core.Schemas;
+using Squidex.Infrastructure;
+using Squidex.Infrastructure.Json;
 using Squidex.Infrastructure.Json.Objects;
-using Squidex.Infrastructure.Validation;
+using Squidex.Infrastructure.Translations;
+
+#pragma warning disable SA1313 // Parameter names should begin with lower-case letter
 
 namespace Squidex.Domain.Apps.Core.ValidateContent
 {
-    public sealed class JsonValueConverter : IFieldVisitor<(object? Result, JsonError? Error)>
+    public sealed class JsonValueConverter : IFieldVisitor<(object? Result, JsonError? Error), JsonValueConverter.Args>
     {
-        private readonly IJsonValue value;
+        private static readonly JsonValueConverter Instance = new JsonValueConverter();
 
-        private JsonValueConverter(IJsonValue value)
+        public sealed record Args(IJsonValue Value, IJsonSerializer JsonSerializer, ResolvedComponents Components);
+
+        private JsonValueConverter()
         {
-            this.value = value;
         }
 
-        public static (object? Result, JsonError? Error) ConvertValue(IField field, IJsonValue json)
+        public static (object? Result, JsonError? Error) ConvertValue(IField field, IJsonValue value, IJsonSerializer jsonSerializer,
+            ResolvedComponents components)
         {
-            return field.Accept(new JsonValueConverter(json));
+            Guard.NotNull(field, nameof(field));
+            Guard.NotNull(value, nameof(value));
+
+            var args = new Args(value, jsonSerializer, components);
+
+            return field.Accept(Instance, args);
         }
 
-        public (object? Result, JsonError? Error) Visit(IArrayField field)
+        public (object? Result, JsonError? Error) Visit(IArrayField field, Args args)
         {
-            return ConvertToObjectList();
+            return ConvertToObjectList(args.Value);
         }
 
-        public (object? Result, JsonError? Error) Visit(IField<AssetsFieldProperties> field)
+        public (object? Result, JsonError? Error) Visit(IField<AssetsFieldProperties> field, Args args)
         {
-            return ConvertToGuidList();
+            return ConvertToIdList(args.Value);
         }
 
-        public (object? Result, JsonError? Error) Visit(IField<ReferencesFieldProperties> field)
+        public (object? Result, JsonError? Error) Visit(IField<ComponentFieldProperties> field, Args args)
         {
-            return ConvertToGuidList();
+            return ConvertToComponent(args.Value, args.Components);
         }
 
-        public (object? Result, JsonError? Error) Visit(IField<TagsFieldProperties> field)
+        public (object? Result, JsonError? Error) Visit(IField<ComponentsFieldProperties> field, Args args)
         {
-            return ConvertToStringList();
+            return ConvertToComponentList(args.Value, args.Components);
         }
 
-        public (object? Result, JsonError? Error) Visit(IField<BooleanFieldProperties> field)
+        public (object? Result, JsonError? Error) Visit(IField<ReferencesFieldProperties> field, Args args)
         {
-            if (value is JsonScalar<bool> b)
+            return ConvertToIdList(args.Value);
+        }
+
+        public (object? Result, JsonError? Error) Visit(IField<TagsFieldProperties> field, Args args)
+        {
+            return ConvertToStringList(args.Value);
+        }
+
+        public (object? Result, JsonError? Error) Visit(IField<BooleanFieldProperties> field, Args args)
+        {
+            if (args.Value is JsonBoolean b)
             {
                 return (b.Value, null);
             }
 
-            return (null, new JsonError("Invalid json type, expected boolean."));
+            return (null, new JsonError(T.Get("contents.invalidBoolean")));
         }
 
-        public (object? Result, JsonError? Error) Visit(IField<NumberFieldProperties> field)
+        public (object? Result, JsonError? Error) Visit(IField<NumberFieldProperties> field, Args args)
         {
-            if (value is JsonScalar<double> n)
+            if (args.Value is JsonNumber n)
             {
                 return (n.Value, null);
             }
 
-            return (null, new JsonError("Invalid json type, expected number."));
+            return (null, new JsonError(T.Get("contents.invalidNumber")));
         }
 
-        public (object? Result, JsonError? Error) Visit(IField<StringFieldProperties> field)
+        public (object? Result, JsonError? Error) Visit(IField<StringFieldProperties> field, Args args)
         {
-            if (value is JsonScalar<string> s)
+            if (args.Value is JsonString s)
             {
                 return (s.Value, null);
             }
 
-            return (null, new JsonError("Invalid json type, expected string."));
+            return (null, new JsonError(T.Get("contents.invalidString")));
         }
 
-        public (object? Result, JsonError? Error) Visit(IField<UIFieldProperties> field)
+        public (object? Result, JsonError? Error) Visit(IField<UIFieldProperties> field, Args args)
         {
-            return (value, null);
+            return (args.Value, null);
         }
 
-        public (object? Result, JsonError? Error) Visit(IField<DateTimeFieldProperties> field)
+        public (object? Result, JsonError? Error) Visit(IField<DateTimeFieldProperties> field, Args args)
         {
-            if (value.Type == JsonValueType.String)
+            if (args.Value.Type == JsonValueType.String)
             {
-                var parseResult = InstantPattern.General.Parse(value.ToString());
+                var parseResult = InstantPattern.ExtendedIso.Parse(args.Value.ToString());
 
                 if (!parseResult.Success)
                 {
@@ -97,135 +118,156 @@ namespace Squidex.Domain.Apps.Core.ValidateContent
                 return (parseResult.Value, null);
             }
 
-            return (null, new JsonError("Invalid json type, expected string."));
+            return (null, new JsonError(T.Get("contents.invalidString")));
         }
 
-        public (object? Result, JsonError? Error) Visit(IField<GeolocationFieldProperties> field)
+        public (object? Result, JsonError? Error) Visit(IField<GeolocationFieldProperties> field, Args args)
         {
-            if (value is JsonObject geolocation)
+            var result = GeoJsonValue.TryParse(args.Value, args.JsonSerializer, out var value);
+
+            switch (result)
             {
-                foreach (var propertyName in geolocation.Keys)
-                {
-                    if (!string.Equals(propertyName, "latitude", StringComparison.OrdinalIgnoreCase) &&
-                        !string.Equals(propertyName, "longitude", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return (null, new JsonError("Geolocation can only have latitude and longitude property."));
-                    }
-                }
-
-                if (geolocation.TryGetValue("latitude", out var latValue) && latValue is JsonScalar<double> latNumber)
-                {
-                    var lat = latNumber.Value;
-
-                    if (!lat.IsBetween(-90, 90))
-                    {
-                        return (null, new JsonError("Latitude must be between -90 and 90."));
-                    }
-                }
-                else
-                {
-                    return (null, new JsonError("Invalid json type, expected latitude/longitude object."));
-                }
-
-                if (geolocation.TryGetValue("longitude", out var lonValue) && lonValue is JsonScalar<double> lonNumber)
-                {
-                    var lon = lonNumber.Value;
-
-                    if (!lon.IsBetween(-180, 180))
-                    {
-                        return (null, new JsonError("Longitude must be between -180 and 180."));
-                    }
-                }
-                else
-                {
-                    return (null, new JsonError("Invalid json type, expected latitude/longitude object."));
-                }
-
-                return (value, null);
+                case GeoJsonParseResult.InvalidLatitude:
+                    return (null, new JsonError(T.Get("contents.invalidGeolocationLatitude")));
+                case GeoJsonParseResult.InvalidLongitude:
+                    return (null, new JsonError(T.Get("contents.invalidGeolocationLongitude")));
+                case GeoJsonParseResult.InvalidValue:
+                    return (null, new JsonError(T.Get("contents.invalidGeolocation")));
+                default:
+                    return (value, null);
             }
-
-            return (null, new JsonError("Invalid json type, expected latitude/longitude object."));
         }
 
-        public (object? Result, JsonError? Error) Visit(IField<JsonFieldProperties> field)
+        public (object? Result, JsonError? Error) Visit(IField<JsonFieldProperties> field, Args args)
         {
-            return (value, null);
+            return (args.Value, null);
         }
 
-        private (object? Result, JsonError? Error) ConvertToGuidList()
+        private static (object? Result, JsonError? Error) ConvertToIdList(IJsonValue value)
         {
             if (value is JsonArray array)
             {
-                var result = new List<Guid>(array.Count);
+                var result = new List<DomainId>(array.Count);
 
-                foreach (var item in array)
+                for (var i = 0; i < array.Count; i++)
                 {
-                    if (item is JsonScalar<string> s && Guid.TryParse(s.Value, out var guid))
+                    if (array[i] is JsonString s && !string.IsNullOrWhiteSpace(s.Value))
                     {
-                        result.Add(guid);
+                        result.Add(DomainId.Create(s.Value));
                     }
                     else
                     {
-                        return (null, new JsonError("Invalid json type, expected array of guid strings."));
+                        return (null, new JsonError(T.Get("contents.invalidArrayOfStrings")));
                     }
                 }
 
                 return (result, null);
             }
 
-            return (null, new JsonError("Invalid json type, expected array of guid strings."));
+            return (null, new JsonError(T.Get("contents.invalidArrayOfStrings")));
         }
 
-        private (object? Result, JsonError? Error) ConvertToStringList()
+        private static (object? Result, JsonError? Error) ConvertToStringList(IJsonValue value)
         {
             if (value is JsonArray array)
             {
                 var result = new List<string?>(array.Count);
 
-                foreach (var item in array)
+                for (var i = 0; i < array.Count; i++)
                 {
-                    if (item is JsonNull)
-                    {
-                        result.Add(null);
-                    }
-                    else if (item is JsonScalar<string> s)
+                    if (array[i] is JsonString s && !string.IsNullOrWhiteSpace(s.Value))
                     {
                         result.Add(s.Value);
                     }
                     else
                     {
-                        return (null, new JsonError("Invalid json type, expected array of strings."));
+                        return (null, new JsonError(T.Get("contents.invalidArrayOfStrings")));
                     }
                 }
 
                 return (result, null);
             }
 
-            return (null, new JsonError("Invalid json type, expected array of strings."));
+            return (null, new JsonError(T.Get("contents.invalidArrayOfStrings")));
         }
 
-        private (object? Result, JsonError? Error) ConvertToObjectList()
+        private static (object? Result, JsonError? Error) ConvertToComponentList(IJsonValue value,
+            ResolvedComponents components)
+        {
+            if (value is JsonArray array)
+            {
+                var result = new List<object>(array.Count);
+
+                for (var i = 0; i < array.Count; i++)
+                {
+                    var (item, error) = ConvertToComponent(array[i], components);
+
+                    if (error != null)
+                    {
+                        return (null, error);
+                    }
+
+                    if (item != null)
+                    {
+                        result.Add(item);
+                    }
+                }
+
+                return (result, null);
+            }
+
+            return (null, new JsonError(T.Get("contents.invalidArrayOfObjects")));
+        }
+
+        private static (object? Result, JsonError? Error) ConvertToObjectList(IJsonValue value)
         {
             if (value is JsonArray array)
             {
                 var result = new List<JsonObject>(array.Count);
 
-                foreach (var item in array)
+                for (var i = 0; i < array.Count; i++)
                 {
-                    if (item is JsonObject obj)
+                    if (array[i] is JsonObject obj)
                     {
                         result.Add(obj);
                     }
                     else
                     {
-                        return (null, new JsonError("Invalid json type, expected array of objects."));
+                        return (null, new JsonError(T.Get("contents.invalidArrayOfObjects")));
                     }
                 }
 
                 return (result, null);
             }
 
-            return (null, new JsonError("Invalid json type, expected array of objects."));
+            return (null, new JsonError(T.Get("contents.invalidArrayOfObjects")));
+        }
+
+        private static (object? Result, JsonError? Error) ConvertToComponent(IJsonValue value,
+            ResolvedComponents components)
+        {
+            if (value is not JsonObject obj)
+            {
+                return (null, new JsonError(T.Get("contents.invalidComponentNoObject")));
+            }
+
+            if (!obj.TryGetValue<JsonString>(Component.Discriminator, out var type))
+            {
+                return (null, new JsonError(T.Get("contents.invalidComponentNoType")));
+            }
+
+            var id = DomainId.Create(type.Value);
+
+            if (!components.TryGetValue(id, out var schema))
+            {
+                return (null, new JsonError(T.Get("contents.invalidComponentUnknownSchema")));
+            }
+
+            var data = new JsonObject(obj);
+
+            data.Remove(Component.Discriminator);
+
+            return (new Component(type.Value, data, schema), null);
         }
     }
 }

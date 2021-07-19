@@ -8,13 +8,13 @@
 using System.Threading.Tasks;
 using Squidex.Shared.Users;
 
-namespace Squidex.Domain.Apps.Entities.Apps.Notifications
+namespace Squidex.Domain.Apps.Entities.Notifications
 {
     public sealed class NoopNotificationSender : INotificationSender
     {
         public bool IsActive
         {
-            get { return false; }
+            get => false;
         }
 
         public Task SendInviteAsync(IUser assigner, IUser user, string appName)

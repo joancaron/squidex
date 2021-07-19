@@ -6,8 +6,8 @@
  */
 
 import { ErrorDto } from '@app/framework';
-import { ContributorDto, ContributorsPayload, ContributorsService, ContributorsState, DialogService, LocalStoreService, Pager, versioned } from '@app/shared/internal';
-import { empty, of, throwError } from 'rxjs';
+import { ContributorDto, ContributorsPayload, ContributorsService, ContributorsState, DialogService, versioned } from '@app/shared/internal';
+import { EMPTY, of, throwError } from 'rxjs';
 import { catchError, onErrorResumeNext } from 'rxjs/operators';
 import { IMock, It, Mock, Times } from 'typemoq';
 import { createContributors } from './../services/contributors.service.spec';
@@ -18,10 +18,10 @@ describe('ContributorsState', () => {
         app,
         appsState,
         newVersion,
-        version
+        version,
     } = TestValues;
 
-    let allIds: number[] = [];
+    const allIds: number[] = [];
 
     for (let i = 1; i <= 20; i++) {
         allIds.push(i);
@@ -32,18 +32,15 @@ describe('ContributorsState', () => {
     let dialogs: IMock<DialogService>;
     let contributorsService: IMock<ContributorsService>;
     let contributorsState: ContributorsState;
-    let localStore: IMock<LocalStoreService>;
 
     beforeEach(() => {
         dialogs = Mock.ofType<DialogService>();
 
-        localStore = Mock.ofType<LocalStoreService>();
-
         contributorsService = Mock.ofType<ContributorsService>();
         contributorsService.setup(x => x.getContributors(app))
-            .returns(() => of(versioned(version, oldContributors))).verifiable();
+            .returns(() => of(versioned(version, oldContributors))).verifiable(Times.atLeastOnce());
 
-        contributorsState = new ContributorsState(appsState.object, contributorsService.object, dialogs.object, localStore.object);
+        contributorsState = new ContributorsState(appsState.object, contributorsService.object, dialogs.object);
     });
 
     afterEach(() => {
@@ -55,22 +52,29 @@ describe('ContributorsState', () => {
             contributorsState.load().subscribe();
 
             expect(contributorsState.snapshot.contributors).toEqual(oldContributors.items);
-            expect(contributorsState.snapshot.contributorsPager).toEqual(new Pager(20, 0, 10));
             expect(contributorsState.snapshot.isLoaded).toBeTruthy();
             expect(contributorsState.snapshot.isLoading).toBeFalsy();
+            expect(contributorsState.snapshot.total).toEqual(20);
             expect(contributorsState.snapshot.maxContributors).toBe(oldContributors.maxContributors);
             expect(contributorsState.snapshot.version).toEqual(version);
 
             dialogs.verify(x => x.notifyInfo(It.isAnyString()), Times.never());
         });
 
-        it('should reset loading when loading failed', () => {
+        it('should reset loading state if loading failed', () => {
             contributorsService.setup(x => x.getContributors(app))
-                .returns(() => throwError('error'));
+                .returns(() => throwError(() => 'Service Error'));
 
             contributorsState.load().pipe(onErrorResumeNext()).subscribe();
 
             expect(contributorsState.snapshot.isLoading).toBeFalsy();
+        });
+
+        it('should not load if already loaded', () => {
+            contributorsState.load(true).subscribe();
+            contributorsState.loadIfNotLoaded().subscribe();
+
+            expect().nothing();
         });
 
         it('should only show current page of contributors', () => {
@@ -78,52 +82,46 @@ describe('ContributorsState', () => {
 
             let contributors: ReadonlyArray<ContributorDto>;
 
-            contributorsState.contributorsPaged.subscribe(result => {
+            contributorsState.contributorsFiltered.subscribe(result => {
                 contributors = result;
             });
 
             expect(contributors!).toEqual(oldContributors.items.slice(0, 10));
-            expect(contributorsState.snapshot.contributorsPager).toEqual(new Pager(20, 0, 10));
+            expect(contributorsState.snapshot.page).toEqual(0);
+            expect(contributorsState.snapshot.pageSize).toEqual(10);
         });
 
-        it('should show with new pagination when paging', () => {
+        it('should show with new pagination if paging', () => {
             contributorsState.load().subscribe();
-            contributorsState.setPager(new Pager(20, 1, 10));
+            contributorsState.page({ page: 1, pageSize: 10 });
 
             let contributors: ReadonlyArray<ContributorDto>;
 
-            contributorsState.contributorsPaged.subscribe(result => {
+            contributorsState.contributorsFiltered.subscribe(result => {
                 contributors = result;
             });
 
             expect(contributors!).toEqual(oldContributors.items.slice(10, 20));
-            expect(contributorsState.snapshot.contributorsPager).toEqual(new Pager(20, 1, 10));
+            expect(contributorsState.snapshot.page).toEqual(1);
+            expect(contributorsState.snapshot.pageSize).toEqual(10);
         });
 
-        it('should update page size in local store', () => {
-            contributorsState.load().subscribe();
-            contributorsState.setPager(new Pager(0, 0, 50));
-
-            localStore.verify(x => x.setInt('contributors.pageSize', 50), Times.atLeastOnce());
-
-            expect().nothing();
-        });
-
-        it('should show filtered contributors when searching', () => {
+        it('should show filtered contributors if searching', () => {
             contributorsState.load().subscribe();
             contributorsState.search('4');
 
             let contributors: ReadonlyArray<ContributorDto>;
 
-            contributorsState.contributorsPaged.subscribe(result => {
+            contributorsState.contributorsFiltered.subscribe(result => {
                 contributors = result;
             });
 
             expect(contributors!).toEqual(createContributors(4, 14).items);
-            expect(contributorsState.snapshot.contributorsPager.page).toEqual(0);
+            expect(contributorsState.snapshot.page).toEqual(0);
+            expect(contributorsState.snapshot.pageSize).toEqual(10);
         });
 
-        it('should show notification on load when reload is true', () => {
+        it('should show notification on load if reload is true', () => {
             contributorsState.load(true).subscribe();
 
             expect().nothing();
@@ -137,7 +135,7 @@ describe('ContributorsState', () => {
             contributorsState.load().subscribe();
         });
 
-        it('should update contributors when user assigned', () => {
+        it('should update contributors if user assigned', () => {
             const updated = createContributors(5, 6);
 
             const request = { contributorId: 'mail2stehle@gmail.com', role: 'Developer' };
@@ -150,11 +148,11 @@ describe('ContributorsState', () => {
             expectNewContributors(updated);
         });
 
-        it('should return proper error when user to add does not exist', () => {
+        it('should return proper error if user to add does not exist', () => {
             const request = { contributorId: 'mail2stehle@gmail.com', role: 'Developer' };
 
             contributorsService.setup(x => x.postContributor(app, request, version))
-                .returns(() => throwError(new ErrorDto(404, '404')));
+                .returns(() => throwError(() => new ErrorDto(404, '404')));
 
             let error: ErrorDto;
 
@@ -162,18 +160,18 @@ describe('ContributorsState', () => {
                 catchError(err => {
                     error = err;
 
-                    return empty();
-                })
+                    return EMPTY;
+                }),
             ).subscribe();
 
-            expect(error!.message).toBe('The user does not exist.');
+            expect(error!.message).toBe('i18n:contributors.userNotFound');
         });
 
-        it('should return original error when not a 404', () => {
+        it('should return original error if not a 404', () => {
             const request = { contributorId: 'mail2stehle@gmail.com', role: 'Developer' };
 
             contributorsService.setup(x => x.postContributor(app, request, version))
-                .returns(() => throwError(new ErrorDto(500, '500')));
+                .returns(() => throwError(() => new ErrorDto(500, '500')));
 
             let error: ErrorDto;
 
@@ -181,14 +179,14 @@ describe('ContributorsState', () => {
                 catchError(err => {
                     error = err;
 
-                    return empty();
-                })
+                    return EMPTY;
+                }),
             ).subscribe();
 
             expect(error!.message).toBe('500');
         });
 
-        it('should update contributors when contribution revoked', () => {
+        it('should update contributors if contribution revoked', () => {
             const updated = createContributors(5, 6);
 
             contributorsService.setup(x => x.deleteContributor(app, oldContributors.items[0], version))

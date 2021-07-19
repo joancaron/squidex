@@ -6,9 +6,9 @@
 // ==========================================================================
 
 using Microsoft.AspNetCore.Mvc;
+using Squidex.Assets;
 using Squidex.Domain.Apps.Entities.Assets;
 using Squidex.Infrastructure;
-using Squidex.Infrastructure.Assets;
 using Squidex.Infrastructure.Reflection;
 
 namespace Squidex.Areas.Api.Controllers.Assets.Models
@@ -58,6 +58,12 @@ namespace Squidex.Areas.Api.Controllers.Assets.Models
         public ResizeMode? Mode { get; set; }
 
         /// <summary>
+        /// Optional background color.
+        /// </summary>
+        [FromQuery(Name = "bg")]
+        public string? Background { get; set; }
+
+        /// <summary>
         /// Override the y focus point.
         /// </summary>
         [FromQuery(Name = "focusX")]
@@ -76,10 +82,22 @@ namespace Squidex.Areas.Api.Controllers.Assets.Models
         public bool IgnoreFocus { get; set; }
 
         /// <summary>
+        /// True to not use JPEG encoding when quality is set and the image is not a JPEG. Default: false.
+        /// </summary>
+        [FromQuery(Name = "keepformat")]
+        public bool KeepFormat { get; set; }
+
+        /// <summary>
         /// True to force a new resize even if it already stored.
         /// </summary>
         [FromQuery(Name = "force")]
         public bool ForceResize { get; set; }
+
+        /// <summary>
+        /// True to force a new resize even if it already stored.
+        /// </summary>
+        [FromQuery(Name = "format")]
+        public ImageFormat Format { get; set; }
 
         public ResizeOptions ToResizeOptions(IAssetEntity asset)
         {
@@ -99,7 +117,7 @@ namespace Squidex.Areas.Api.Controllers.Assets.Models
         {
             if (!IgnoreFocus)
             {
-                if (FocusX.HasValue && FocusY.HasValue)
+                if (FocusX != null && FocusY != null)
                 {
                     return (FocusX.Value, FocusY.Value);
                 }
@@ -107,7 +125,7 @@ namespace Squidex.Areas.Api.Controllers.Assets.Models
                 var focusX = asset.Metadata.GetFocusX();
                 var focusY = asset.Metadata.GetFocusY();
 
-                if (focusX.HasValue && focusY.HasValue)
+                if (focusX != null && focusY != null)
                 {
                     return (focusX.Value, focusY.Value);
                 }

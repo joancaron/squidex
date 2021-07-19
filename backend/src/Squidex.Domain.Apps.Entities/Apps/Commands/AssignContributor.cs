@@ -1,7 +1,7 @@
 // ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -9,7 +9,7 @@ using Roles = Squidex.Domain.Apps.Core.Apps.Role;
 
 namespace Squidex.Domain.Apps.Entities.Apps.Commands
 {
-    public sealed class AssignContributor : AppCommand
+    public sealed class AssignContributor : AppUpdateCommand
     {
         public string ContributorId { get; set; }
 

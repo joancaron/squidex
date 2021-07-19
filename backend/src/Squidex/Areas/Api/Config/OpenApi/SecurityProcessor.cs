@@ -7,29 +7,28 @@
 
 using System.Collections.Generic;
 using System.Linq;
-using Microsoft.Extensions.Options;
 using NSwag;
 using NSwag.Generation.Processors.Security;
-using Squidex.Pipeline.OpenApi;
+using Squidex.Hosting;
 using Squidex.Web;
 
 namespace Squidex.Areas.Api.Config.OpenApi
 {
     public sealed class SecurityProcessor : SecurityDefinitionAppender
     {
-        public SecurityProcessor(IOptions<UrlsOptions> urlOptions)
-            : base(Constants.SecurityDefinition, Enumerable.Empty<string>(), CreateOAuthSchema(urlOptions.Value))
+        public SecurityProcessor(IUrlGenerator urlGenerator)
+            : base(Constants.SecurityDefinition, Enumerable.Empty<string>(), CreateOAuthSchema(urlGenerator))
         {
         }
 
-        private static OpenApiSecurityScheme CreateOAuthSchema(UrlsOptions urlOptions)
+        private static OpenApiSecurityScheme CreateOAuthSchema(IUrlGenerator urlGenerator)
         {
             var security = new OpenApiSecurityScheme
             {
                 Type = OpenApiSecuritySchemeType.OAuth2
             };
 
-            var tokenUrl = urlOptions.BuildUrl($"{Constants.IdentityServerPrefix}/connect/token", false);
+            var tokenUrl = urlGenerator.BuildUrl($"{Constants.PrefixIdentityServer}/connect/token", false);
 
             security.TokenUrl = tokenUrl;
 
@@ -49,13 +48,13 @@ namespace Squidex.Areas.Api.Config.OpenApi
         {
             security.Scopes = new Dictionary<string, string>
             {
-                [Constants.ApiScope] = "Read and write access to the API"
+                [Constants.ScopeApi] = "Read and write access to the API"
             };
         }
 
         private static void SetupDescription(OpenApiSecurityScheme securityScheme, string tokenUrl)
         {
-            var securityText = NSwagHelper.SecurityDocs.Replace("<TOKEN_URL>", tokenUrl);
+            var securityText = Properties.Resources.OpenApiSecurity.Replace("<TOKEN_URL>", tokenUrl);
 
             securityScheme.Description = securityText;
         }

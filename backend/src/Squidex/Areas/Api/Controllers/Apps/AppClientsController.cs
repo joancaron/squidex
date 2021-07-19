@@ -1,11 +1,12 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
 using Squidex.Areas.Api.Controllers.Apps.Models;
@@ -33,7 +34,7 @@ namespace Squidex.Areas.Api.Controllers.Apps
         /// </summary>
         /// <param name="app">The name of the app.</param>
         /// <returns>
-        /// 200 => Client keys returned.
+        /// 200 => Clients returned.
         /// 404 => App not found.
         /// </returns>
         /// <remarks>
@@ -41,8 +42,8 @@ namespace Squidex.Areas.Api.Controllers.Apps
         /// </remarks>
         [HttpGet]
         [Route("apps/{app}/clients/")]
-        [ProducesResponseType(typeof(ClientsDto), 200)]
-        [ApiPermission(Permissions.AppClientsRead)]
+        [ProducesResponseType(typeof(ClientsDto), StatusCodes.Status200OK)]
+        [ApiPermissionOrAnonymous(Permissions.AppClientsRead)]
         [ApiCosts(0)]
         public IActionResult GetClients(string app)
         {
@@ -62,7 +63,7 @@ namespace Squidex.Areas.Api.Controllers.Apps
         /// <param name="app">The name of the app.</param>
         /// <param name="request">Client object that needs to be added to the app.</param>
         /// <returns>
-        /// 201 => Client generated.
+        /// 201 => Client created.
         /// 400 => Client request not valid.
         /// 404 => App not found.
         /// </returns>
@@ -73,7 +74,7 @@ namespace Squidex.Areas.Api.Controllers.Apps
         [HttpPost]
         [Route("apps/{app}/clients/")]
         [ProducesResponseType(typeof(ClientsDto), 201)]
-        [ApiPermission(Permissions.AppClientsCreate)]
+        [ApiPermissionOrAnonymous(Permissions.AppClientsCreate)]
         [ApiCosts(1)]
         public async Task<IActionResult> PostClient(string app, [FromBody] CreateClientDto request)
         {
@@ -100,8 +101,8 @@ namespace Squidex.Areas.Api.Controllers.Apps
         /// </remarks>
         [HttpPut]
         [Route("apps/{app}/clients/{id}/")]
-        [ProducesResponseType(typeof(ClientsDto), 200)]
-        [ApiPermission(Permissions.AppClientsUpdate)]
+        [ProducesResponseType(typeof(ClientsDto), StatusCodes.Status200OK)]
+        [ApiPermissionOrAnonymous(Permissions.AppClientsUpdate)]
         [ApiCosts(1)]
         public async Task<IActionResult> PutClient(string app, string id, [FromBody] UpdateClientDto request)
         {
@@ -118,7 +119,7 @@ namespace Squidex.Areas.Api.Controllers.Apps
         /// <param name="app">The name of the app.</param>
         /// <param name="id">The id of the client that must be deleted.</param>
         /// <returns>
-        /// 200 => Client revoked.
+        /// 200 => Client deleted.
         /// 404 => Client or app not found.
         /// </returns>
         /// <remarks>
@@ -126,8 +127,8 @@ namespace Squidex.Areas.Api.Controllers.Apps
         /// </remarks>
         [HttpDelete]
         [Route("apps/{app}/clients/{id}/")]
-        [ProducesResponseType(typeof(ClientsDto), 200)]
-        [ApiPermission(Permissions.AppClientsDelete)]
+        [ProducesResponseType(typeof(ClientsDto), StatusCodes.Status200OK)]
+        [ApiPermissionOrAnonymous(Permissions.AppClientsDelete)]
         [ApiCosts(1)]
         public async Task<IActionResult> DeleteClient(string app, string id)
         {

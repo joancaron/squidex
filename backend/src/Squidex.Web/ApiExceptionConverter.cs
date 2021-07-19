@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -14,6 +14,7 @@ using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Squidex.Infrastructure;
+using Squidex.Infrastructure.Translations;
 using Squidex.Infrastructure.Validation;
 
 namespace Squidex.Web
@@ -28,17 +29,27 @@ namespace Squidex.Web
             [404] = "https://tools.ietf.org/html/rfc7231#section-6.5.4",
             [406] = "https://tools.ietf.org/html/rfc7231#section-6.5.6",
             [409] = "https://tools.ietf.org/html/rfc7231#section-6.5.8",
+            [410] = "https://tools.ietf.org/html/rfc7231#section-6.5.9",
             [412] = "https://tools.ietf.org/html/rfc7231#section-6.5.10",
             [415] = "https://tools.ietf.org/html/rfc7231#section-6.5.13",
             [422] = "https://tools.ietf.org/html/rfc4918#section-11.2",
             [500] = "https://tools.ietf.org/html/rfc7231#section-6.6.1"
         };
 
+        public static (ErrorDto Error, bool WellKnown) ToErrorDto(int statusCode, HttpContext? httpContext)
+        {
+            var error = new ErrorDto { StatusCode = statusCode };
+
+            Enrich(httpContext, error);
+
+            return (error, true);
+        }
+
         public static (ErrorDto Error, bool WellKnown) ToErrorDto(this ProblemDetails problem, HttpContext? httpContext)
         {
             Guard.NotNull(problem, nameof(problem));
 
-            var error = new ErrorDto { Message = problem.Title, StatusCode = problem.Status };
+            var error = CreateError(problem.Status ?? 500, problem.Title);
 
             Enrich(httpContext, error);
 
@@ -60,10 +71,12 @@ namespace Squidex.Web
         {
             error.TraceId = Activity.Current?.Id ?? httpContext?.TraceIdentifier;
 
-            if (error.StatusCode.HasValue)
+            if (error.StatusCode == 0)
             {
-                error.Type = Links.GetOrDefault(error.StatusCode.Value);
+                error.StatusCode = 500;
             }
+
+            error.Type = Links.GetOrDefault(error.StatusCode);
         }
 
         private static (ErrorDto Error, bool WellKnown) CreateError(Exception exception)
@@ -71,77 +84,99 @@ namespace Squidex.Web
             switch (exception)
             {
                 case ValidationException ex:
-                    return (new ErrorDto
-                    {
-                        StatusCode = 400,
-                        Message = ex.Summary,
-                        Details = ToDetails(ex)
-                    }, true);
+                    return (CreateError(400, T.Get("common.httpValidationError"), null, ToErrors(ex.Errors)), true);
 
-                case DomainObjectNotFoundException _:
-                    return (new ErrorDto
-                    {
-                        StatusCode = 404,
-                        Message = null!
-                    }, true);
+                case DomainObjectNotFoundException ex:
+                    return (CreateError(404, ex.ErrorCode), true);
 
-                case DomainObjectVersionException _:
-                    return (new ErrorDto
-                    {
-                        StatusCode = 412,
-                        Message = exception.Message
-                    }, true);
+                case DomainObjectVersionException ex:
+                    return (CreateError(412, ex.Message, ex.ErrorCode), true);
 
-                case DomainForbiddenException _:
-                    return (new ErrorDto
-                    {
-                        StatusCode = 403,
-                        Message = exception.Message
-                    }, true);
+                case DomainObjectDeletedException ex:
+                    return (CreateError(410, ex.Message, ex.ErrorCode), true);
 
-                case DomainException _:
-                    return (new ErrorDto
-                    {
-                        StatusCode = 400,
-                        Message = exception.Message
-                    }, true);
+                case DomainObjectConflictException ex:
+                    return (CreateError(409, ex.Message, ex.ErrorCode), true);
 
-                case SecurityException _:
-                    return (new ErrorDto
-                    {
-                        StatusCode = 403,
-                        Message = "Forbidden"
-                    }, false);
+                case DomainForbiddenException ex:
+                    return (CreateError(403, ex.Message, ex.ErrorCode), true);
 
-                case DecoderFallbackException _:
-                    return (new ErrorDto
-                    {
-                        StatusCode = 400,
-                        Message = exception.Message
-                    }, true);
+                case DomainException ex:
+                    return (CreateError(400, ex.Message, ex.ErrorCode), true);
+
+                case SecurityException:
+                    return (CreateError(403), false);
+
+                case DecoderFallbackException ex:
+                    return (CreateError(400, ex.Message), true);
+
+                case BadHttpRequestException ex:
+                    return (CreateError(ex.StatusCode, ex.Message), true);
 
                 default:
-                    return (new ErrorDto
-                    {
-                        StatusCode = 500,
-                        Message = "Server Error"
-                    }, false);
+                    return (CreateError(500), false);
             }
         }
 
-        private static string[] ToDetails(ValidationException ex)
+        private static ErrorDto CreateError(int status, string? message = null, string? errorCode = null, IEnumerable<string>? details = null)
         {
-            return ex.Errors.Select(e =>
+            var error = new ErrorDto { StatusCode = status, Message = message };
+
+            if (!string.IsNullOrWhiteSpace(errorCode))
+            {
+                error.ErrorCode = errorCode;
+            }
+
+            error.Details = details?.ToArray();
+
+            return error;
+        }
+
+        public static IEnumerable<string> ToErrors(IEnumerable<ValidationError> errors)
+        {
+            static string FixPropertyName(string property)
+            {
+                property = property.Trim();
+
+                if (property.Length == 0)
+                {
+                    return property;
+                }
+
+                var prevChar = 0;
+
+                var builder = new StringBuilder(property.Length);
+
+                builder.Append(char.ToLower(property[0]));
+
+                foreach (var character in property.Skip(1))
+                {
+                    if (prevChar == '.')
+                    {
+                        builder.Append(char.ToLower(character));
+                    }
+                    else
+                    {
+                        builder.Append(character);
+                    }
+
+                    prevChar = character;
+                }
+
+                return builder.ToString();
+            }
+
+            return errors.Select(e =>
             {
                 if (e.PropertyNames?.Any() == true)
                 {
-                    return $"{string.Join(", ", e.PropertyNames)}: {e.Message}";
+                    return $"{string.Join(", ", e.PropertyNames.Select(FixPropertyName))}: {e.Message}";
                 }
                 else
                 {
                     return e.Message;
                 }
-            }).ToArray();
+            });
         }
     }
 }

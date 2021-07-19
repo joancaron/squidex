@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -42,7 +42,14 @@ namespace Squidex.Infrastructure.Timers
             {
                 Interlocked.CompareExchange(ref oneCallState, OneCallRequested, OneCallNotExecuted);
 
-                wakeupToken?.Cancel();
+                try
+                {
+                    wakeupToken?.Cancel();
+                }
+                catch (ObjectDisposedException)
+                {
+                    return;
+                }
             }
         }
 
@@ -76,9 +83,19 @@ namespace Squidex.Infrastructure.Timers
             {
                 wakeupToken = new CancellationTokenSource();
 
-                using (var cts = CancellationTokenSource.CreateLinkedTokenSource(stopToken.Token, wakeupToken.Token))
+                try
                 {
-                    await Task.Delay(intervall, cts.Token).ConfigureAwait(false);
+                    using (wakeupToken)
+                    {
+                        using (var cts = CancellationTokenSource.CreateLinkedTokenSource(stopToken.Token, wakeupToken.Token))
+                        {
+                            await Task.Delay(intervall, cts.Token).ConfigureAwait(false);
+                        }
+                    }
+                }
+                finally
+                {
+                    wakeupToken = null;
                 }
             }
             catch (OperationCanceledException)

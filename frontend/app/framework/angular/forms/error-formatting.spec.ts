@@ -6,10 +6,70 @@
  */
 
 import { FormControl, FormGroup, ValidatorFn, Validators } from '@angular/forms';
+import { LocalizerService } from './../../services/localizer.service';
 import { formatError } from './error-formatting';
 import { ValidatorsEx } from './validators';
 
 describe('formatErrors', () => {
+    const localizer = new LocalizerService({
+        'common.backendError': 'Backend Error',
+        'users.passwordConfirmValidationMessage': 'Passwords must be the same.',
+        'validation.between': '{field} must be between \'{min}\' and \'{max}\'.',
+        'validation.betweenlength': '{field|upper} must have between {minlength} and {maxlength} item(s).',
+        'validation.betweenlengthstring': '{field|upper} must have between {minlength} and {maxlength} character(s).',
+        'validation.email': '{field|upper} must be an email address.',
+        'validation.exactly': '{field|upper} must be exactly \'{expected}\'.',
+        'validation.exactlylength': '{field|upper} must have exactly {expected} item(s).',
+        'validation.exactlylengthstring': '{field|upper} must have exactly {expected} character(s).',
+        'validation.match': '{message}',
+        'validation.max': '{field|upper} must be less or equal to \'{max}\'.',
+        'validation.maxlength': '{field|upper} must not have more than {requiredlength} item(s).',
+        'validation.maxlengthstring': '{field|upper} must not have more than {requiredlength} character(s).',
+        'validation.min': '{field|upper} must be greater or equal to \'{min}\'.',
+        'validation.minlength': '{field|upper} must have at least {requiredlength} item(s).',
+        'validation.minlengthstring': '{field|upper} must have at least {requiredlength} character(s).',
+        'validation.pattern': '{field|upper} does not match to the pattern.',
+        'validation.patternmessage': '{message}',
+        'validation.required': '{field|upper} is required.',
+        'validation.requiredTrue': '{field|upper} is required.',
+        'validation.uniquestrings': '{field|upper} must not contain duplicate values.',
+        'validation.validarrayvalues': '{field|upper} contains an invalid value: {invalidvalue}.',
+        'validation.validdatetime': '{field|upper} is not a valid date time.',
+        'validation.validvalues': '{field|upper} is not a valid value.',
+    });
+
+    it('should format custom', () => {
+        const error = formatError(localizer, 'field', 'custom', {
+            errors: [
+                'My Message.',
+            ],
+        }, 123);
+
+        expect(error).toEqual(['Backend Error: My Message.']);
+    });
+
+    it('should format custom errors', () => {
+        const error = formatError(localizer, 'field', 'custom', {
+            errors: [
+                'My Message1.',
+                'My Message2.',
+            ],
+        }, 123);
+
+        expect(error).toEqual(['Backend Error: My Message1.', 'Backend Error: My Message2.']);
+    });
+
+    it('should format custom errors without dots', () => {
+        const error = formatError(localizer, 'field', 'custom', {
+            errors: [
+                'My Message1',
+                'My Message2',
+            ],
+        }, 123);
+
+        expect(error).toEqual(['Backend Error: My Message1.', 'Backend Error: My Message2.']);
+    });
+
     it('should format min', () => {
         const error = validate(1, Validators.min(2));
 
@@ -142,13 +202,13 @@ describe('formatErrors', () => {
 
         const formGroup = new FormGroup({
             field1: formControl1,
-            field2: formControl2
+            field2: formControl2,
         });
 
-        const formError = ValidatorsEx.match('field2', 'Passwords must match.')!(formControl1)!;
-        const formMessage = formatError('MY_FIELD', Object.keys(formError)[0], Object.values(formError)[0], undefined);
+        const formError = ValidatorsEx.match('field2', 'i18n:users.passwordConfirmValidationMessage')!(formControl1)!;
+        const formMessage = formatError(localizer, 'MY_FIELD', Object.keys(formError)[0], Object.values(formError)[0], undefined);
 
-        expect(formMessage).toEqual('Passwords must match.');
+        expect(formMessage).toEqual('Passwords must be the same.');
 
         formGroup.reset();
     });
@@ -157,7 +217,7 @@ describe('formatErrors', () => {
         const formControl = new FormControl(value);
 
         const formError = validator(formControl)!;
-        const formMessage = formatError('MY_FIELD', Object.keys(formError)[0], Object.values(formError)[0], value);
+        const formMessage = formatError(localizer, 'MY_FIELD', Object.keys(formError)[0], Object.values(formError)[0], value);
 
         return formMessage;
     }

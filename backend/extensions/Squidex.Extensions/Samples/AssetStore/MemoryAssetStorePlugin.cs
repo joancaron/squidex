@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Squidex.Infrastructure.Assets;
+using Squidex.Assets;
 using Squidex.Infrastructure.Plugins;
 
 namespace Squidex.Extensions.Samples.AssetStore
@@ -50,8 +50,7 @@ namespace Squidex.Extensions.Samples.AssetStore
             {
                 services.AddSingleton<IStartupFilter>(this);
 
-                services.AddSingletonAs<MemoryAssetStore>()
-                    .As<IAssetStore>();
+                services.AddSingleton<IAssetStore, MemoryAssetStore>();
             }
         }
     }

@@ -6,15 +6,20 @@
  */
 
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, HostBinding, Input, OnInit, Output } from '@angular/core';
-import { AssetDto, AssetsState, AssetUploaderState, DialogModel, DialogService, Types, UploadCanceled } from '@app/shared/internal';
+import { AssetDto, AssetsState, AssetUploaderState, DialogModel, DialogService, StatefulComponent, Types, UploadCanceled } from '@app/shared/internal';
+
+interface State {
+    // The download progress.
+    progress: number;
+}
 
 @Component({
     selector: 'sqx-asset',
     styleUrls: ['./asset.component.scss'],
     templateUrl: './asset.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AssetComponent implements OnInit {
+export class AssetComponent extends StatefulComponent<State> implements OnInit {
     @Output()
     public load = new EventEmitter<AssetDto>();
 
@@ -30,6 +35,9 @@ export class AssetComponent implements OnInit {
     @Output()
     public select = new EventEmitter();
 
+    @Output()
+    public selectFolder = new EventEmitter<string>();
+
     @Input()
     public assetFile: File;
 
@@ -40,35 +48,38 @@ export class AssetComponent implements OnInit {
     public assetsState: AssetsState;
 
     @Input()
-    public removeMode = false;
+    public folderId?: string;
 
     @Input()
-    public isDisabled = false;
+    public removeMode?: boolean | null;
 
     @Input()
-    public isSelected = false;
+    public isDisabled?: boolean | null;
 
     @Input()
-    public isCompact: boolean;
+    public isSelected?: boolean | null;
 
     @Input()
-    public isSelectable = false;
+    public isCompact: boolean | undefined | null;
+
+    @Input()
+    public isSelectable?: boolean | null;
 
     @Input() @HostBinding('class.isListView')
-    public isListView = false;
+    public isListView?: boolean | null;
 
     @Input()
     public allTags: ReadonlyArray<string>;
 
-    public progress = 0;
-
     public editDialog = new DialogModel();
 
-    constructor(
+    constructor(changeDetector: ChangeDetectorRef,
         private readonly assetUploader: AssetUploaderState,
-        private readonly changeDetector: ChangeDetectorRef,
-        private readonly dialogs: DialogService
+        private readonly dialogs: DialogService,
     ) {
+        super(changeDetector, {
+            progress: 0,
+        });
     }
 
     public ngOnInit() {
@@ -77,7 +88,7 @@ export class AssetComponent implements OnInit {
         if (assetFile) {
             this.setProgress(1);
 
-            this.assetUploader.uploadFile(assetFile, this.assetsState)
+            this.assetUploader.uploadFile(assetFile, this.assetsState, this.folderId)
                 .subscribe(dto => {
                     if (Types.isNumber(dto)) {
                         this.setProgress(dto);
@@ -94,9 +105,9 @@ export class AssetComponent implements OnInit {
         }
     }
 
-    public updateFile(files: FileList) {
+    public updateFile(files: ReadonlyArray<File>) {
         if (files.length === 1 && this.asset.canUpload) {
-            this.dialogs.confirm('Replace asset?', `Do you really want to replace asset **${this.asset.fileName}** with a newer version`)
+            this.dialogs.confirm('i18n:assets.replaceConfirmTitle', 'i18n:assets.replaceConfirmText')
                 .subscribe(confirmed => {
                     if (confirmed) {
                         this.setProgress(1);
@@ -138,12 +149,10 @@ export class AssetComponent implements OnInit {
     public setAsset(asset: AssetDto) {
         this.asset = asset;
 
-        this.changeDetector.markForCheck();
+        this.detectChanges();
     }
 
     public setProgress(progress: number) {
-        this.progress = progress;
-
-        this.changeDetector.markForCheck();
+        this.next({ progress });
     }
 }

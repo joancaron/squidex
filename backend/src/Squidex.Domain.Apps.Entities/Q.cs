@@ -5,7 +5,6 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using Squidex.Infrastructure;
@@ -14,71 +13,97 @@ using Squidex.Infrastructure.Queries;
 
 namespace Squidex.Domain.Apps.Entities
 {
-    public sealed class Q : Cloneable<Q>
+    public record Q
     {
-        public static readonly Q Empty = new Q();
+        public static Q Empty => new Q();
 
-        public IReadOnlyList<Guid> Ids { get; private set; }
+        public ClrQuery Query { get; init; } = new ClrQuery();
 
-        public string? ODataQuery { get; private set; }
+        public IReadOnlyList<DomainId>? Ids { get; init; }
 
-        public string? JsonQuery { get; private set; }
+        public DomainId Referencing { get; init; }
 
-        public Query<IJsonValue>? ParsedJsonQuery { get; private set; }
+        public DomainId Reference { get; init; }
 
-        public ClrQuery? Query { get; private set; }
+        public string? ODataQuery { get; init; }
 
-        public Q WithQuery(ClrQuery? query)
+        public string? JsonQueryString { get; init; }
+
+        public Query<IJsonValue>? JsonQuery { get; init; }
+
+        public RefToken? CreatedBy { get; init; }
+
+        public bool NoTotal { get; init; }
+
+        private Q()
         {
-            return Clone(c => c.Query = query);
         }
 
-        public Q WithODataQuery(string? odataQuery)
+        public Q WithQuery(ClrQuery query)
         {
-            return Clone(c => c.ODataQuery = odataQuery);
+            Guard.NotNull(query, nameof(query));
+
+            return this with { Query = query };
         }
 
-        public Q WithJsonQuery(string? jsonQuery)
+        public Q WithoutTotal(bool value = true)
         {
-            return Clone(c => c.JsonQuery = jsonQuery);
+            return this with { NoTotal = value };
         }
 
-        public Q WithJsonQuery(Query<IJsonValue>? jsonQuery)
+        public Q WithODataQuery(string? query)
         {
-            return Clone(c => c.ParsedJsonQuery = jsonQuery);
+            return this with { ODataQuery = query };
         }
 
-        public Q WithIds(params Guid[] ids)
+        public Q WithJsonQuery(string? query)
         {
-            return Clone(c => c.Ids = ids.ToList());
+            return this with { JsonQueryString = query };
         }
 
-        public Q WithIds(IEnumerable<Guid> ids)
+        public Q WithJsonQuery(Query<IJsonValue>? query)
         {
-            return Clone(c => c.Ids = ids.ToList());
+            return this with { JsonQuery = query };
+        }
+
+        public Q WithReferencing(DomainId id)
+        {
+            return this with { Referencing = id };
+        }
+
+        public Q WithReference(DomainId id)
+        {
+            return this with { Reference = id };
+        }
+
+        public Q WithIds(params DomainId[] ids)
+        {
+            return this with { Ids = ids?.ToList() };
+        }
+
+        public Q WithIds(IEnumerable<DomainId> ids)
+        {
+            return this with { Ids = ids?.ToList() };
         }
 
         public Q WithIds(string? ids)
         {
-            if (!string.IsNullOrEmpty(ids))
+            if (string.IsNullOrWhiteSpace(ids))
             {
-                return Clone(c =>
-                {
-                    var idsList = new List<Guid>();
-
-                    foreach (var id in ids.Split(','))
-                    {
-                        if (Guid.TryParse(id, out var guid))
-                        {
-                            idsList.Add(guid);
-                        }
-                    }
-
-                    c.Ids = idsList;
-                });
+                return this with { Ids = null };
             }
 
-            return this;
+            var idsList = new List<DomainId>();
+
+            if (!string.IsNullOrEmpty(ids))
+            {
+                foreach (var id in ids.Split(','))
+                {
+                    idsList.Add(DomainId.Create(id));
+                }
+            }
+
+            return this with { Ids = idsList };
         }
     }
 }

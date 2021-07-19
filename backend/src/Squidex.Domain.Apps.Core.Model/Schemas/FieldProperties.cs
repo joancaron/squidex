@@ -1,28 +1,31 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System.Collections.ObjectModel;
+using Squidex.Infrastructure.Collections;
 
 namespace Squidex.Domain.Apps.Core.Schemas
 {
-    [Equals(DoNotAddEqualityOperators = true)]
-    public abstract class FieldProperties : NamedElementPropertiesBase
+    public abstract record FieldProperties : NamedElementPropertiesBase
     {
-        public bool IsRequired { get; set; }
+        public bool IsRequired { get; init; }
 
-        public string? Placeholder { get; set; }
+        public bool IsRequiredOnPublish { get; init; }
 
-        public string? EditorUrl { get; set; }
+        public bool IsHalfWidth { get; init; }
 
-        public ReadOnlyCollection<string>? Tags { get; set; }
+        public string? Placeholder { get; init; }
 
-        public abstract T Accept<T>(IFieldPropertiesVisitor<T> visitor);
+        public string? EditorUrl { get; init; }
 
-        public abstract T Accept<T>(IFieldVisitor<T> visitor, IField field);
+        public ImmutableList<string>? Tags { get; init; }
+
+        public abstract T Accept<T, TArgs>(IFieldPropertiesVisitor<T, TArgs> visitor, TArgs args);
+
+        public abstract T Accept<T, TArgs>(IFieldVisitor<T, TArgs> visitor, IField field, TArgs args);
 
         public abstract RootField CreateRootField(long id, string name, Partitioning partitioning, IFieldSettings? settings = null);
 

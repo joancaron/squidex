@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -9,17 +9,19 @@ using System;
 using FluentFTP;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
 using MongoDB.Driver.GridFS;
+using Squidex.Assets;
+using Squidex.Assets.ImageSharp;
 using Squidex.Domain.Apps.Entities.Assets;
+using Squidex.Domain.Apps.Entities.Assets.DomainObject;
 using Squidex.Domain.Apps.Entities.Assets.Queries;
 using Squidex.Domain.Apps.Entities.History;
 using Squidex.Domain.Apps.Entities.Search;
+using Squidex.Hosting;
 using Squidex.Infrastructure;
-using Squidex.Infrastructure.Assets;
-using Squidex.Infrastructure.Assets.ImageSharp;
 using Squidex.Infrastructure.EventSourcing;
-using Squidex.Infrastructure.Log;
 
 namespace Squidex.Config.Domain
 {
@@ -27,12 +29,18 @@ namespace Squidex.Config.Domain
     {
         public static void AddSquidexAssets(this IServiceCollection services, IConfiguration config)
         {
-            services.Configure<AssetOptions>(
-                config.GetSection("assets"));
+            services.Configure<AssetOptions>(config,
+                "assets");
 
             if (config.GetValue<bool>("assets:deleteRecursive"))
             {
                 services.AddTransientAs<RecursiveDeleter>()
+                   .As<IEventConsumer>();
+            }
+
+            if (config.GetValue<bool>("assets:deletePermanent"))
+            {
+                services.AddTransientAs<AssetPermanentDeleter>()
                    .As<IEventConsumer>();
             }
 
@@ -43,6 +51,9 @@ namespace Squidex.Config.Domain
                 .AsSelf();
 
             services.AddSingletonAs<AssetQueryParser>()
+                .AsSelf();
+
+            services.AddSingletonAs<RebuildFiles>()
                 .AsSelf();
 
             services.AddTransientAs<AssetHistoryEventsCreator>()
@@ -74,6 +85,9 @@ namespace Squidex.Config.Domain
 
             services.AddSingletonAs<ImageAssetMetadataSource>()
                 .As<IAssetMetadataSource>();
+
+            services.AddSingletonAs<SvgAssetMetadataSource>()
+                .As<IAssetMetadataSource>();
         }
 
         public static void AddSquidexAssetInfrastructure(this IServiceCollection services, IConfiguration config)
@@ -89,7 +103,7 @@ namespace Squidex.Config.Domain
                 {
                     var path = config.GetRequiredValue("assetStore:folder:path");
 
-                    services.AddSingletonAs(c => new FolderAssetStore(path, c.GetRequiredService<ISemanticLog>()))
+                    services.AddSingletonAs(c => new FolderAssetStore(path, c.GetRequiredService<ILogger<FolderAssetStore>>()))
                         .As<IAssetStore>();
                 },
                 ["GoogleCloud"] = () =>
@@ -148,7 +162,7 @@ namespace Squidex.Config.Domain
                         {
                             var factory = new Func<FtpClient>(() => new FtpClient(serverHost, serverPort, username, password));
 
-                            return new FTPAssetStore(factory, path, c.GetRequiredService<ISemanticLog>());
+                            return new FTPAssetStore(factory, path, c.GetRequiredService<ILogger<FTPAssetStore>>());
                         })
                         .As<IAssetStore>();
                 }
@@ -156,6 +170,11 @@ namespace Squidex.Config.Domain
 
             services.AddSingletonAs<ImageSharpAssetThumbnailGenerator>()
                 .As<IAssetThumbnailGenerator>();
+
+            services.AddSingletonAs(c => new DelegateInitializer(
+                    c.GetRequiredService<IAssetStore>().GetType().Name,
+                    c.GetRequiredService<IAssetStore>().InitializeAsync))
+                .As<IInitializable>();
         }
     }
 }

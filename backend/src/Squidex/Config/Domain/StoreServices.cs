@@ -1,24 +1,21 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
-using System.Linq;
-using IdentityServer4.Stores;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Migrations.Migrations.MongoDb;
 using MongoDB.Driver;
-using MongoDB.Driver.GridFS;
+using Squidex.Domain.Apps.Entities.Assets.DomainObject;
 using Squidex.Domain.Apps.Entities.Assets.Repositories;
-using Squidex.Domain.Apps.Entities.Assets.State;
+using Squidex.Domain.Apps.Entities.Contents.DomainObject;
 using Squidex.Domain.Apps.Entities.Contents.Repositories;
-using Squidex.Domain.Apps.Entities.Contents.State;
-using Squidex.Domain.Apps.Entities.Contents.Text.Lucene;
+using Squidex.Domain.Apps.Entities.Contents.Text;
 using Squidex.Domain.Apps.Entities.Contents.Text.State;
 using Squidex.Domain.Apps.Entities.History.Repositories;
 using Squidex.Domain.Apps.Entities.MongoDb.Assets;
@@ -26,14 +23,16 @@ using Squidex.Domain.Apps.Entities.MongoDb.Contents;
 using Squidex.Domain.Apps.Entities.MongoDb.FullText;
 using Squidex.Domain.Apps.Entities.MongoDb.History;
 using Squidex.Domain.Apps.Entities.MongoDb.Rules;
+using Squidex.Domain.Apps.Entities.MongoDb.Schemas;
 using Squidex.Domain.Apps.Entities.Rules.Repositories;
+using Squidex.Domain.Apps.Entities.Schemas;
 using Squidex.Domain.Users;
+using Squidex.Domain.Users.InMemory;
 using Squidex.Domain.Users.MongoDb;
-using Squidex.Domain.Users.MongoDb.Infrastructure;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Diagnostics;
+using Squidex.Infrastructure.EventSourcing;
 using Squidex.Infrastructure.Log;
-using Squidex.Infrastructure.Log.Store;
 using Squidex.Infrastructure.Migrations;
 using Squidex.Infrastructure.States;
 using Squidex.Infrastructure.UsageTracking;
@@ -52,7 +51,7 @@ namespace Squidex.Config.Domain
                     var mongoDatabaseName = config.GetRequiredValue("store:mongoDb:database");
                     var mongoContentDatabaseName = config.GetOptionalValue("store:mongoDb:contentDatabase", mongoDatabaseName);
 
-                    services.AddSingleton(typeof(ISnapshotStore<,>), typeof(MongoSnapshotStore<,>));
+                    services.AddSingleton(typeof(ISnapshotStore<>), typeof(MongoSnapshotStore<>));
 
                     services.AddSingletonAs(c => GetClient(mongoConfiguration))
                         .As<IMongoClient>();
@@ -60,17 +59,23 @@ namespace Squidex.Config.Domain
                     services.AddSingletonAs(c => GetDatabase(c, mongoDatabaseName))
                         .As<IMongoDatabase>();
 
+                    services.AddSingletonAs<MongoMigrationStatus>()
+                        .As<IMigrationStatus>();
+
+                    services.AddTransientAs<ConvertOldSnapshotStores>()
+                        .As<IMigration>();
+
                     services.AddTransientAs(c => new DeleteContentCollections(GetDatabase(c, mongoContentDatabaseName)))
                         .As<IMigration>();
 
                     services.AddTransientAs(c => new RestructureContentCollection(GetDatabase(c, mongoContentDatabaseName)))
                         .As<IMigration>();
 
-                    services.AddSingletonAs<MongoMigrationStatus>()
-                        .As<IMigrationStatus>();
-
-                    services.AddTransientAs<ConvertOldSnapshotStores>()
+                    services.AddTransientAs(c => new ConvertDocumentIds(GetDatabase(c, mongoDatabaseName), GetDatabase(c, mongoContentDatabaseName)))
                         .As<IMigration>();
+
+                    services.AddSingletonAs(c => ActivatorUtilities.CreateInstance<MongoContentRepository>(c, GetDatabase(c, mongoContentDatabaseName)))
+                        .As<IContentRepository>().As<ISnapshotStore<ContentDomainObject.State>>();
 
                     services.AddTransientAs<ConvertRuleEventsJson>()
                         .As<IMigration>();
@@ -79,6 +84,9 @@ namespace Squidex.Config.Domain
                         .As<IMigration>();
 
                     services.AddTransientAs<RenameAssetMetadata>()
+                        .As<IMigration>();
+
+                    services.AddTransientAs<AddAppIdToEventStream>()
                         .As<IMigration>();
 
                     services.AddHealthChecks()
@@ -102,47 +110,37 @@ namespace Squidex.Config.Domain
                     services.AddSingletonAs<MongoUserStore>()
                         .As<IUserStore<IdentityUser>>().As<IUserFactory>();
 
-                    services.AddSingletonAs<MongoKeyStore>()
-                        .As<ISigningCredentialStore>().As<IValidationKeysStore>();
-
                     services.AddSingletonAs<MongoAssetRepository>()
-                        .As<IAssetRepository>().As<ISnapshotStore<AssetState, Guid>>();
+                        .As<IAssetRepository>().As<ISnapshotStore<AssetDomainObject.State>>();
 
                     services.AddSingletonAs<MongoAssetFolderRepository>()
-                        .As<IAssetFolderRepository>().As<ISnapshotStore<AssetFolderState, Guid>>();
+                        .As<IAssetFolderRepository>().As<ISnapshotStore<AssetFolderDomainObject.State>>();
 
-                    services.AddSingletonAs(c => ActivatorUtilities.CreateInstance<MongoContentRepository>(c, GetDatabase(c, mongoContentDatabaseName)))
-                        .As<IContentRepository>().As<ISnapshotStore<ContentState, Guid>>();
+                    services.AddSingletonAs<MongoSchemasHash>()
+                        .AsOptional<ISchemasHash>().As<IEventConsumer>();
+
+                    services.AddSingletonAs<MongoTextIndex>()
+                        .AsOptional<ITextIndex>();
 
                     services.AddSingletonAs<MongoTextIndexerState>()
-                        .AsSelf();
-
-                    services.AddSingletonAs(c => new CachingTextIndexerState(c.GetRequiredService<MongoTextIndexerState>()))
                         .As<ITextIndexerState>();
 
-                    var registration = services.FirstOrDefault(x => x.ServiceType == typeof(IPersistedGrantStore));
-
-                    if (registration == null || registration.ImplementationType == typeof(InMemoryPersistedGrantStore))
-                    {
-                        services.AddSingletonAs<MongoPersistedGrantStore>()
-                            .As<IPersistedGrantStore>();
-                    }
-
-                    services.AddSingletonAs(c =>
-                    {
-                        var database = c.GetRequiredService<IMongoDatabase>();
-
-                        var mongoBucket = new GridFSBucket<string>(database, new GridFSBucketOptions
+                    services.AddOpenIddict()
+                        .AddCore(builder =>
                         {
-                            BucketName = "fullText"
-                        });
+                            builder.UseMongoDb<string>()
+                                .SetScopesCollectionName("Identity_Scopes")
+                                .SetTokensCollectionName("Identity_Tokens");
 
-                        return new MongoIndexStorage(mongoBucket);
-                    }).As<IIndexStorage>();
+                            builder.SetDefaultScopeEntity<ImmutableScope>();
+                            builder.SetDefaultApplicationEntity<ImmutableApplication>();
+                        });
                 }
             });
 
             services.AddSingleton(typeof(IStore<>), typeof(Store<>));
+
+            services.AddSingleton(typeof(IPersistenceFactory<>), typeof(Store<>));
         }
 
         private static IMongoClient GetClient(string configuration)

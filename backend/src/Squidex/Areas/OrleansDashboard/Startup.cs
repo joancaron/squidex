@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -16,7 +16,7 @@ namespace Squidex.Areas.OrleansDashboard
     {
         public static void ConfigureOrleansDashboard(this IApplicationBuilder app)
         {
-            app.Map(Constants.OrleansPrefix, orleansApp =>
+            app.Map(Constants.PrefixOrleans, orleansApp =>
             {
                 orleansApp.UseAuthentication();
                 orleansApp.UseAuthorization();

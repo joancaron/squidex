@@ -29,7 +29,7 @@ namespace Squidex.Infrastructure.Json.Newtonsoft
 
         public virtual IEnumerable<Type> SupportedTypes
         {
-            get { return supportedTypes; }
+            get => supportedTypes;
         }
 
         public override object ReadJson(JsonReader reader, Type objectType, object? existingValue, JsonSerializer serializer)
@@ -46,7 +46,7 @@ namespace Squidex.Infrastructure.Json.Newtonsoft
                     break;
                 case JsonToken.StartObject:
                     {
-                        var result = JsonValue.Object();
+                        var result = new JsonObject(1);
 
                         while (reader.Read())
                         {
@@ -74,21 +74,21 @@ namespace Squidex.Infrastructure.Json.Newtonsoft
 
                 case JsonToken.StartArray:
                     {
-                        var result = JsonValue.Array();
+                        var result = new JsonArray(1);
 
                         while (reader.Read())
                         {
                             switch (reader.TokenType)
                             {
                                 case JsonToken.Comment:
-                                    break;
+                                    continue;
+                                case JsonToken.EndArray:
+                                    return result;
                                 default:
                                     var value = ReadJson(reader);
 
                                     result.Add(value);
                                     break;
-                                case JsonToken.EndArray:
-                                    return result;
                             }
                         }
 
@@ -132,7 +132,7 @@ namespace Squidex.Infrastructure.Json.Newtonsoft
         {
             switch (value)
             {
-                case JsonNull _:
+                case JsonNull:
                     writer.WriteNull();
                     break;
                 case JsonBoolean s:

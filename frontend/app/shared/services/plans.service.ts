@@ -11,13 +11,6 @@ import { AnalyticsService, ApiUrlConfig, HTTP, mapVersioned, pretifyError, Versi
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 
-export type PlansDto = Versioned<{
-    readonly currentPlanId: string,
-    readonly planOwner: string,
-    readonly hasPortal: boolean,
-    readonly plans: ReadonlyArray<PlanDto>
-}>;
-
 export class PlanDto {
     constructor(
         public readonly id: string,
@@ -27,27 +20,29 @@ export class PlanDto {
         public readonly yearlyId: string,
         public readonly yearlyCosts: string,
         public readonly yearlyConfirmText: string | undefined,
+        public readonly maxApiBytes: number,
         public readonly maxApiCalls: number,
         public readonly maxAssetSize: number,
-        public readonly maxContributors: number
+        public readonly maxContributors: number,
     ) {
     }
 }
 
-export interface PlanChangedDto {
-    readonly redirectUri?: string;
-}
+export type PlansDto =
+    Versioned<Readonly<{ currentPlanId: string; planOwner: string; hasPortal: boolean; plans: ReadonlyArray<PlanDto> }>>;
 
-export interface ChangePlanDto {
-    readonly planId: string;
-}
+export type PlanChangedDto =
+    Readonly<{ redirectUri?: string }>;
+
+export type ChangePlanDto =
+    Readonly<{ planId: string }>;
 
 @Injectable()
 export class PlansService {
     constructor(
         private readonly http: HttpClient,
         private readonly apiUrl: ApiUrlConfig,
-        private readonly analytics: AnalyticsService
+        private readonly analytics: AnalyticsService,
     ) {
     }
 
@@ -72,15 +67,16 @@ export class PlansService {
                             item.yearlyId,
                             item.yearlyCosts,
                             item.yearlyConfirmText,
+                            item.maxApiBytes,
                             item.maxApiCalls,
                             item.maxAssetSize,
                             item.maxContributors)),
-                    hasPortal
+                    hasPortal,
                 };
 
                 return plans;
             }),
-            pretifyError('Failed to load plans. Please reload.'));
+            pretifyError('i18n:plans.loadFailed'));
     }
 
     public putPlan(appName: string, dto: ChangePlanDto, version: Version): Observable<Versioned<PlanChangedDto>> {
@@ -93,6 +89,6 @@ export class PlansService {
             tap(() => {
                 this.analytics.trackEvent('Plan', 'Changed', appName);
             }),
-            pretifyError('Failed to change plan. Please reload.'));
+            pretifyError('i18n:plans.changeFailed'));
     }
 }

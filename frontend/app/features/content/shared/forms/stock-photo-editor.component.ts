@@ -5,11 +5,15 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, forwardRef, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, forwardRef, Input, OnInit } from '@angular/core';
 import { FormControl, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { StatefulControlComponent, StockPhotoDto, StockPhotoService, thumbnail, Types, value$ } from '@app/shared';
 import { of } from 'rxjs';
 import { debounceTime, map, switchMap, tap } from 'rxjs/operators';
+
+export const SQX_STOCK_PHOTO_EDITOR_CONTROL_VALUE_ACCESSOR: any = {
+    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => StockPhotoEditorComponent), multi: true,
+};
 
 interface State {
     // True when loading assets.
@@ -19,22 +23,21 @@ interface State {
     isCompact?: boolean;
 }
 
-export const SQX_STOCK_PHOTO_EDITOR_CONTROL_VALUE_ACCESSOR: any = {
-    provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => StockPhotoEditorComponent), multi: true
-};
-
-const NO_EMIT = { emitEvent: false };
-
 @Component({
     selector: 'sqx-stock-photo-editor',
     styleUrls: ['./stock-photo-editor.component.scss'],
     templateUrl: './stock-photo-editor.component.html',
     providers: [
-        SQX_STOCK_PHOTO_EDITOR_CONTROL_VALUE_ACCESSOR
+        SQX_STOCK_PHOTO_EDITOR_CONTROL_VALUE_ACCESSOR,
     ],
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class StockPhotoEditorComponent extends StatefulControlComponent<State, string> implements OnInit {
+    @Input()
+    public set disabled(value: boolean | null | undefined) {
+        this.setDisabledState(value === true);
+    }
+
     public valueControl = new FormControl('');
 
     public stockPhotoThumbnail = value$(this.valueControl).pipe(map(v => thumbnail(v, 400) || v));
@@ -60,7 +63,7 @@ export class StockPhotoEditorComponent extends StatefulControlComponent<State, s
             }));
 
     constructor(changeDetector: ChangeDetectorRef,
-        private readonly stockPhotoService: StockPhotoService
+        private readonly stockPhotoService: StockPhotoService,
     ) {
         super(changeDetector, {});
     }
@@ -82,18 +85,16 @@ export class StockPhotoEditorComponent extends StatefulControlComponent<State, s
         }
     }
 
-    public setDisabledState(isDisabled: boolean): void {
-        super.setDisabledState(isDisabled);
-
+    public onDisabled(isDisabled: boolean) {
         if (isDisabled) {
-            this.stockPhotoSearch.disable(NO_EMIT);
+            this.stockPhotoSearch.disable({ emitEvent: false });
         } else {
-            this.stockPhotoSearch.enable(NO_EMIT);
+            this.stockPhotoSearch.enable({ emitEvent: false });
         }
     }
 
     public setCompact(isCompact: boolean) {
-        this.next(s => ({ ...s, isCompact: isCompact }));
+        this.next({ isCompact });
     }
 
     public selectPhoto(photo: StockPhotoDto) {
@@ -112,7 +113,7 @@ export class StockPhotoEditorComponent extends StatefulControlComponent<State, s
         return photo.url === this.valueControl.value;
     }
 
-    public trackByPhoto(index: number, photo: StockPhotoDto) {
+    public trackByPhoto(_index: number, photo: StockPhotoDto) {
         return photo.thumbUrl;
     }
 }

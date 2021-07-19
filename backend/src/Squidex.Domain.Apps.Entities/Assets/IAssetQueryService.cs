@@ -5,8 +5,8 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Squidex.Infrastructure;
 
@@ -14,14 +14,20 @@ namespace Squidex.Domain.Apps.Entities.Assets
 {
     public interface IAssetQueryService
     {
-        Task<IReadOnlyList<IEnrichedAssetEntity>> QueryByHashAsync(Context context, Guid appId, string hash);
+        Task<IResultList<IEnrichedAssetEntity>> QueryAsync(Context context, DomainId? parentId, Q q, CancellationToken ct = default);
 
-        Task<IResultList<IEnrichedAssetEntity>> QueryAsync(Context context, Guid? parentId, Q query);
+        Task<IResultList<IAssetFolderEntity>> QueryAssetFoldersAsync(Context context, DomainId parentId, CancellationToken ct = default);
 
-        Task<IResultList<IAssetFolderEntity>> QueryAssetFoldersAsync(Context context, Guid parentId);
+        Task<IResultList<IAssetFolderEntity>> QueryAssetFoldersAsync(DomainId appId, DomainId parentId, CancellationToken ct = default);
 
-        Task<IReadOnlyList<IAssetFolderEntity>> FindAssetFolderAsync(Guid id);
+        Task<IReadOnlyList<IAssetFolderEntity>> FindAssetFolderAsync(DomainId appId, DomainId id, CancellationToken ct = default);
 
-        Task<IEnrichedAssetEntity?> FindAssetAsync(Context context, Guid id);
+        Task<IEnrichedAssetEntity?> FindByHashAsync(Context context, string hash, string fileName, long fileSize, CancellationToken ct = default);
+
+        Task<IEnrichedAssetEntity?> FindAsync(Context context, DomainId id, long version = EtagVersion.Any, CancellationToken ct = default);
+
+        Task<IEnrichedAssetEntity?> FindBySlugAsync(Context context, string slug, CancellationToken ct = default);
+
+        Task<IEnrichedAssetEntity?> FindGlobalAsync(Context context, DomainId id, CancellationToken ct = default);
     }
 }

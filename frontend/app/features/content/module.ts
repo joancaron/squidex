@@ -5,21 +5,21 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-// tslint:disable: max-line-length
-
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
-import { CanDeactivateGuard, ContentMustExistGuard, LoadLanguagesGuard, SchemaMustExistPublishedGuard, SchemaMustNotBeSingletonGuard, SqxFrameworkModule, SqxSharedModule, UnsetContentGuard } from '@app/shared';
-import { ArrayEditorComponent, ArrayItemComponent, AssetsEditorComponent, CommentsPageComponent, ContentComponent, ContentCreatorComponent, ContentEventComponent, ContentFieldComponent, ContentHistoryPageComponent, ContentListCellDirective, ContentListFieldComponent, ContentListHeaderComponent, ContentListWidthPipe, ContentPageComponent, ContentSelectorComponent, ContentSelectorItemComponent, ContentsFiltersPageComponent, ContentsPageComponent, ContentStatusComponent, ContentValueComponent, ContentValueEditorComponent, CustomViewEditorComponent, DueTimeSelectorComponent, FieldEditorComponent, FieldLanguagesComponent, PreviewButtonComponent, ReferenceItemComponent, ReferencesEditorComponent, SchemasPageComponent, StockPhotoEditorComponent } from './declarations';
+import { CanDeactivateGuard, ContentMustExistGuard, LoadLanguagesGuard, LoadSchemasGuard, SchemaMustExistPublishedGuard, SchemaMustNotBeSingletonGuard, SqxFrameworkModule, SqxSharedModule } from '@app/shared';
+import { ScrollingModule } from '@angular/cdk/scrolling';
+import { ScrollingModule as ScrollingModuleExperimental } from '@angular/cdk-experimental/scrolling';
+import { ArrayEditorComponent, ArrayItemComponent, AssetsEditorComponent, CommentsPageComponent, ComponentComponent, ComponentSectionComponent, ContentComponent, ContentCreatorComponent, ContentEditorComponent, ContentEventComponent, ContentExtensionComponent, ContentFieldComponent, ContentHistoryPageComponent, ContentListCellDirective, ContentListFieldComponent, ContentListHeaderComponent, ContentListWidthPipe, ContentPageComponent, ContentReferencesComponent, ContentsColumnsPipe, ContentSectionComponent, ContentSelectorComponent, ContentSelectorItemComponent, ContentsFiltersPageComponent, ContentsPageComponent, ContentStatusComponent, ContentValueComponent, ContentValueEditorComponent, CustomViewEditorComponent, DueTimeSelectorComponent, FieldEditorComponent, FieldLanguagesComponent, IFrameEditorComponent, PreviewButtonComponent, ReferenceItemComponent, ReferencesEditorComponent, SchemasPageComponent, SidebarPageComponent, StockPhotoEditorComponent } from './declarations';
 
 const routes: Routes = [
     {
         path: '',
         component: SchemasPageComponent,
-        canActivate: [LoadLanguagesGuard],
+        canActivate: [LoadLanguagesGuard, LoadSchemasGuard],
         children: [
             {
-                path: ''
+                path: '',
             },
             {
                 path: ':schemaName',
@@ -28,20 +28,24 @@ const routes: Routes = [
                     {
                         path: '',
                         component: ContentsPageComponent,
-                        canActivate: [SchemaMustNotBeSingletonGuard],
+                        canActivate: [SchemaMustNotBeSingletonGuard, ContentMustExistGuard],
                         canDeactivate: [CanDeactivateGuard],
                         children: [
                             {
                                 path: 'filters',
-                                component: ContentsFiltersPageComponent
-                            }
-                        ]
+                                component: ContentsFiltersPageComponent,
+                            },
+                            {
+                                path: 'sidebar',
+                                component: SidebarPageComponent,
+                            },
+                        ],
                     },
                     {
                         path: 'new',
                         component: ContentPageComponent,
-                        canActivate: [SchemaMustNotBeSingletonGuard, UnsetContentGuard],
-                        canDeactivate: [CanDeactivateGuard]
+                        canActivate: [SchemaMustNotBeSingletonGuard, ContentMustExistGuard],
+                        canDeactivate: [CanDeactivateGuard],
                     },
                     {
                         path: ':contentId',
@@ -49,38 +53,48 @@ const routes: Routes = [
                         canActivate: [ContentMustExistGuard],
                         canDeactivate: [CanDeactivateGuard],
                         children: [
-                             {
+                            {
                                 path: 'history',
                                 component: ContentHistoryPageComponent,
                                 data: {
-                                    channel: 'contents.{contentId}'
-                                }
+                                    channel: 'contents.{contentId}',
+                                },
                             },
                             {
-                               path: 'comments',
-                               component: CommentsPageComponent
-                           }
-                        ]
-                    }
-                ]
-            }]
-    }
+                                path: 'comments',
+                                component: CommentsPageComponent,
+                            },
+                            {
+                                path: 'sidebar',
+                                component: SidebarPageComponent,
+                            },
+                        ],
+                    },
+                ],
+            }],
+    },
 ];
 
 @NgModule({
     imports: [
         RouterModule.forChild(routes),
+        ScrollingModule,
+        ScrollingModuleExperimental,
         SqxFrameworkModule,
-        SqxSharedModule
+        SqxSharedModule,
     ],
     declarations: [
         ArrayEditorComponent,
         ArrayItemComponent,
         AssetsEditorComponent,
         CommentsPageComponent,
+        ComponentComponent,
+        ComponentSectionComponent,
         ContentComponent,
         ContentCreatorComponent,
+        ContentEditorComponent,
         ContentEventComponent,
+        ContentExtensionComponent,
         ContentFieldComponent,
         ContentHistoryPageComponent,
         ContentListCellDirective,
@@ -88,6 +102,9 @@ const routes: Routes = [
         ContentListHeaderComponent,
         ContentListWidthPipe,
         ContentPageComponent,
+        ContentReferencesComponent,
+        ContentsColumnsPipe,
+        ContentSectionComponent,
         ContentSelectorComponent,
         ContentSelectorItemComponent,
         ContentsFiltersPageComponent,
@@ -99,11 +116,13 @@ const routes: Routes = [
         DueTimeSelectorComponent,
         FieldEditorComponent,
         FieldLanguagesComponent,
+        IFrameEditorComponent,
         PreviewButtonComponent,
         ReferenceItemComponent,
         ReferencesEditorComponent,
         SchemasPageComponent,
-        StockPhotoEditorComponent
-    ]
+        SidebarPageComponent,
+        StockPhotoEditorComponent,
+    ],
 })
 export class SqxFeatureContentModule {}

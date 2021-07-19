@@ -8,6 +8,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,15 +18,16 @@ using Squidex.Domain.Apps.Entities.Backup.State;
 using Squidex.Domain.Apps.Events;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.EventSourcing;
-using Squidex.Infrastructure.Log;
 using Squidex.Infrastructure.Orleans;
 using Squidex.Infrastructure.Tasks;
+using Squidex.Infrastructure.Translations;
+using Squidex.Log;
 using Squidex.Shared.Users;
 
 namespace Squidex.Domain.Apps.Entities.Backup
 {
     [Reentrant]
-    public sealed class BackupGrain : GrainOfGuid, IBackupGrain
+    public sealed class BackupGrain : GrainOfString, IBackupGrain
     {
         private const int MaxBackups = 10;
         private static readonly Duration UpdateDuration = Duration.FromSeconds(1);
@@ -38,7 +40,7 @@ namespace Squidex.Domain.Apps.Entities.Backup
         private readonly ISemanticLog log;
         private readonly IGrainState<BackupState> state;
         private readonly IUserResolver userResolver;
-        private CancellationTokenSource? currentTaskToken;
+        private CancellationTokenSource? currentJobToken;
         private BackupJob? currentJob;
 
         public BackupGrain(
@@ -52,16 +54,6 @@ namespace Squidex.Domain.Apps.Entities.Backup
             IUserResolver userResolver,
             ISemanticLog log)
         {
-            Guard.NotNull(backupArchiveLocation, nameof(backupArchiveLocation));
-            Guard.NotNull(backupArchiveStore, nameof(backupArchiveStore));
-            Guard.NotNull(clock, nameof(clock));
-            Guard.NotNull(eventDataFormatter, nameof(eventDataFormatter));
-            Guard.NotNull(eventStore, nameof(eventStore));
-            Guard.NotNull(serviceProvider, nameof(serviceProvider));
-            Guard.NotNull(state, nameof(state));
-            Guard.NotNull(userResolver, nameof(userResolver));
-            Guard.NotNull(log, nameof(log));
-
             this.backupArchiveLocation = backupArchiveLocation;
             this.backupArchiveStore = backupArchiveStore;
             this.clock = clock;
@@ -74,7 +66,7 @@ namespace Squidex.Domain.Apps.Entities.Backup
             this.log = log;
         }
 
-        protected override Task OnActivateAsync(Guid key)
+        protected override Task OnActivateAsync(string key)
         {
             RecoverAfterRestartAsync().Forget();
 
@@ -83,46 +75,48 @@ namespace Squidex.Domain.Apps.Entities.Backup
 
         private async Task RecoverAfterRestartAsync()
         {
-            state.Value.Jobs.RemoveAll(x => !x.Stopped.HasValue);
+            state.Value.Jobs.RemoveAll(x => x.Stopped == null);
 
             await state.WriteAsync();
         }
 
         public async Task BackupAsync(RefToken actor)
         {
-            if (currentTaskToken != null)
+            if (currentJobToken != null)
             {
-                throw new DomainException("Another backup process is already running.");
+                throw new DomainException(T.Get("backups.alreadyRunning"));
             }
 
             if (state.Value.Jobs.Count >= MaxBackups)
             {
-                throw new DomainException($"You cannot have more than {MaxBackups} backups.");
+                throw new DomainException(T.Get("backups.maxReached", new { max = MaxBackups }));
             }
 
             var job = new BackupJob
             {
-                Id = Guid.NewGuid(),
+                Id = DomainId.NewGuid(),
                 Started = clock.GetCurrentInstant(),
                 Status = JobStatus.Started
             };
 
-            currentTaskToken = new CancellationTokenSource();
+            currentJobToken = new CancellationTokenSource();
             currentJob = job;
 
             state.Value.Jobs.Insert(0, job);
 
             await state.WriteAsync();
 
-            Process(job, actor, currentTaskToken.Token);
+            Process(job, actor, currentJobToken.Token);
         }
 
-        private void Process(BackupJob job, RefToken actor, CancellationToken ct)
+        private void Process(BackupJob job, RefToken actor,
+            CancellationToken ct)
         {
             ProcessAsync(job, actor, ct).Forget();
         }
 
-        private async Task ProcessAsync(BackupJob job, RefToken actor, CancellationToken ct)
+        private async Task ProcessAsync(BackupJob job, RefToken actor,
+            CancellationToken ct)
         {
             var handlers = CreateHandlers();
 
@@ -130,17 +124,21 @@ namespace Squidex.Domain.Apps.Entities.Backup
 
             try
             {
+                var appId = DomainId.Create(Key);
+
                 using (var stream = backupArchiveLocation.OpenStream(job.Id))
                 {
                     using (var writer = await backupArchiveLocation.OpenWriterAsync(stream))
                     {
+                        await writer.WriteVersionAsync();
+
                         var userMapping = new UserMapping(actor);
 
-                        var context = new BackupContext(Key, userMapping, writer);
+                        var context = new BackupContext(appId, userMapping, writer);
 
-                        await eventStore.QueryAsync(async storedEvent =>
+                        await foreach (var storedEvent in eventStore.QueryAllAsync(GetFilter(), ct: ct))
                         {
-                            var @event = eventDataFormatter.Parse(storedEvent.Data);
+                            var @event = eventDataFormatter.Parse(storedEvent);
 
                             if (@event.Payload is SquidexEvent squidexEvent && squidexEvent.Actor != null)
                             {
@@ -158,7 +156,7 @@ namespace Squidex.Domain.Apps.Entities.Backup
                             job.HandledAssets = writer.WrittenAttachments;
 
                             lastTimestamp = await WritePeriodically(lastTimestamp);
-                        }, SquidexHeaders.AppId, Key.ToString(), null, ct);
+                        }
 
                         foreach (var handler in handlers)
                         {
@@ -205,9 +203,15 @@ namespace Squidex.Domain.Apps.Entities.Backup
 
                 await state.WriteAsync();
 
-                currentTaskToken = null;
+                currentJobToken?.Dispose();
+                currentJobToken = null;
                 currentJob = null;
             }
+        }
+
+        private string GetFilter()
+        {
+            return $"^[^\\-]*-{Regex.Escape(Key)}";
         }
 
         private async Task<Instant> WritePeriodically(Instant lastTimestamp)
@@ -224,18 +228,25 @@ namespace Squidex.Domain.Apps.Entities.Backup
             return lastTimestamp;
         }
 
-        public async Task DeleteAsync(Guid id)
+        public async Task DeleteAsync(DomainId id)
         {
             var job = state.Value.Jobs.FirstOrDefault(x => x.Id == id);
 
             if (job == null)
             {
-                throw new DomainObjectNotFoundException(id.ToString(), typeof(IBackupJob));
+                throw new DomainObjectNotFoundException(id.ToString());
             }
 
             if (currentJob == job)
             {
-                currentTaskToken?.Cancel();
+                try
+                {
+                    currentJobToken?.Cancel();
+                }
+                catch (ObjectDisposedException)
+                {
+                    return;
+                }
             }
             else
             {

@@ -8,103 +8,105 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
-using MongoDB.Bson.Serialization.Attributes;
+using MongoDB.Bson.Serialization;
 using Squidex.Domain.Apps.Core.GenerateEdmSchema;
-using Squidex.Domain.Apps.Core.Schemas;
+using Squidex.Infrastructure;
+using Squidex.Infrastructure.MongoDb;
 using Squidex.Infrastructure.Queries;
 
 namespace Squidex.Domain.Apps.Entities.MongoDb.Contents.Operations
 {
     public static class Adapt
     {
-        private static readonly Dictionary<string, string> PropertyMap =
-            typeof(MongoContentEntity).GetProperties()
-                .ToDictionary(
-                    x => ToElementName(x),
-                    x => ToName(x),
-                    StringComparer.OrdinalIgnoreCase);
+        private static Dictionary<string, PropertyPath> pathMap;
+        private static Dictionary<string, string> propertyMap;
 
-        private static string ToName(PropertyInfo x)
+        public static IReadOnlyDictionary<string, string> PropertyMap
         {
-            return x.GetCustomAttribute<BsonElementAttribute>()?.ElementName ?? x.Name;
-        }
-
-        private static string ToElementName(PropertyInfo x)
-        {
-            return x.Name;
-        }
-
-        public static Func<PropertyPath, PropertyPath> Path(Schema schema)
-        {
-            return propertyNames =>
+            get
             {
-                var result = new List<string>(propertyNames);
-
-                if (result.Count > 1)
+                if (propertyMap == null)
                 {
-                    var edmName = result[1].UnescapeEdmField();
-
-                    if (!schema.FieldsByName.TryGetValue(edmName, out var field))
-                    {
-                        throw new NotSupportedException();
-                    }
-
-                    result[1] = field.Id.ToString();
-
-                    if (field is IArrayField arrayField && result.Count > 3)
-                    {
-                        var nestedEdmName = result[3].UnescapeEdmField();
-
-                        if (!arrayField.FieldsByName.TryGetValue(nestedEdmName, out var nestedField))
-                        {
-                            throw new NotSupportedException();
-                        }
-
-                        result[3] = nestedField.Id.ToString();
-                    }
+                    propertyMap =
+                        BsonClassMap.LookupClassMap(typeof(MongoContentEntity)).AllMemberMaps
+                            .ToDictionary(
+                                x => x.MemberName,
+                                x => x.ElementName,
+                                StringComparer.OrdinalIgnoreCase);
                 }
 
-                if (result.Count > 2)
-                {
-                    result[2] = result[2].UnescapeEdmField();
-                }
-
-                if (result.Count > 0)
-                {
-                    if (result[0].Equals("Data", StringComparison.CurrentCultureIgnoreCase))
-                    {
-                        result[0] = "do";
-                    }
-                    else
-                    {
-                        result[0] = PropertyMap[propertyNames[0]];
-                    }
-                }
-
-                return result;
-            };
+                return propertyMap;
+            }
         }
 
-        public static ClrQuery AdjustToModel(this ClrQuery query, Schema schema)
+        public static IReadOnlyDictionary<string, PropertyPath> PathMap
         {
-            var pathConverter = Path(schema);
+            get
+            {
+                if (pathMap == null)
+                {
+                    pathMap = PropertyMap.ToDictionary(x => x.Key, x => (PropertyPath)x.Value);
+                }
+
+                return pathMap;
+            }
+        }
+
+        public static PropertyPath MapPath(PropertyPath path)
+        {
+            if (path.Count == 1 && PathMap.TryGetValue(path[0], out var mappedPath))
+            {
+                return mappedPath;
+            }
+
+            var result = new List<string>(path);
+
+            if (result.Count > 0)
+            {
+                if (PropertyMap.TryGetValue(path[0], out var mapped))
+                {
+                    result[0] = mapped;
+                }
+            }
+
+            for (var i = 1; i < path.Count; i++)
+            {
+                result[i] = result[i].UnescapeEdmField().EscapeJson();
+            }
+
+            return result;
+        }
+
+        public static ClrQuery AdjustToModel(this ClrQuery query, DomainId appId)
+        {
+            if (query.Filter != null)
+            {
+                query.Filter = AdaptionVisitor.AdaptFilter(query.Filter);
+            }
 
             if (query.Filter != null)
             {
-                query.Filter = query.Filter.Accept(new AdaptionVisitor(pathConverter));
+                query.Filter = AdaptIdVisitor.AdaptFilter(query.Filter, appId);
             }
 
-            query.Sort = query.Sort.Select(x => new SortNode(pathConverter(x.Path), x.Order)).ToList();
+            if (query.Sort != null)
+            {
+                query.Sort = query.Sort.Select(x => new SortNode(MapPath(x.Path), x.Order)).ToList();
+            }
 
             return query;
         }
 
-        public static FilterNode<ClrValue>? AdjustToModel(this FilterNode<ClrValue> filterNode, Schema schema)
+        public static FilterNode<ClrValue>? AdjustToModel(this FilterNode<ClrValue> filter, DomainId appId)
         {
-            var pathConverter = Path(schema);
+            var result = AdaptionVisitor.AdaptFilter(filter);
 
-            return filterNode.Accept(new AdaptionVisitor(pathConverter));
+            if (result != null)
+            {
+                result = AdaptIdVisitor.AdaptFilter(result, appId);
+            }
+
+            return result;
         }
     }
 }

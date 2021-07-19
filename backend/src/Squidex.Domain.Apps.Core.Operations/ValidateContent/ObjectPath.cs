@@ -5,7 +5,6 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -18,26 +17,18 @@ namespace Squidex.Domain.Apps.Core.ValidateContent
             var sb = new StringBuilder();
 
             var index = 0;
+
             foreach (var property in path)
             {
                 if (index == 0)
                 {
                     sb.Append(property);
                 }
-                else if (index == 1)
-                {
-                    if (!property.Equals(InvariantPartitioning.Key, StringComparison.OrdinalIgnoreCase))
-                    {
-                        sb.Append("(");
-                        sb.Append(property);
-                        sb.Append(")");
-                    }
-                }
                 else
                 {
                     if (property[0] != '[')
                     {
-                        sb.Append(".");
+                        sb.Append('.');
                     }
 
                     sb.Append(property);

@@ -1,7 +1,7 @@
-﻿// ==========================================================================
+// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -20,57 +20,67 @@ namespace Squidex.Domain.Apps.Entities.Contents
             : base(typeNameRegistry)
         {
             AddEventMessage<ContentCreated>(
-                "created {[Schema]} content.");
+                "history.contents.created");
 
             AddEventMessage<ContentUpdated>(
-                "updated {[Schema]} content.");
+                "history.contents.updated");
 
             AddEventMessage<ContentDeleted>(
-                "deleted {[Schema]} content.");
+                "history.contents.deleted");
 
             AddEventMessage<ContentDraftCreated>(
-                "created new draft.");
+                "history.contents.draftCreated");
 
             AddEventMessage<ContentDraftDeleted>(
-                "deleted draft.");
+                "history.contents.draftDeleted");
 
             AddEventMessage<ContentSchedulingCancelled>(
-                "failed to schedule status change for {[Schema]} content.");
+                "history.contents.scheduleFailed");
 
             AddEventMessage<ContentStatusChanged>(
-                "changed status of {[Schema]} content to {[Status]}.");
+                "history.statusChanged");
 
             AddEventMessage<ContentStatusScheduled>(
-                "scheduled to change status of {[Schema]} content to {[Status]}.");
+                "history.contents.scheduleCompleted");
         }
 
         protected override Task<HistoryEvent?> CreateEventCoreAsync(Envelope<IEvent> @event)
         {
-            var channel = $"contents.{@event.Headers.AggregateId()}";
+            HistoryEvent? result = null;
 
-            var result = ForEvent(@event.Payload, channel);
-
-            if (@event.Payload is SchemaEvent schemaEvent)
+            if (@event.Payload is ContentEvent contentEvent)
             {
-                if (schemaEvent.SchemaId == null)
+                var channel = $"contents.{contentEvent.ContentId}";
+
+                if (@event.Payload is SchemaEvent schemaEvent)
                 {
-                    return Task.FromResult<HistoryEvent?>(null);
+                    if (schemaEvent.SchemaId == null)
+                    {
+                        return Task.FromResult<HistoryEvent?>(null);
+                    }
+
+                    channel = $"schemas.{schemaEvent.SchemaId.Id}.{channel}";
                 }
 
-                result = result.Param("Schema", schemaEvent.SchemaId.Name);
+                result = ForEvent(@event.Payload, channel);
+
+                if (@event.Payload is SchemaEvent schemaEvent2)
+                {
+                    result = result.Param("Schema", schemaEvent2.SchemaId.Name);
+                }
+
+                if (@event.Payload is ContentStatusChanged contentStatusChanged)
+                {
+                    result = result.Param("Status", contentStatusChanged.Status);
+                }
+
+                if (@event.Payload is ContentStatusScheduled contentStatusScheduled)
+                {
+                    result = result.Param("Status", contentStatusScheduled.Status);
+                }
             }
 
-            if (@event.Payload is ContentStatusChanged contentStatusChanged)
-            {
-                result = result.Param("Status", contentStatusChanged.Status);
-            }
-
-            if (@event.Payload is ContentStatusScheduled contentStatusScheduled)
-            {
-                result = result.Param("Status", contentStatusScheduled.Status);
-            }
-
-            return Task.FromResult<HistoryEvent?>(result);
+            return Task.FromResult(result);
         }
     }
 }

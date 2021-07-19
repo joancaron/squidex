@@ -5,20 +5,20 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { Component, Input, OnInit } from '@angular/core';
-import { FormControl, FormGroup, Validators } from '@angular/forms';
-import { FieldDto, ResourceOwner, StringFieldPropertiesDto, value$ } from '@app/shared';
+import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
+import { FormGroup } from '@angular/forms';
+import { FieldDto, ResourceOwner, StringFieldPropertiesDto, STRING_FIELD_EDITORS, value$ } from '@app/shared';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 @Component({
     selector: 'sqx-string-ui',
     styleUrls: ['string-ui.component.scss'],
-    templateUrl: 'string-ui.component.html'
+    templateUrl: 'string-ui.component.html',
 })
-export class StringUIComponent extends ResourceOwner implements OnInit {
+export class StringUIComponent extends ResourceOwner implements OnChanges {
     @Input()
-    public editForm: FormGroup;
+    public fieldForm: FormGroup;
 
     @Input()
     public field: FieldDto;
@@ -26,39 +26,34 @@ export class StringUIComponent extends ResourceOwner implements OnInit {
     @Input()
     public properties: StringFieldPropertiesDto;
 
+    public editors = STRING_FIELD_EDITORS;
+
     public hideAllowedValues: Observable<boolean>;
     public hideInlineEditable: Observable<boolean>;
 
-    public ngOnInit() {
-        this.editForm.setControl('editor',
-            new FormControl(this.properties.editor, [
-                Validators.required
-            ]));
+    public ngOnChanges(changes: SimpleChanges) {
+        if (changes['fieldForm']) {
+            this.unsubscribeAll();
 
-        this.editForm.setControl('allowedValues',
-            new FormControl(this.properties.allowedValues));
+            this.hideAllowedValues =
+                value$<string>(this.fieldForm.controls['editor']).pipe(map(x => !(x && (x === 'Radio' || x === 'Dropdown'))));
 
-        this.editForm.setControl('inlineEditable',
-            new FormControl(this.properties.inlineEditable));
+            this.hideInlineEditable =
+                value$<string>(this.fieldForm.controls['editor']).pipe(map(x => !(x && (x === 'Input' || x === 'Dropdown' || x === 'Slug'))));
 
-        this.hideAllowedValues =
-            value$<string>(this.editForm.controls['editor']).pipe(map(x => !(x && (x === 'Radio' || x === 'Dropdown'))));
+            this.own(
+                this.hideAllowedValues.subscribe(isSelection => {
+                    if (isSelection) {
+                        this.fieldForm.controls['allowedValues'].setValue(undefined);
+                    }
+                }));
 
-        this.hideInlineEditable =
-            value$<string>(this.editForm.controls['editor']).pipe(map(x => !(x && (x === 'Input' || x === 'Dropdown' || x === 'Slug'))));
-
-        this.own(
-            this.hideAllowedValues.subscribe(isSelection => {
-                if (isSelection) {
-                    this.editForm.controls['allowedValues'].setValue(undefined);
-                }
-            }));
-
-        this.own(
-            this.hideInlineEditable.subscribe(isSelection => {
-                if (isSelection) {
-                    this.editForm.controls['inlineEditable'].setValue(false);
-                }
-            }));
+            this.own(
+                this.hideInlineEditable.subscribe(isSelection => {
+                    if (isSelection) {
+                        this.fieldForm.controls['inlineEditable'].setValue(false);
+                    }
+                }));
+        }
     }
 }

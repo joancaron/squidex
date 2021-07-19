@@ -5,26 +5,49 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
-using Squidex.Infrastructure;
 using Squidex.Infrastructure.Security;
 using Squidex.Shared;
-
-#pragma warning disable IDE0028 // Simplify collection initialization
 
 namespace Squidex.Domain.Apps.Entities.Apps
 {
     public sealed class RolePermissionsProvider
     {
+        private readonly List<string> forAppSchemas = new List<string>();
+        private readonly List<string> forAppWithoutSchemas = new List<string>();
         private readonly IAppProvider appProvider;
+
+        static RolePermissionsProvider()
+        {
+        }
 
         public RolePermissionsProvider(IAppProvider appProvider)
         {
-            Guard.NotNull(appProvider, nameof(appProvider));
-
             this.appProvider = appProvider;
+
+            foreach (var field in typeof(Permissions).GetFields(BindingFlags.Public | BindingFlags.Static))
+            {
+                if (field.IsLiteral && !field.IsInitOnly)
+                {
+                    var value = field.GetValue(null) as string;
+
+                    if (value?.StartsWith(Permissions.App, StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        if (value.IndexOf("{schema}", Permissions.App.Length, StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            forAppSchemas.Add(value);
+                        }
+                        else
+                        {
+                            forAppWithoutSchemas.Add(value);
+                        }
+                    }
+                }
+            }
         }
 
         public async Task<List<string>> GetPermissionsAsync(IAppEntity app)
@@ -33,11 +56,11 @@ namespace Squidex.Domain.Apps.Entities.Apps
 
             var result = new List<string> { Permission.Any };
 
-            foreach (var permission in Permissions.ForAppsNonSchema)
+            foreach (var permission in forAppWithoutSchemas)
             {
                 if (permission.Length > Permissions.App.Length + 1)
                 {
-                    var trimmed = permission.Substring(Permissions.App.Length + 1);
+                    var trimmed = permission[(Permissions.App.Length + 1)..];
 
                     if (trimmed.Length > 0)
                     {
@@ -46,13 +69,13 @@ namespace Squidex.Domain.Apps.Entities.Apps
                 }
             }
 
-            foreach (var permission in Permissions.ForAppsSchema)
+            foreach (var permission in forAppSchemas)
             {
-                var trimmed = permission.Substring(Permissions.App.Length + 1);
+                var trimmed = permission[(Permissions.App.Length + 1)..];
 
                 foreach (var schema in schemaNames)
                 {
-                    var replaced = trimmed.Replace("{name}", schema);
+                    var replaced = trimmed.Replace("{schema}", schema);
 
                     result.Add(replaced);
                 }
@@ -65,9 +88,11 @@ namespace Squidex.Domain.Apps.Entities.Apps
         {
             var schemas = await appProvider.GetSchemasAsync(app.Id);
 
-            var schemaNames = new List<string>();
+            var schemaNames = new List<string>
+            {
+                Permission.Any
+            };
 
-            schemaNames.Add(Permission.Any);
             schemaNames.AddRange(schemas.Select(x => x.SchemaDef.Name));
 
             return schemaNames;

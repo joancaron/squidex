@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -26,7 +26,7 @@ namespace Squidex.Domain.Apps.Core.Scripting
 
             var isClient = !string.IsNullOrWhiteSpace(clientId);
 
-            return CreateUser(engine, user.Id, isClient, user.Email, user.DisplayName(), user.Claims);
+            return CreateUser(engine, user.Id, isClient, user.Email, user.Claims.DisplayName(), user.Claims);
         }
 
         public static ObjectWrapper Create(Engine engine, ClaimsPrincipal principal)

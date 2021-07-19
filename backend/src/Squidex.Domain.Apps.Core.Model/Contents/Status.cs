@@ -1,18 +1,17 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
 using System.ComponentModel;
-using System.Diagnostics.CodeAnalysis;
 
 namespace Squidex.Domain.Apps.Core.Contents
 {
-    [TypeConverter(typeof(StatusConverter))]
-    public struct Status : IEquatable<Status>, IComparable<Status>
+    [TypeConverter(typeof(StatusTypeConverter))]
+    public readonly struct Status : IEquatable<Status>, IComparable<Status>
     {
         public static readonly Status Archived = new Status("Archived");
         public static readonly Status Draft = new Status("Draft");
@@ -22,7 +21,7 @@ namespace Squidex.Domain.Apps.Core.Contents
 
         public string Name
         {
-            get { return name ?? "Unknown"; }
+            get => name ?? "Unknown";
         }
 
         public Status(string? name)
@@ -37,12 +36,12 @@ namespace Squidex.Domain.Apps.Core.Contents
 
         public bool Equals(Status other)
         {
-            return string.Equals(name, other.name);
+            return string.Equals(Name, other.Name);
         }
 
         public override int GetHashCode()
         {
-            return name?.GetHashCode() ?? 0;
+            return Name.GetHashCode();
         }
 
         public override string ToString()
@@ -50,9 +49,9 @@ namespace Squidex.Domain.Apps.Core.Contents
             return Name;
         }
 
-        public int CompareTo([AllowNull] Status other)
+        public int CompareTo(Status other)
         {
-            return string.Compare(name, other.name, StringComparison.Ordinal);
+            return string.Compare(Name, other.Name, StringComparison.Ordinal);
         }
 
         public static bool operator ==(Status lhs, Status rhs)

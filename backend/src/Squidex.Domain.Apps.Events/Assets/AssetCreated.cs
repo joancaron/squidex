@@ -1,13 +1,13 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
 using System.Collections.Generic;
 using Squidex.Domain.Apps.Core.Assets;
+using Squidex.Infrastructure;
 using Squidex.Infrastructure.EventSourcing;
 
 namespace Squidex.Domain.Apps.Events.Assets
@@ -15,7 +15,7 @@ namespace Squidex.Domain.Apps.Events.Assets
     [EventType(nameof(AssetCreated), 2)]
     public sealed class AssetCreated : AssetEvent
     {
-        public Guid ParentId { get; set; }
+        public DomainId ParentId { get; set; }
 
         public string FileName { get; set; }
 

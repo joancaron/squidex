@@ -1,19 +1,19 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System;
-using System.ComponentModel.DataAnnotations;
 using Newtonsoft.Json;
 using NodaTime;
 using Squidex.Areas.Api.Controllers.Rules.Models.Converters;
 using Squidex.Domain.Apps.Core.Rules;
 using Squidex.Domain.Apps.Entities.Rules;
+using Squidex.Domain.Apps.Entities.Rules.Runner;
 using Squidex.Infrastructure;
 using Squidex.Infrastructure.Reflection;
+using Squidex.Infrastructure.Validation;
 using Squidex.Web;
 
 namespace Squidex.Areas.Api.Controllers.Rules.Models
@@ -23,18 +23,18 @@ namespace Squidex.Areas.Api.Controllers.Rules.Models
         /// <summary>
         /// The id of the rule.
         /// </summary>
-        public Guid Id { get; set; }
+        public DomainId Id { get; set; }
 
         /// <summary>
         /// The user that has created the rule.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public RefToken CreatedBy { get; set; }
 
         /// <summary>
         /// The user that has updated the rule.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public RefToken LastModifiedBy { get; set; }
 
         /// <summary>
@@ -65,13 +65,13 @@ namespace Squidex.Areas.Api.Controllers.Rules.Models
         /// <summary>
         /// The trigger properties.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         public RuleTriggerDto Trigger { get; set; }
 
         /// <summary>
         /// The action properties.
         /// </summary>
-        [Required]
+        [LocalizedRequired]
         [JsonConverter(typeof(RuleActionConverter))]
         public RuleAction Action { get; set; }
 
@@ -90,7 +90,7 @@ namespace Squidex.Areas.Api.Controllers.Rules.Models
         /// </summary>
         public Instant? LastExecuted { get; set; }
 
-        public static RuleDto FromRule(IEnrichedRuleEntity rule, Guid? runningRuleId, Resources resources)
+        public static RuleDto FromRule(IEnrichedRuleEntity rule, bool canRun, IRuleRunnerService ruleRunnerService, Resources resources)
         {
             var result = new RuleDto();
 
@@ -102,10 +102,10 @@ namespace Squidex.Areas.Api.Controllers.Rules.Models
                 result.Trigger = RuleTriggerDtoFactory.Create(rule.RuleDef.Trigger);
             }
 
-            return result.CreateLinks(resources, runningRuleId);
+            return result.CreateLinks(resources, rule, canRun, ruleRunnerService);
         }
 
-        private RuleDto CreateLinks(Resources resources, Guid? runningRuleId)
+        private RuleDto CreateLinks(Resources resources, IEnrichedRuleEntity rule, bool canRun, IRuleRunnerService ruleRunnerService)
         {
             var values = new { app = resources.App, id = Id };
 
@@ -130,9 +130,16 @@ namespace Squidex.Areas.Api.Controllers.Rules.Models
             {
                 AddPutLink("trigger", resources.Url<RulesController>(x => nameof(x.TriggerRule), values));
 
-                if (runningRuleId == null)
+                if (canRun && ruleRunnerService.CanRunRule(rule))
                 {
                     AddPutLink("run", resources.Url<RulesController>(x => nameof(x.PutRuleRun), values));
+                }
+
+                if (canRun && ruleRunnerService.CanRunFromSnapshots(rule))
+                {
+                    var snaphshotValues = new { values.app, values.id, fromSnapshots = true };
+
+                    AddPutLink("run/snapshots", resources.Url<RulesController>(x => nameof(x.PutRuleRun), snaphshotValues));
                 }
 
                 AddGetLink("logs", resources.Url<RulesController>(x => nameof(x.GetEvents), values));

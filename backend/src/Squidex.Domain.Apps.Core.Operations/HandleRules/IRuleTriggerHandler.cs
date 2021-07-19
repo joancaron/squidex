@@ -1,14 +1,14 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
-using Squidex.Domain.Apps.Core.Rules;
+using System.Linq;
+using System.Threading;
 using Squidex.Domain.Apps.Core.Rules.EnrichedEvents;
 using Squidex.Domain.Apps.Events;
 using Squidex.Infrastructure.EventSourcing;
@@ -19,10 +19,33 @@ namespace Squidex.Domain.Apps.Core.HandleRules
     {
         Type TriggerType { get; }
 
-        Task<List<EnrichedEvent>> CreateEnrichedEventsAsync(Envelope<AppEvent> @event);
+        bool CanCreateSnapshotEvents
+        {
+            get => false;
+        }
 
-        bool Trigger(EnrichedEvent @event, RuleTrigger trigger);
+        IAsyncEnumerable<EnrichedEvent> CreateSnapshotEventsAsync(RuleContext context, CancellationToken ct)
+        {
+            return AsyncEnumerable.Empty<EnrichedEvent>();
+        }
 
-        bool Trigger(AppEvent @event, RuleTrigger trigger, Guid ruleId);
+        IAsyncEnumerable<EnrichedEvent> CreateEnrichedEventsAsync(Envelope<AppEvent> @event, RuleContext context, CancellationToken ct);
+
+        string? GetName(AppEvent @event)
+        {
+            return null;
+        }
+
+        bool Trigger(Envelope<AppEvent> @event, RuleContext context)
+        {
+            return true;
+        }
+
+        bool Trigger(EnrichedEvent @event, RuleContext context)
+        {
+            return true;
+        }
+
+        bool Handles(AppEvent @event);
     }
 }

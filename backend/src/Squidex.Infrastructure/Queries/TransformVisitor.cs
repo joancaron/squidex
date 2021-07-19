@@ -5,27 +5,37 @@
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System.Linq;
+using System.Collections.Generic;
 
 namespace Squidex.Infrastructure.Queries
 {
-    public abstract class TransformVisitor<TValue> : FilterNodeVisitor<FilterNode<TValue>?, TValue>
+    public abstract class TransformVisitor<TValue, TArgs> : FilterNodeVisitor<FilterNode<TValue>?, TValue, TArgs>
     {
-        public override FilterNode<TValue>? Visit(CompareFilter<TValue> nodeIn)
+        public override FilterNode<TValue>? Visit(CompareFilter<TValue> nodeIn, TArgs args)
         {
             return nodeIn;
         }
 
-        public override FilterNode<TValue>? Visit(LogicalFilter<TValue> nodeIn)
+        public override FilterNode<TValue>? Visit(LogicalFilter<TValue> nodeIn, TArgs args)
         {
-            var inner = nodeIn.Filters.Select(x => x.Accept(this)!).NotNull().ToList();
+            var pruned = new List<FilterNode<TValue>>(nodeIn.Filters.Count);
 
-            return new LogicalFilter<TValue>(nodeIn.Type, inner);
+            foreach (var inner in nodeIn.Filters)
+            {
+                var transformed = inner.Accept(this, args);
+
+                if (transformed != null)
+                {
+                    pruned.Add(transformed);
+                }
+            }
+
+            return new LogicalFilter<TValue>(nodeIn.Type, pruned);
         }
 
-        public override FilterNode<TValue>? Visit(NegateFilter<TValue> nodeIn)
+        public override FilterNode<TValue>? Visit(NegateFilter<TValue> nodeIn, TArgs args)
         {
-            var inner = nodeIn.Filter.Accept(this);
+            var inner = nodeIn.Filter.Accept(this, args);
 
             if (inner == null)
             {

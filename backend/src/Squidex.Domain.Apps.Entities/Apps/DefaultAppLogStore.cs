@@ -14,9 +14,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using CsvHelper;
 using CsvHelper.Configuration;
-using NodaTime;
 using Squidex.Infrastructure;
-using Squidex.Infrastructure.Log.Store;
+using Squidex.Infrastructure.Log;
 
 namespace Squidex.Domain.Apps.Entities.Apps
 {
@@ -24,51 +23,64 @@ namespace Squidex.Domain.Apps.Entities.Apps
     {
         private const string FieldAuthClientId = "AuthClientId";
         private const string FieldAuthUserId = "AuthUserId";
+        private const string FieldBytes = "Bytes";
         private const string FieldCosts = "Costs";
         private const string FieldRequestElapsedMs = "RequestElapsedMs";
         private const string FieldRequestMethod = "RequestMethod";
         private const string FieldRequestPath = "RequestPath";
         private const string FieldTimestamp = "Timestamp";
-        private readonly CsvConfiguration csvConfiguration = new CsvConfiguration(CultureInfo.InvariantCulture) { Delimiter = "|" };
+
+        private static readonly CsvConfiguration CsvConfiguration = new CsvConfiguration(CultureInfo.InvariantCulture)
+        {
+            Delimiter = "|",
+            LeaveOpen = true,
+            LineBreakInQuotedFieldIsBadData = false
+        };
+
         private readonly IRequestLogStore requestLogStore;
 
         public DefaultAppLogStore(IRequestLogStore requestLogStore)
         {
-            Guard.NotNull(requestLogStore, nameof(requestLogStore));
-
             this.requestLogStore = requestLogStore;
         }
 
-        public Task LogAsync(Guid appId, Instant timestamp, string? requestMethod, string? requestPath, string? userId, string? clientId, long elapsedMs, double costs)
+        public Task LogAsync(DomainId appId, RequestLog request)
         {
-            var request = new Request
+            if (!requestLogStore.IsEnabled)
+            {
+                return Task.CompletedTask;
+            }
+
+            var storedRequest = new Request
             {
                 Key = appId.ToString(),
                 Properties = new Dictionary<string, string>
                 {
-                    [FieldCosts] = costs.ToString(CultureInfo.InvariantCulture)
+                    [FieldCosts] = request.Costs.ToString(CultureInfo.InvariantCulture)
                 },
-                Timestamp = timestamp
+                Timestamp = request.Timestamp
             };
 
-            Append(request, FieldAuthClientId, clientId);
-            Append(request, FieldAuthUserId, userId);
-            Append(request, FieldCosts, costs.ToString(CultureInfo.InvariantCulture));
-            Append(request, FieldRequestElapsedMs, elapsedMs.ToString(CultureInfo.InvariantCulture));
-            Append(request, FieldRequestMethod, requestMethod);
-            Append(request, FieldRequestPath, requestPath);
+            Append(storedRequest, FieldAuthClientId, request.UserClientId);
+            Append(storedRequest, FieldAuthUserId, request.UserId);
+            Append(storedRequest, FieldBytes, request.Bytes);
+            Append(storedRequest, FieldCosts, request.Costs);
+            Append(storedRequest, FieldRequestElapsedMs, request.ElapsedMs);
+            Append(storedRequest, FieldRequestMethod, request.RequestMethod);
+            Append(storedRequest, FieldRequestPath, request.RequestPath);
 
-            return requestLogStore.LogAsync(request);
+            return requestLogStore.LogAsync(storedRequest);
         }
 
-        public async Task ReadLogAsync(Guid appId, DateTime fromDate, DateTime toDate, Stream stream, CancellationToken ct = default)
+        public async Task ReadLogAsync(DomainId appId, DateTime fromDate, DateTime toDate, Stream stream,
+            CancellationToken ct = default)
         {
             Guard.NotNull(appId, nameof(appId));
 
             var writer = new StreamWriter(stream, Encoding.UTF8, 4096, true);
             try
             {
-                using (var csv = new CsvWriter(writer, csvConfiguration, true))
+                await using (var csv = new CsvWriter(writer, CsvConfiguration))
                 {
                     csv.WriteField(FieldTimestamp);
                     csv.WriteField(FieldRequestPath);
@@ -77,6 +89,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
                     csv.WriteField(FieldCosts);
                     csv.WriteField(FieldAuthClientId);
                     csv.WriteField(FieldAuthUserId);
+                    csv.WriteField(FieldBytes);
 
                     await csv.NextRecordAsync();
 
@@ -89,6 +102,7 @@ namespace Squidex.Domain.Apps.Entities.Apps
                         csv.WriteField(GetDouble(request, FieldCosts));
                         csv.WriteField(GetString(request, FieldAuthClientId));
                         csv.WriteField(GetString(request, FieldAuthUserId));
+                        csv.WriteField(GetString(request, FieldBytes));
 
                         await csv.NextRecordAsync();
                     }, appId.ToString(), fromDate, toDate, ct);
@@ -106,6 +120,16 @@ namespace Squidex.Domain.Apps.Entities.Apps
             {
                 request.Properties[key] = value;
             }
+        }
+
+        private static void Append(Request request, string key, double value)
+        {
+            request.Properties[key] = value.ToString(CultureInfo.InvariantCulture);
+        }
+
+        private static void Append(Request request, string key, long value)
+        {
+            request.Properties[key] = value.ToString(CultureInfo.InvariantCulture);
         }
 
         private static string GetString(Request request, string key)

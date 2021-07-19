@@ -1,17 +1,17 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
-using System.Collections.ObjectModel;
-using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Runtime.Serialization;
 using Newtonsoft.Json;
 using Squidex.Domain.Apps.Core.Schemas;
+using Squidex.Infrastructure.Collections;
+using Squidex.Infrastructure.Validation;
 using Squidex.Web.Json;
 
 namespace Squidex.Areas.Api.Controllers.Schemas.Models
@@ -23,25 +23,35 @@ namespace Squidex.Areas.Api.Controllers.Schemas.Models
         /// <summary>
         /// Optional label for the editor.
         /// </summary>
-        [StringLength(100)]
+        [LocalizedStringLength(100)]
         public string? Label { get; set; }
 
         /// <summary>
         /// Hints to describe the schema.
         /// </summary>
-        [StringLength(1000)]
+        [LocalizedStringLength(1000)]
         public string? Hints { get; set; }
 
         /// <summary>
         /// Placeholder to show when no value has been entered.
         /// </summary>
-        [StringLength(100)]
+        [LocalizedStringLength(100)]
         public string? Placeholder { get; set; }
 
         /// <summary>
         /// Indicates if the field is required.
         /// </summary>
         public bool IsRequired { get; set; }
+
+        /// <summary>
+        /// Indicates if the field is required when publishing.
+        /// </summary>
+        public bool IsRequiredOnPublish { get; set; }
+
+        /// <summary>
+        /// Indicates if the field should be rendered with half width only.
+        /// </summary>
+        public bool IsHalfWidth { get; set; }
 
         /// <summary>
         /// Optional url to the editor.
@@ -51,7 +61,7 @@ namespace Squidex.Areas.Api.Controllers.Schemas.Models
         /// <summary>
         /// Tags for automation processes.
         /// </summary>
-        public ReadOnlyCollection<string>? Tags { get; set; }
+        public ImmutableList<string>? Tags { get; set; }
 
         public abstract FieldProperties ToProperties();
 

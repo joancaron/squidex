@@ -5,22 +5,16 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { TempService, TempServiceFactory } from './temp.service';
+import { TempService } from './temp.service';
 
 describe('TempService', () => {
-    it('should instantiate from factory', () => {
-        const tempService = TempServiceFactory();
-
-        expect(tempService).toBeDefined();
-    });
-
     it('should instantiate', () => {
         const tempService = new TempService();
 
         expect(tempService).toBeDefined();
     });
 
-    it('should return null when nothing is stored', () => {
+    it('should return null if nothing is stored', () => {
         const tempService = new TempService();
 
         const temp = tempService.fetch();
@@ -28,7 +22,7 @@ describe('TempService', () => {
         expect(temp).toBeNull();
     });
 
-    it('should return value once when something is stored', () => {
+    it('should return value once if something is stored', () => {
         const tempService = new TempService();
 
         tempService.put('Hello');

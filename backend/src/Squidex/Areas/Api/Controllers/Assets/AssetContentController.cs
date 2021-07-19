@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -10,19 +10,20 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
 using Squidex.Areas.Api.Controllers.Assets.Models;
+using Squidex.Assets;
 using Squidex.Domain.Apps.Core.Assets;
+using Squidex.Domain.Apps.Entities;
 using Squidex.Domain.Apps.Entities.Assets;
-using Squidex.Domain.Apps.Entities.Assets.Repositories;
 using Squidex.Infrastructure;
-using Squidex.Infrastructure.Assets;
 using Squidex.Infrastructure.Commands;
-using Squidex.Infrastructure.Log;
+using Squidex.Log;
 using Squidex.Web;
 
-#pragma warning disable 1573
+#pragma warning disable CA2016 // Forward the 'CancellationToken' parameter to methods that take one
 
 namespace Squidex.Areas.Api.Controllers.Assets
 {
@@ -33,24 +34,21 @@ namespace Squidex.Areas.Api.Controllers.Assets
     public sealed class AssetContentController : ApiController
     {
         private readonly IAssetFileStore assetFileStore;
-        private readonly IAssetRepository assetRepository;
+        private readonly IAssetQueryService assetQuery;
         private readonly IAssetLoader assetLoader;
-        private readonly IAssetStore assetStore;
         private readonly IAssetThumbnailGenerator assetThumbnailGenerator;
 
         public AssetContentController(
             ICommandBus commandBus,
             IAssetFileStore assetFileStore,
-            IAssetRepository assetRepository,
+            IAssetQueryService assetQuery,
             IAssetLoader assetLoader,
-            IAssetStore assetStore,
             IAssetThumbnailGenerator assetThumbnailGenerator)
             : base(commandBus)
         {
             this.assetFileStore = assetFileStore;
-            this.assetRepository = assetRepository;
+            this.assetQuery = assetQuery;
             this.assetLoader = assetLoader;
-            this.assetStore = assetStore;
             this.assetThumbnailGenerator = assetThumbnailGenerator;
         }
 
@@ -59,119 +57,135 @@ namespace Squidex.Areas.Api.Controllers.Assets
         /// </summary>
         /// <param name="app">The name of the app.</param>
         /// <param name="idOrSlug">The id or slug of the asset.</param>
+        /// <param name="request">The request parameters.</param>
         /// <param name="more">Optional suffix that can be used to seo-optimize the link to the image Has not effect.</param>
-        /// <param name="query">The query string parameters.</param>
         /// <returns>
         /// 200 => Asset found and content or (resized) image returned.
         /// 404 => Asset or app not found.
         /// </returns>
         [HttpGet]
         [Route("assets/{app}/{idOrSlug}/{*more}")]
-        [ProducesResponseType(typeof(FileResult), 200)]
+        [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK)]
         [ApiPermission]
         [ApiCosts(0.5)]
         [AllowAnonymous]
-        public async Task<IActionResult> GetAssetContentBySlug(string app, string idOrSlug, string more, [FromQuery] AssetContentQueryDto query)
+        public async Task<IActionResult> GetAssetContentBySlug(string app, string idOrSlug, AssetContentQueryDto request, string? more = null)
         {
-            IAssetEntity? asset;
+            var requestContext = Context.Clone(b => b.WithoutAssetEnrichment());
 
-            if (Guid.TryParse(idOrSlug, out var guid))
+            var asset = await assetQuery.FindAsync(requestContext, DomainId.Create(idOrSlug), ct: HttpContext.RequestAborted);
+
+            if (asset == null)
             {
-                asset = await assetRepository.FindAssetAsync(guid);
-            }
-            else
-            {
-                asset = await assetRepository.FindAssetBySlugAsync(App.Id, idOrSlug);
+                asset = await assetQuery.FindBySlugAsync(requestContext, idOrSlug, HttpContext.RequestAborted);
             }
 
-            return await DeliverAssetAsync(asset, query);
+            return await DeliverAssetAsync(requestContext, asset, request);
         }
 
         /// <summary>
         /// Get the asset content.
         /// </summary>
         /// <param name="id">The id of the asset.</param>
-        /// <param name="query">The query string parameters.</param>
+        /// <param name="request">The request parameters.</param>
         /// <returns>
         /// 200 => Asset found and content or (resized) image returned.
         /// 404 => Asset or app not found.
         /// </returns>
         [HttpGet]
         [Route("assets/{id}/")]
-        [ProducesResponseType(typeof(FileResult), 200)]
+        [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK)]
         [ApiPermission]
         [ApiCosts(0.5)]
         [AllowAnonymous]
-        public async Task<IActionResult> GetAssetContent(Guid id, [FromQuery] AssetContentQueryDto query)
+        [Obsolete("Use overload with app name")]
+        public async Task<IActionResult> GetAssetContent(DomainId id, AssetContentQueryDto request)
         {
-            var asset = await assetRepository.FindAssetAsync(id);
+            var requestContext = Context.Clone(b => b.WithoutAssetEnrichment());
 
-            return await DeliverAssetAsync(asset, query);
+            var asset = await assetQuery.FindGlobalAsync(requestContext, id, HttpContext.RequestAborted);
+
+            return await DeliverAssetAsync(requestContext, asset, request);
         }
 
-        private async Task<IActionResult> DeliverAssetAsync(IAssetEntity? asset, AssetContentQueryDto query)
+        private async Task<IActionResult> DeliverAssetAsync(Context context, IAssetEntity? asset, AssetContentQueryDto request)
         {
-            query ??= new AssetContentQueryDto();
+            request ??= new AssetContentQueryDto();
 
             if (asset == null)
             {
                 return NotFound();
             }
 
-            if (asset.IsProtected && !Resources.CanReadEvents)
+            if (asset.IsProtected && !Resources.CanReadAssets)
             {
+                Response.Headers[HeaderNames.CacheControl] = "public,max-age=0";
+
                 return StatusCode(403);
             }
 
-            if (query.Version > EtagVersion.Any && asset.Version != query.Version)
+            if (asset != null && request.Version > EtagVersion.Any && asset.Version != request.Version)
             {
-                asset = await assetLoader.GetAsync(asset.Id, query.Version);
+                if (context.App != null)
+                {
+                    asset = await assetQuery.FindAsync(context, asset.Id, request.Version, HttpContext.RequestAborted);
+                }
+                else
+                {
+                    // Fallback for old endpoint. Does not set the surrogate key.
+                    asset = await assetLoader.GetAsync(asset.AppId.Id, asset.Id, request.Version);
+                }
             }
 
-            var resizeOptions = query.ToResizeOptions(asset);
+            if (asset == null)
+            {
+                return NotFound();
+            }
+
+            var resizeOptions = request.ToResizeOptions(asset);
 
             FileCallback callback;
 
             Response.Headers[HeaderNames.ETag] = asset.FileVersion.ToString();
 
-            if (query.CacheDuration > 0)
+            if (request.CacheDuration > 0)
             {
-                Response.Headers[HeaderNames.CacheControl] = $"public,max-age={query.CacheDuration}";
+                Response.Headers[HeaderNames.CacheControl] = $"public,max-age={request.CacheDuration}";
             }
 
             var contentLength = (long?)null;
 
             if (asset.Type == AssetType.Image && resizeOptions.IsValid)
             {
-                callback = new FileCallback(async (bodyStream, range, ct) =>
+                callback = async (bodyStream, range, ct) =>
                 {
-                    var resizedAsset = $"{asset.Id}_{asset.FileVersion}_{resizeOptions}";
-
-                    if (query.ForceResize)
+                    if (request.ForceResize)
                     {
-                        await ResizeAsync(asset, bodyStream, resizedAsset, resizeOptions, true, ct);
+                        await ResizeAsync(asset, bodyStream, resizeOptions, true, ct);
                     }
                     else
                     {
                         try
                         {
-                            await assetStore.DownloadAsync(resizedAsset, bodyStream);
+                            var suffix = resizeOptions.ToString();
+
+                            await assetFileStore.DownloadAsync(asset.AppId.Id, asset.Id, asset.FileVersion, suffix, bodyStream, ct: ct);
                         }
                         catch (AssetNotFoundException)
                         {
-                            await ResizeAsync(asset, bodyStream, resizedAsset, resizeOptions, false, ct);
+                            await ResizeAsync(asset, bodyStream, resizeOptions, false, ct);
                         }
                     }
-                });
+                };
             }
             else
             {
                 contentLength = asset.FileSize;
 
-                callback = new FileCallback(async (bodyStream, range, ct) =>
+                callback = async (bodyStream, range, ct) =>
                 {
-                    await assetFileStore.DownloadAsync(asset.Id, asset.FileVersion, bodyStream, range, ct);
-                });
+                    await assetFileStore.DownloadAsync(asset.AppId.Id, asset.Id, asset.FileVersion, null, bodyStream, range, ct);
+                };
             }
 
             return new FileCallbackResult(asset.MimeType, callback)
@@ -181,12 +195,14 @@ namespace Squidex.Areas.Api.Controllers.Assets
                 FileDownloadName = asset.FileName,
                 FileSize = contentLength,
                 LastModified = asset.LastModified.ToDateTimeOffset(),
-                SendInline = query.Download != 1
+                SendInline = request.Download != 1
             };
         }
 
-        private async Task ResizeAsync(IAssetEntity asset, Stream bodyStream, string fileName, ResizeOptions resizeOptions, bool overwrite, CancellationToken ct)
+        private async Task ResizeAsync(IAssetEntity asset, Stream bodyStream, ResizeOptions resizeOptions, bool overwrite, CancellationToken ct)
         {
+            var suffix = resizeOptions.ToString();
+
             using (Profiler.Trace("Resize"))
             {
                 using (var sourceStream = GetTempStream())
@@ -195,19 +211,34 @@ namespace Squidex.Areas.Api.Controllers.Assets
                     {
                         using (Profiler.Trace("ResizeDownload"))
                         {
-                            await assetFileStore.DownloadAsync(asset.Id, asset.FileVersion, sourceStream);
+                            await assetFileStore.DownloadAsync(asset.AppId.Id, asset.Id, asset.FileVersion, null, sourceStream);
                             sourceStream.Position = 0;
                         }
 
                         using (Profiler.Trace("ResizeImage"))
                         {
-                            await assetThumbnailGenerator.CreateThumbnailAsync(sourceStream, destinationStream, resizeOptions);
-                            destinationStream.Position = 0;
+                            try
+                            {
+                                await assetThumbnailGenerator.CreateThumbnailAsync(sourceStream, destinationStream, resizeOptions);
+                                destinationStream.Position = 0;
+                            }
+                            catch
+                            {
+                                sourceStream.Position = 0;
+                                await sourceStream.CopyToAsync(destinationStream);
+                            }
                         }
 
-                        using (Profiler.Trace("ResizeUpload"))
+                        try
                         {
-                            await assetStore.UploadAsync(fileName, destinationStream, overwrite);
+                            using (Profiler.Trace("ResizeUpload"))
+                            {
+                                await assetFileStore.UploadAsync(asset.AppId.Id, asset.Id, asset.FileVersion, suffix, destinationStream, overwrite);
+                                destinationStream.Position = 0;
+                            }
+                        }
+                        catch (AssetAlreadyExistsException)
+                        {
                             destinationStream.Position = 0;
                         }
 

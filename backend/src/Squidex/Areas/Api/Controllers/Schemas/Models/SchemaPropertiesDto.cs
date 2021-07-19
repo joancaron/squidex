@@ -1,12 +1,12 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
-using System.Collections.ObjectModel;
-using System.ComponentModel.DataAnnotations;
+using System.Collections.Immutable;
+using Squidex.Infrastructure.Validation;
 
 namespace Squidex.Areas.Api.Controllers.Schemas.Models
 {
@@ -15,18 +15,38 @@ namespace Squidex.Areas.Api.Controllers.Schemas.Models
         /// <summary>
         /// Optional label for the editor.
         /// </summary>
-        [StringLength(100)]
+        [LocalizedStringLength(100)]
         public string? Label { get; set; }
 
         /// <summary>
         /// Hints to describe the schema.
         /// </summary>
-        [StringLength(1000)]
+        [LocalizedStringLength(1000)]
         public string? Hints { get; set; }
+
+        /// <summary>
+        /// The url to a the sidebar plugin for content lists.
+        /// </summary>
+        public string? ContentsSidebarUrl { get; set; }
+
+        /// <summary>
+        /// The url to a the sidebar plugin for content items.
+        /// </summary>
+        public string? ContentSidebarUrl { get; set; }
+
+        /// <summary>
+        /// The url to the editor plugin.
+        /// </summary>
+        public string? ContentEditorUrl { get; set; }
+
+        /// <summary>
+        /// True to validate the content items on publish.
+        /// </summary>
+        public bool ValidateOnPublish { get; set; }
 
         /// <summary>
         /// Tags for automation processes.
         /// </summary>
-        public ReadOnlyCollection<string>? Tags { get; set; }
+        public ImmutableList<string>? Tags { get; set; }
     }
 }

@@ -5,29 +5,22 @@
  * Copyright (c) Squidex UG (haftungsbeschränkt). All rights reserved.
  */
 
-import { Component, Input, OnInit } from '@angular/core';
-import { FormControl, FormGroup, Validators } from '@angular/forms';
+import { Component, Input } from '@angular/core';
+import { FormGroup } from '@angular/forms';
 import { FieldDto, GeolocationFieldPropertiesDto } from '@app/shared';
 
 @Component({
     selector: 'sqx-geolocation-ui',
     styleUrls: ['geolocation-ui.component.scss'],
-    templateUrl: 'geolocation-ui.component.html'
+    templateUrl: 'geolocation-ui.component.html',
 })
-export class GeolocationUIComponent implements OnInit {
+export class GeolocationUIComponent {
     @Input()
-    public editForm: FormGroup;
+    public fieldForm: FormGroup;
 
     @Input()
     public field: FieldDto;
 
     @Input()
     public properties: GeolocationFieldPropertiesDto;
-
-    public ngOnInit() {
-        this.editForm.setControl('editor',
-            new FormControl(this.properties.editor, [
-                Validators.required
-            ]));
-    }
 }

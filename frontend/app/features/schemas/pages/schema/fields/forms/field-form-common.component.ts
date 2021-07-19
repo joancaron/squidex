@@ -12,16 +12,11 @@ import { FieldDto } from '@app/shared';
 @Component({
     selector: 'sqx-field-form-common',
     styleUrls: ['./field-form-common.component.scss'],
-    templateUrl: './field-form-common.component.html'
+    templateUrl: './field-form-common.component.html',
 })
 export class FieldFormCommonComponent {
-    public readonly standalone = { standalone: true };
-
     @Input()
-    public editForm: FormGroup;
-
-    @Input()
-    public editFormSubmitted = false;
+    public fieldForm: FormGroup;
 
     @Input()
     public field: FieldDto;

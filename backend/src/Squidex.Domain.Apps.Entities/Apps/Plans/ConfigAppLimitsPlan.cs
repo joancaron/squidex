@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -27,9 +27,13 @@ namespace Squidex.Domain.Apps.Entities.Apps.Plans
 
         public long MaxApiCalls { get; set; }
 
+        public long MaxApiBytes { get; set; }
+
         public long MaxAssetSize { get; set; }
 
         public int MaxContributors { get; set; }
+
+        public bool IsFree { get; set; }
 
         public ConfigAppLimitsPlan Clone()
         {

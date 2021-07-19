@@ -1,7 +1,7 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
@@ -17,8 +17,6 @@ namespace Squidex.Infrastructure.Json.Newtonsoft
 
         public TypeNameSerializationBinder(TypeNameRegistry typeNameRegistry)
         {
-            Guard.NotNull(typeNameRegistry, nameof(typeNameRegistry));
-
             this.typeNameRegistry = typeNameRegistry;
         }
 

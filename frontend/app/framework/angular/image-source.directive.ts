@@ -6,13 +6,12 @@
  */
 
 import { AfterViewInit, Directive, ElementRef, Input, NgZone, OnChanges, OnDestroy, OnInit, Renderer2 } from '@angular/core';
-import { MathHelper, ResourceOwner } from '@app/framework/internal';
-import { StringHelper } from '../utils/string-helper';
+import { MathHelper, ResourceOwner, StringHelper } from '@app/framework/internal';
 
-const LAYOUT_CACHE: { [key: string]: { width: number, height: number } } = {};
+const LAYOUT_CACHE: { [key: string]: { width: number; height: number } } = {};
 
 @Directive({
-    selector: '[sqxImageSource]'
+    selector: '[sqxImageSource]',
 })
 export class ImageSourceDirective extends ResourceOwner implements OnChanges, OnDestroy, OnInit, AfterViewInit {
     private size: any;
@@ -24,7 +23,8 @@ export class ImageSourceDirective extends ResourceOwner implements OnChanges, On
     public imageSource: string;
 
     @Input()
-    public retryCount = 10;
+    public retryCount = 0;
+
     @Input()
     public layoutKey: string;
 
@@ -34,7 +34,7 @@ export class ImageSourceDirective extends ResourceOwner implements OnChanges, On
     constructor(
         private readonly zone: NgZone,
         private readonly element: ElementRef,
-        private readonly renderer: Renderer2
+        private readonly renderer: Renderer2,
     ) {
         super();
     }
@@ -90,7 +90,7 @@ export class ImageSourceDirective extends ResourceOwner implements OnChanges, On
     }
 
     private resize() {
-        let size: { width: number, height: number } = null!;
+        let size: { width: number; height: number } = null!;
 
         if (this.layoutKey) {
             size = LAYOUT_CACHE[this.layoutKey];
@@ -107,8 +107,8 @@ export class ImageSourceDirective extends ResourceOwner implements OnChanges, On
         }
 
         this.renderer.setStyle(this.element.nativeElement, 'display', 'inline-block');
-        this.renderer.setStyle(this.element.nativeElement, 'width', this.size.width + 'px');
-        this.renderer.setStyle(this.element.nativeElement, 'height', this.size.height + 'px');
+        this.renderer.setStyle(this.element.nativeElement, 'width', `${this.size.width}px`);
+        this.renderer.setStyle(this.element.nativeElement, 'height', `${this.size.height}px`);
 
         this.setImageSource();
     }
@@ -137,7 +137,7 @@ export class ImageSourceDirective extends ResourceOwner implements OnChanges, On
     private retryLoadingImage() {
         this.loadRetries++;
 
-        if (this.loadRetries <= 3) {
+        if (this.loadRetries <= this.retryCount) {
             this.loadTimer =
                 setTimeout(() => {
                     this.loadQuery = MathHelper.guid();

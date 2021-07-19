@@ -1,16 +1,16 @@
 ﻿// ==========================================================================
 //  Squidex Headless CMS
 // ==========================================================================
-//  Copyright (c) Squidex UG (haftungsbeschränkt)
+//  Copyright (c) Squidex UG (haftungsbeschraenkt)
 //  All rights reserved. Licensed under the MIT license.
 // ==========================================================================
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text.RegularExpressions;
 
 #pragma warning disable RECS0026 // Possible unassigned object created by 'new'
+#pragma warning disable CA1806 // Do not ignore method results
 
 namespace Squidex.Infrastructure.Validation
 {
@@ -44,18 +44,6 @@ namespace Squidex.Infrastructure.Validation
             catch (ArgumentException)
             {
                 return false;
-            }
-        }
-
-        public static void Validate(this IValidatable target, Func<string> message)
-        {
-            var errors = new List<ValidationError>();
-
-            target.Validate(errors);
-
-            if (errors.Any())
-            {
-                throw new ValidationException(message(), errors);
             }
         }
     }
